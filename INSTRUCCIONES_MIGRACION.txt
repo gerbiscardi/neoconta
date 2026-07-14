@@ -1,0 +1,70 @@
+# =====================================================================
+# INSTRUCCIONES DE MIGRACIÓN - NeoConta & Antigravity
+# =====================================================================
+
+Este paquete contiene todo lo necesario para trasladar tu proyecto NeoConta y el historial de chats de Antigravity a tu notebook para el fin de semana, y luego traerlo de vuelta a esta PC.
+
+El paquete ZIP contiene:
+1. `neoconta/`           -> Carpeta del proyecto (código, base de datos local y certificados).
+2. `antigravity_brain/`  -> Historial de conversaciones y artefactos de Antigravity.
+3. `restore_notebook.ps1` -> Script para desempaquetar automáticamente todo en tu notebook.
+4. `backup_notebook.ps1`  -> Script para empaquetar todo en tu notebook antes de volver.
+5. `restore_pc.ps1`       -> Script para desempaquetar de vuelta en esta PC.
+
+---
+
+## 1. CÓMO INSTALAR TODO EN TU NOTEBOOK (Viernes/Sábado)
+
+Sigue estos pasos en tu notebook:
+
+1. **Copiar el ZIP**: Copia el archivo `NeoConta_Respaldo_Finde.zip` a tu notebook (ej. en el Escritorio).
+2. **Requisitos previos**:
+   - Asegúrate de tener **Node.js** (versión 18 o superior) instalado en la notebook.
+   - Asegúrate de tener **VS Code** instalado.
+3. **Desempaquetar**:
+   - Haz clic derecho sobre el archivo ZIP y extráelo (por ejemplo, en el Escritorio).
+   - Abre una consola de PowerShell como Administrador.
+   - Ve a la carpeta extraída y ejecuta el script de restauración automática:
+     ```powershell
+     Set-ExecutionPolicy Bypass -Scope Process -Force
+     .\restore_notebook.ps1
+     ```
+   - *Este script ubicará el proyecto en la carpeta correcta de Antigravity en tu notebook (`$HOME\.gemini\antigravity\scratch\neoconta`) y restaurará tu historial de chats (`$HOME\.gemini\antigravity\brain`).*
+4. **Abrir y Correr**:
+   - Abre VS Code en la carpeta del proyecto en tu notebook (`C:\Users\<TU_USUARIO>\.gemini\antigravity\scratch\neoconta`).
+   - Abre una terminal integrada de VS Code y ejecuta:
+     ```bash
+     npm install
+     npm run dev
+     ```
+   - ¡Listo! Podrás interactuar con Antigravity en la notebook y el asistente verá todo tu historial previo.
+
+---
+
+## 2. CÓMO PREPARAR EL RETORNO EN TU NOTEBOOK (Domingo/Lunes)
+
+Cuando termines de trabajar en tu notebook y quieras empaquetar los cambios para traerlos de vuelta:
+
+1. **Cerrar todo**: Cierra VS Code y asegúrate de que no esté corriendo el servidor de desarrollo (`npm run dev`).
+2. **Ejecutar respaldo**:
+   - Ve a la carpeta del proyecto en tu notebook: `C:\Users\<TU_USUARIO>\.gemini\antigravity\scratch\neoconta`.
+   - Haz clic derecho en el archivo `backup_notebook.ps1` y selecciona "Ejecutar con PowerShell" (o ejecútalo desde una terminal de PowerShell).
+3. **Guardar el archivo**:
+   - El script creará un archivo llamado `NeoConta_Retorno.zip` en tu **Escritorio de la notebook**.
+   - Guarda este archivo ZIP en tu pendrive, Google Drive o envíatelo para traerlo a esta PC.
+
+---
+
+## 3. CÓMO RESTAURAR LOS CAMBIOS EN ESTA COMPU (Lunes)
+
+Cuando vuelvas a esta PC para continuar el desarrollo habitual:
+
+1. **Traer el ZIP**: Copia el archivo `NeoConta_Retorno.zip` al **Escritorio** de esta PC.
+2. **Ejecutar la restauración**:
+   - Ve a la carpeta de este proyecto en esta PC: `C:\Users\Germán Biscardi\.gemini\antigravity\scratch\neoconta`.
+   - Haz clic derecho en `restore_pc.ps1` y elige "Ejecutar con PowerShell" (o corre el script desde una consola PowerShell).
+   - El script leerá el archivo del Escritorio, reemplazará el código fuente del proyecto y actualizará el historial del brain de Antigravity con los nuevos chats del fin de semana de forma segura.
+3. **Verificar**:
+   - ¡Abre el proyecto y todo estará exactamente como lo dejaste en tu notebook!
+
+¡Que tengas un excelente y productivo fin de semana! 🚀

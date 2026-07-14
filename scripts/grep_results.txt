@@ -1,0 +1,126 @@
+
+--- Executing: grep -A 15 "AFIP Error processing invoice" /root/.pm2/logs/neoconta-error.log* || echo "No matches" ---
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890
+} ENOENT: no such file or directory, open '/var/www/neoconta/node_modules/afip.ts/lib/auth/tickets/TA-20347467228-wsfe-production.json'
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: "ENOENT: no such file or directory, open '/var/www/neoconta/node_modules/afip.ts/lib/auth/tickets/TA-20347467228-wsfe-production.json'"
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'UNIVERSIDAD DE MENDOZA',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'Universidad de Mendoza',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+AFIP Error processing invoice: {
+  RazonSocial: 'Universidad de Mendoza',
+  CUIT: '30518594466',
+  CondicionIVA: 'Exento',
+  Concepto: 'Honorario por Coordinación de Diplomatura de Kinesiología Dermatofuncional Integral Modulo 11 Junio 2026',
+  Importe: 131890,
+  status: 'rechazado',
+  error: 'Rechazado por regla de negocio de AFIP.'
+} Rechazado por regla de negocio de AFIP.
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+--
+AFIP Error processing invoice: {
+  CUIT: '20326277658',
+  RazonSocial: 'MONTENEGRO BISCARDI GERMAN ALEJANDRO',
+  CondicionIVA: 'Consumidor Final',
+  Total: 1,
+  CbteTipo: 11,
+  PtoVta: 1,
+  ConceptoId: 2,
+  Concepto: 'PRUEBA DE VERIFICACION WEBSERVICE',
+  CbteFch: '2026-06-16',
+  FchServDesde: '2026-06-01',
+  FchServHasta: '2026-06-30',
+  FchVtoPago: '2026-06-26'
+} ns1:coe.notAuthorized: Computador no autorizado a acceder al servicio: {"exceptionName":"gov.afip.desein.dvadac.sua.view.wsaa.LoginFault","hostname":"wsaa2.afip.gov.ar"}
