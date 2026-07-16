@@ -55,20 +55,48 @@ export default function Home() {
               alt="Background"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-black/20"></div> {/* Overlay for contrast */}
+            <div className="absolute inset-0 bg-black/35"></div> {/* Overlay for contrast */}
           </div>
 
-          {/* Centered Logo */}
-          <div className="relative z-10 flex flex-col items-center animate-fade-in-up">
+          {/* Centered Logo & Brand Content */}
+          <div className="relative z-10 flex flex-col items-center text-center px-4 max-w-4xl animate-fade-in-up">
+            {/* H1 for Search Engine indexing (accessible layout, but fits design) */}
+            <h1 className="sr-only">NeoConta - Sistema de gestión para emprendedores y profesionales</h1>
+            
             <img
               src="/assets/logo-white.png"
-              alt="NeoConta"
-              className="w-64 md:w-96 h-auto drop-shadow-2xl"
+              alt="NeoConta - Sistema de gestión para emprendedores"
+              className="w-56 md:w-80 h-auto drop-shadow-2xl mb-6"
             />
+            
+            <div className="bg-[#160b24]/40 backdrop-blur-md rounded-3xl border border-white/10 p-6 md:p-8 max-w-2xl shadow-2xl">
+              <h2 className="text-xl md:text-3xl font-bold tracking-tight text-white mb-4 leading-snug">
+                Organizá las finanzas y la gestión de tu emprendimiento en un solo lugar.
+              </h2>
+              <p className="text-xs md:text-sm text-slate-200 mb-6 font-medium leading-relaxed">
+                Controlá ingresos, gastos, clientes, presupuestos y resultados sin planillas eternas ni sistemas complicados.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link
+                  href="/registro"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-orange-600/20 text-sm flex items-center justify-center gap-2"
+                >
+                  Probar NeoConta
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="#features"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl border border-white/20 transition-all text-sm flex items-center justify-center"
+                >
+                  Conocé las herramientas
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Scroll Indicator */}
-          <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
             <div className="w-8 h-12 border-2 border-white/50 rounded-full flex justify-center pt-2">
               <div className="w-1 h-3 bg-white rounded-full"></div>
             </div>

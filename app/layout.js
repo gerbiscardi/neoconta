@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "NeoConta",
-  description: "Soluciones contables digitales para el futuro de tu negocio.",
+  title: "NeoConta | Sistema de gestión para emprendedores y profesionales",
+  description: "Organizá ingresos, gastos, clientes, presupuestos y la gestión de tu actividad con NeoConta, una plataforma simple para emprendedores y profesionales.",
 };
 
 export default function RootLayout({ children }) {
