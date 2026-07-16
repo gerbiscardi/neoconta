@@ -66,28 +66,28 @@ export default function Home() {
             <img
               src="/assets/logo-white.png"
               alt="NeoConta - Sistema de gestión para emprendedores"
-              className="w-56 md:w-80 h-auto drop-shadow-2xl mb-6"
+              className="w-56 md:w-80 h-auto drop-shadow-2xl mb-8"
             />
             
-            <div className="bg-[#160b24]/40 backdrop-blur-md rounded-3xl border border-white/10 p-6 md:p-8 max-w-2xl shadow-2xl">
-              <h2 className="text-xl md:text-3xl font-bold tracking-tight text-white mb-4 leading-snug">
+            <div className="max-w-2xl px-2">
+              <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-4 leading-snug drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
                 Organizá las finanzas y la gestión de tu emprendimiento en un solo lugar.
               </h2>
-              <p className="text-xs md:text-sm text-slate-200 mb-6 font-medium leading-relaxed">
+              <p className="text-xs md:text-sm text-slate-200/90 mb-8 font-medium leading-relaxed max-w-xl mx-auto drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]">
                 Controlá ingresos, gastos, clientes, presupuestos y resultados sin planillas eternas ni sistemas complicados.
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
                   href="/registro"
-                  className="w-full sm:w-auto px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-orange-600/20 text-sm flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-orange-600/25 text-xs flex items-center justify-center gap-1.5"
                 >
                   Probar NeoConta
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
                 <Link
                   href="#features"
-                  className="w-full sm:w-auto px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl border border-white/20 transition-all text-sm flex items-center justify-center"
+                  className="w-full sm:w-auto px-6 py-2 bg-white/10 hover:bg-white/20 text-white/95 font-semibold rounded-xl border border-white/10 hover:border-white/30 backdrop-blur-sm transition-all text-xs flex items-center justify-center"
                 >
                   Conocé las herramientas
                 </Link>
