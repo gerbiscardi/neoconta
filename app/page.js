@@ -70,10 +70,10 @@ export default function Home() {
             />
             
             <div className="max-w-2xl px-2">
-              <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-4 leading-snug drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+              <h2 className="text-lg md:text-xl font-bold tracking-tight text-white mb-3 leading-snug">
                 Organizá las finanzas y la gestión de tu emprendimiento en un solo lugar.
               </h2>
-              <p className="text-xs md:text-sm text-slate-200/90 mb-8 font-medium leading-relaxed max-w-xl mx-auto drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]">
+              <p className="text-xs md:text-sm text-slate-200/90 mb-6 font-medium leading-relaxed max-w-lg mx-auto">
                 Controlá ingresos, gastos, clientes, presupuestos y resultados sin planillas eternas ni sistemas complicados.
               </p>
               
