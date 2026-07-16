@@ -66,14 +66,14 @@ export default function Home() {
             <img
               src="/assets/logo-white.png"
               alt="NeoConta - Sistema de gestión para emprendedores"
-              className="w-56 md:w-80 h-auto drop-shadow-2xl mb-8"
+              className="w-56 md:w-80 h-auto drop-shadow-2xl mb-14"
             />
             
             <div className="max-w-2xl px-2">
-              <h2 className="text-lg md:text-xl font-bold tracking-tight text-white mb-3 leading-snug">
+              <h2 className="text-lg md:text-xl font-bold tracking-tight text-white mb-4 leading-snug">
                 Menos tiempo administrando. Más tiempo haciendo crecer tu negocio.
               </h2>
-              <p className="text-xs md:text-sm text-slate-200/90 mb-6 font-medium leading-relaxed max-w-2xl mx-auto">
+              <p className="text-xs md:text-sm text-slate-200/90 mb-10 font-medium leading-relaxed max-w-2xl mx-auto">
                 NeoConta es un sistema de gestión para emprendedores y profesionales que reúne las herramientas esenciales para organizar ingresos, gastos, clientes, presupuestos y resultados en un solo lugar.
               </p>
               
