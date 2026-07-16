@@ -73,7 +73,7 @@ export default function Home() {
               <h2 className="text-lg md:text-xl font-bold tracking-tight text-white mb-3 leading-snug">
                 Organizá las finanzas y la gestión de tu emprendimiento en un solo lugar.
               </h2>
-              <p className="text-xs md:text-sm text-slate-200/90 mb-6 font-medium leading-relaxed max-w-lg mx-auto">
+              <p className="text-xs md:text-sm text-slate-200/90 mb-6 font-medium leading-relaxed max-w-none md:whitespace-nowrap">
                 Controlá ingresos, gastos, clientes, presupuestos y resultados sin planillas eternas ni sistemas complicados.
               </p>
               
