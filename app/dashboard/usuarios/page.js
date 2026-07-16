@@ -19,6 +19,78 @@ import {
     FileText
 } from "lucide-react";
 
+const PLAN_DEFAULTS = {
+    base: {
+        facturacionManual: true,
+        facturacionMasiva: false,
+        limiteComprobantes: 50,
+        moduloBanco: true,
+        variasCuentas: false,
+        limiteCuentas: 1,
+        conciliacionAsistida: false,
+        cruceFacturaBanco: false,
+        biBasico: true,
+        biAvanzado: false,
+        biPremium: false,
+        reportesMensuales: false,
+        reportesEjecutivos: false,
+        exportacionDatos: false,
+        alertasSimples: false,
+        alertasInteligentes: false,
+        moduloImagenWeb: false,
+        analisisReputacion: false,
+        acompanamientoMensual: false,
+        usuariosIncluidos: 1,
+        soporteTipo: "estandar"
+    },
+    pro: {
+        facturacionManual: true,
+        facturacionMasiva: true,
+        limiteComprobantes: 300,
+        moduloBanco: true,
+        variasCuentas: true,
+        limiteCuentas: 3,
+        conciliacionAsistida: true,
+        cruceFacturaBanco: true,
+        biBasico: true,
+        biAvanzado: true,
+        biPremium: false,
+        reportesMensuales: true,
+        reportesEjecutivos: false,
+        exportacionDatos: true,
+        alertasSimples: true,
+        alertasInteligentes: false,
+        moduloImagenWeb: false,
+        analisisReputacion: false,
+        acompanamientoMensual: false,
+        usuariosIncluidos: 3,
+        soporteTipo: "prioritario"
+    },
+    full: {
+        facturacionManual: true,
+        facturacionMasiva: true,
+        limiteComprobantes: 1000,
+        moduloBanco: true,
+        variasCuentas: true,
+        limiteCuentas: 5,
+        conciliacionAsistida: true,
+        cruceFacturaBanco: true,
+        biBasico: true,
+        biAvanzado: true,
+        biPremium: true,
+        reportesMensuales: true,
+        reportesEjecutivos: true,
+        exportacionDatos: true,
+        alertasSimples: true,
+        alertasInteligentes: true,
+        moduloImagenWeb: true,
+        analisisReputacion: true,
+        acompanamientoMensual: true,
+        usuariosIncluidos: 5,
+        soporteTipo: "preferencial"
+    }
+};
+
 export default function UsuariosAdmin() {
     const router = useRouter();
     const [currentUser, setCurrentUser] = useState(null);
@@ -41,7 +113,9 @@ export default function UsuariosAdmin() {
         role: "no-cliente",
         tipoUsuario: "recaudador",
         cuit: "",
-        razonSocial: ""
+        razonSocial: "",
+        plan: "base",
+        features: PLAN_DEFAULTS.base
     });
 
     // Authentication and Role check
@@ -89,7 +163,9 @@ export default function UsuariosAdmin() {
             role: "no-cliente",
             tipoUsuario: "recaudador",
             cuit: "",
-            razonSocial: ""
+            razonSocial: "",
+            plan: "base",
+            features: PLAN_DEFAULTS.base
         });
         setMessage(null);
         setShowCreateModal(true);
@@ -105,7 +181,9 @@ export default function UsuariosAdmin() {
             role: user.role || "no-cliente",
             tipoUsuario: user.tipoUsuario || "recaudador",
             cuit: user.cuit || "",
-            razonSocial: user.razonSocial || ""
+            razonSocial: user.razonSocial || "",
+            plan: user.plan || "base",
+            features: user.features || PLAN_DEFAULTS[user.plan || "base"] || PLAN_DEFAULTS.base
         });
         setMessage(null);
         setShowEditModal(true);
@@ -118,6 +196,49 @@ export default function UsuariosAdmin() {
             ...prev,
             [name]: value
         }));
+    };
+
+    const handlePlanChange = (planName) => {
+        setFormData(prev => {
+            const updatedFeatures = planName === 'custom' 
+                ? prev.features 
+                : (PLAN_DEFAULTS[planName] || PLAN_DEFAULTS.base);
+            return {
+                ...prev,
+                plan: planName,
+                features: updatedFeatures
+            };
+        });
+    };
+
+    const handleFeatureChange = (key, value) => {
+        setFormData(prev => {
+            const newFeatures = {
+                ...prev.features,
+                [key]: value
+            };
+            
+            let matchedPlan = 'custom';
+            for (const [planName, defaults] of Object.entries(PLAN_DEFAULTS)) {
+                let matches = true;
+                for (const [k, v] of Object.entries(defaults)) {
+                    if (newFeatures[k] !== v) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) {
+                    matchedPlan = planName;
+                    break;
+                }
+            }
+
+            return {
+                ...prev,
+                plan: matchedPlan,
+                features: newFeatures
+            };
+        });
     };
 
     // Handle user creation
@@ -373,18 +494,30 @@ export default function UsuariosAdmin() {
 
                                             {/* Current Role Badge */}
                                             <td className="p-5">
-                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                                                    isOwner 
-                                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700' 
-                                                        : user.role === 'cliente'
-                                                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                                            : 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
-                                                }`}>
-                                                    <span className={`h-1.5 w-1.5 rounded-full ${
-                                                        isOwner ? 'bg-slate-500' : user.role === 'cliente' ? 'bg-emerald-500' : 'bg-orange-500'
-                                                    }`} />
-                                                    {isOwner ? 'Dueño' : user.role === 'cliente' ? 'Cliente' : 'No Cliente'}
-                                                </span>
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                                                        isOwner 
+                                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700' 
+                                                            : user.role === 'cliente'
+                                                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                                : 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+                                                    }`}>
+                                                        <span className={`h-1.5 w-1.5 rounded-full ${
+                                                            isOwner ? 'bg-slate-500' : user.role === 'cliente' ? 'bg-emerald-500' : 'bg-orange-500'
+                                                        }`} />
+                                                        {isOwner ? 'Dueño' : user.role === 'cliente' ? 'Cliente' : 'No Cliente'}
+                                                    </span>
+                                                    {user.role === 'cliente' && (
+                                                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wide border mt-0.5 ${
+                                                            user.plan === 'base' ? 'bg-blue-500/5 text-blue-600 dark:text-blue-400 border-blue-500/15' :
+                                                            user.plan === 'pro' ? 'bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/15' :
+                                                            user.plan === 'full' ? 'bg-purple-500/5 text-purple-600 dark:text-purple-400 border-purple-500/15' :
+                                                            'bg-orange-500/5 text-orange-600 dark:text-orange-400 border-orange-500/15'
+                                                        }`}>
+                                                            {user.plan === 'custom' ? 'Personalizado' : `Plan ${user.plan}`}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             {/* Actions */}
@@ -531,6 +664,269 @@ export default function UsuariosAdmin() {
                                 </div>
                             </div>
 
+                            {formData.role === 'cliente' && (
+                                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-4 animate-fade-in-quick">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs text-slate-400 font-bold uppercase">Plan y Control de Módulos</p>
+                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                            formData.plan === 'base' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
+                                            formData.plan === 'pro' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
+                                            formData.plan === 'full' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
+                                            'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+                                        }`}>
+                                            {formData.plan === 'custom' ? 'Personalizado' : `Plan ${formData.plan}`}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">Seleccionar Plan</label>
+                                        <select
+                                            value={formData.plan}
+                                            onChange={(e) => handlePlanChange(e.target.value)}
+                                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 font-semibold cursor-pointer"
+                                        >
+                                            <option value="base">Plan Base (50 comp/mes, 1 cuenta banco)</option>
+                                            <option value="pro">Plan Pro (300 comp/mes, 3 cuentas banco, Conciliación)</option>
+                                            <option value="full">Plan Full (1000 comp/mes, 5 cuentas, ORM CoMentor)</option>
+                                            <option value="custom">Personalizado / Módulos Específicos</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        {/* Facturación */}
+                                        <div className="space-y-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Facturación</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.facturacionManual}
+                                                        onChange={(e) => handleFeatureChange('facturacionManual', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Facturación Manual</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.facturacionMasiva}
+                                                        onChange={(e) => handleFeatureChange('facturacionMasiva', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Facturación Masiva ARCA</span>
+                                                </label>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 text-xs pt-1">
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                                                    <span>Límite de Comprobantes/Mes</span>
+                                                    <input
+                                                        type="number"
+                                                        value={formData.features.limiteComprobantes}
+                                                        onChange={(e) => handleFeatureChange('limiteComprobantes', Number(e.target.value))}
+                                                        className="w-20 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Cuentas y Conciliación Bancaria */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cuentas y Conciliación</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.moduloBanco}
+                                                        onChange={(e) => handleFeatureChange('moduloBanco', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Módulo Banco Básico</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.variasCuentas}
+                                                        onChange={(e) => handleFeatureChange('variasCuentas', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Varias Cuentas Bancarias</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.conciliacionAsistida}
+                                                        onChange={(e) => handleFeatureChange('conciliacionAsistida', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Conciliación Asistida</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.cruceFacturaBanco}
+                                                        onChange={(e) => handleFeatureChange('cruceFacturaBanco', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Cruce Factura/Banco</span>
+                                                </label>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 text-xs pt-1">
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                                                    <span>Límite de Cuentas Bancarias</span>
+                                                    <input
+                                                        type="number"
+                                                        value={formData.features.limiteCuentas}
+                                                        onChange={(e) => handleFeatureChange('limiteCuentas', Number(e.target.value))}
+                                                        className="w-20 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Business Intelligence */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Business Intelligence (BI)</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.biBasico}
+                                                        onChange={(e) => handleFeatureChange('biBasico', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>BI Básico</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.biAvanzado}
+                                                        onChange={(e) => handleFeatureChange('biAvanzado', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>BI Avanzado</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.biPremium}
+                                                        onChange={(e) => handleFeatureChange('biPremium', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>BI Premium / Ejecutivo</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.exportacionDatos}
+                                                        onChange={(e) => handleFeatureChange('exportacionDatos', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Exportación de Datos</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.reportesMensuales}
+                                                        onChange={(e) => handleFeatureChange('reportesMensuales', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Reportes Mensuales</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.reportesEjecutivos}
+                                                        onChange={(e) => handleFeatureChange('reportesEjecutivos', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Reportes Ejecutivos</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Reputación Digital (CoMentor) & Alertas */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Reputación y Alertas</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.alertasSimples}
+                                                        onChange={(e) => handleFeatureChange('alertasSimples', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Alertas Simples</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.alertasInteligentes}
+                                                        onChange={(e) => handleFeatureChange('alertasInteligentes', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Alertas Inteligentes</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.moduloImagenWeb}
+                                                        onChange={(e) => handleFeatureChange('moduloImagenWeb', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Módulo Imagen Web (CoMentor)</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.analisisReputacion}
+                                                        onChange={(e) => handleFeatureChange('analisisReputacion', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Análisis de Reputación</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 col-span-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.acompanamientoMensual}
+                                                        onChange={(e) => handleFeatureChange('acompanamientoMensual', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Acompañamiento Mensual</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Soporte y Usuarios */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Soporte y Usuarios</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300 col-span-2">
+                                                    <span>Usuarios Incluidos</span>
+                                                    <input
+                                                        type="number"
+                                                        value={formData.features.usuariosIncluidos}
+                                                        onChange={(e) => handleFeatureChange('usuariosIncluidos', Number(e.target.value))}
+                                                        className="w-20 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300 col-span-2">
+                                                    <span>Tipo de Soporte</span>
+                                                    <select
+                                                        value={formData.features.soporteTipo}
+                                                        onChange={(e) => handleFeatureChange('soporteTipo', e.target.value)}
+                                                        className="w-32 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    >
+                                                        <option value="estandar">Estándar</option>
+                                                        <option value="prioritario">Prioritario</option>
+                                                        <option value="preferencial">Preferencial</option>
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                                 <button
                                     type="button"
@@ -665,6 +1061,269 @@ export default function UsuariosAdmin() {
                                     </div>
                                 </div>
                             </div>
+
+                            {formData.role === 'cliente' && (
+                                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-4 animate-fade-in-quick">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs text-slate-400 font-bold uppercase">Plan y Control de Módulos</p>
+                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                            formData.plan === 'base' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
+                                            formData.plan === 'pro' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
+                                            formData.plan === 'full' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
+                                            'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+                                        }`}>
+                                            {formData.plan === 'custom' ? 'Personalizado' : `Plan ${formData.plan}`}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">Seleccionar Plan</label>
+                                        <select
+                                            value={formData.plan}
+                                            onChange={(e) => handlePlanChange(e.target.value)}
+                                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 font-semibold cursor-pointer"
+                                        >
+                                            <option value="base">Plan Base (50 comp/mes, 1 cuenta banco)</option>
+                                            <option value="pro">Plan Pro (300 comp/mes, 3 cuentas banco, Conciliación)</option>
+                                            <option value="full">Plan Full (1000 comp/mes, 5 cuentas, ORM CoMentor)</option>
+                                            <option value="custom">Personalizado / Módulos Específicos</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        {/* Facturación */}
+                                        <div className="space-y-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Facturación</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.facturacionManual}
+                                                        onChange={(e) => handleFeatureChange('facturacionManual', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Facturación Manual</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.facturacionMasiva}
+                                                        onChange={(e) => handleFeatureChange('facturacionMasiva', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Facturación Masiva ARCA</span>
+                                                </label>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 text-xs pt-1">
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                                                    <span>Límite de Comprobantes/Mes</span>
+                                                    <input
+                                                        type="number"
+                                                        value={formData.features.limiteComprobantes}
+                                                        onChange={(e) => handleFeatureChange('limiteComprobantes', Number(e.target.value))}
+                                                        className="w-20 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Cuentas y Conciliación Bancaria */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cuentas y Conciliación</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.moduloBanco}
+                                                        onChange={(e) => handleFeatureChange('moduloBanco', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Módulo Banco Básico</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.variasCuentas}
+                                                        onChange={(e) => handleFeatureChange('variasCuentas', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Varias Cuentas Bancarias</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.conciliacionAsistida}
+                                                        onChange={(e) => handleFeatureChange('conciliacionAsistida', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Conciliación Asistida</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.cruceFacturaBanco}
+                                                        onChange={(e) => handleFeatureChange('cruceFacturaBanco', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Cruce Factura/Banco</span>
+                                                </label>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 text-xs pt-1">
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                                                    <span>Límite de Cuentas Bancarias</span>
+                                                    <input
+                                                        type="number"
+                                                        value={formData.features.limiteCuentas}
+                                                        onChange={(e) => handleFeatureChange('limiteCuentas', Number(e.target.value))}
+                                                        className="w-20 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Business Intelligence */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Business Intelligence (BI)</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.biBasico}
+                                                        onChange={(e) => handleFeatureChange('biBasico', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>BI Básico</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.biAvanzado}
+                                                        onChange={(e) => handleFeatureChange('biAvanzado', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>BI Avanzado</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.biPremium}
+                                                        onChange={(e) => handleFeatureChange('biPremium', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>BI Premium / Ejecutivo</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.exportacionDatos}
+                                                        onChange={(e) => handleFeatureChange('exportacionDatos', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Exportación de Datos</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.reportesMensuales}
+                                                        onChange={(e) => handleFeatureChange('reportesMensuales', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Reportes Mensuales</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.reportesEjecutivos}
+                                                        onChange={(e) => handleFeatureChange('reportesEjecutivos', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Reportes Ejecutivos</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Reputación Digital (CoMentor) & Alertas */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Reputación y Alertas</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.alertasSimples}
+                                                        onChange={(e) => handleFeatureChange('alertasSimples', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Alertas Simples</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.alertasInteligentes}
+                                                        onChange={(e) => handleFeatureChange('alertasInteligentes', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Alertas Inteligentes</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.moduloImagenWeb}
+                                                        onChange={(e) => handleFeatureChange('moduloImagenWeb', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Módulo Imagen Web (CoMentor)</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.analisisReputacion}
+                                                        onChange={(e) => handleFeatureChange('analisisReputacion', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Análisis de Reputación</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 col-span-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.features.acompanamientoMensual}
+                                                        onChange={(e) => handleFeatureChange('acompanamientoMensual', e.target.checked)}
+                                                        className="rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>Acompañamiento Mensual</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Soporte y Usuarios */}
+                                        <div className="space-y-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2">
+                                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Soporte y Usuarios</h5>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300 col-span-2">
+                                                    <span>Usuarios Incluidos</span>
+                                                    <input
+                                                        type="number"
+                                                        value={formData.features.usuariosIncluidos}
+                                                        onChange={(e) => handleFeatureChange('usuariosIncluidos', Number(e.target.value))}
+                                                        className="w-20 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between text-slate-700 dark:text-slate-300 col-span-2">
+                                                    <span>Tipo de Soporte</span>
+                                                    <select
+                                                        value={formData.features.soporteTipo}
+                                                        onChange={(e) => handleFeatureChange('soporteTipo', e.target.value)}
+                                                        className="w-32 px-2 py-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"
+                                                    >
+                                                        <option value="estandar">Estándar</option>
+                                                        <option value="prioritario">Prioritario</option>
+                                                        <option value="preferencial">Preferencial</option>
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                                 <button

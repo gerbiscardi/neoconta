@@ -34,7 +34,8 @@ export default function FacturacionPage() {
     const [results, setResults] = useState([]);
     const [totalRows, setTotalRows] = useState(0);
     const [historyLoaded, setHistoryLoaded] = useState(false);
-    const [issuerConfig, setIssuerConfig] = useState({ razonSocial: "", cuit: "", logo: "", hasCert: false });
+    const [issuerConfig, setIssuerConfig] = useState({ razonSocial: "", cuit: "", logo: "", hasCert: false, plan: "base", features: {} });
+    const [monthlyInvoiceCount, setMonthlyInvoiceCount] = useState(0);
 
     // Inflation Adjusted States
     const [inflationRates, setInflationRates] = useState([]);
@@ -177,7 +178,9 @@ export default function FacturacionPage() {
                         razonSocial: data.razonSocial || "",
                         cuit: data.cuit || "",
                         logo: data.logo || "",
-                        hasCert: data.hasCert || false
+                        hasCert: data.hasCert || false,
+                        plan: data.plan || "base",
+                        features: data.features || {}
                     });
                 }
             }
@@ -241,6 +244,9 @@ export default function FacturacionPage() {
             const res = await fetch(url);
             if (res.ok) {
                 const historyData = await res.json();
+                if (historyData.currentMonthInvoiceCount !== undefined) {
+                    setMonthlyInvoiceCount(historyData.currentMonthInvoiceCount);
+                }
                 if (historyData.history) {
                     const normalizedHistory = historyData.history.map(inv => ({
                         ...inv,
@@ -251,11 +257,11 @@ export default function FacturacionPage() {
                     }));
                     setResults(normalizedHistory);
                     setTotalRows(historyData.total || 0);
-                } else {
+                }
+            } else {
                     setResults([]);
                     setTotalRows(0);
                 }
-            }
         } catch (error) {
             console.error("Error loading invoice history", error);
         } finally {
@@ -1685,30 +1691,64 @@ export default function FacturacionPage() {
                         Plantilla Excel
                     </button>
 
-                    {/* Cargar archivo button */}
-                    <label className="relative cursor-pointer">
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls"
-                            onChange={handleFileUpload}
-                            disabled={processing}
-                            className="sr-only"
-                        />
-                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all ${processing
-                            ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
-                            : "bg-white text-slate-700 border border-slate-300 shadow-sm hover:bg-slate-50 hover:shadow dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800"
-                            }`}>
-                            <FileSpreadsheet className="h-4 w-4 text-green-600 animate-bounce" />
-                            {file ? `Cambiar: ${file.name.substring(0, 15)}...` : "Subir Excel de Facturas"}
+                    {/* Monthly Limit Info / Warning */}
+                    {issuerConfig.features.limiteComprobantes !== undefined && (
+                        <div className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold border ${
+                            issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes
+                                ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' 
+                                : (monthlyInvoiceCount / issuerConfig.features.limiteComprobantes) >= 0.8
+                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                    : 'bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-slate-800'
+                        }`}>
+                            <TrendingUp className="h-4 w-4" />
+                            <span>
+                                Comprobantes del mes: {monthlyInvoiceCount} / {issuerConfig.features.limiteComprobantes}
+                                {issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes && " (Límite alcanzado)"}
+                            </span>
                         </div>
-                    </label>
+                    )}
+
+                    {issuerConfig.features.facturacionMasiva ? (
+                        <label className="cursor-pointer">
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleFileUpload}
+                                disabled={processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)}
+                                className="sr-only"
+                            />
+                            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all ${
+                                processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)
+                                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                                    : "bg-white text-slate-700 border border-slate-300 shadow-sm hover:bg-slate-50 hover:shadow dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800"
+                            }`}>
+                                <FileSpreadsheet className="h-4 w-4 text-green-600 animate-bounce" />
+                                {file ? `Cambiar: ${file.name.substring(0, 15)}...` : "Subir Excel de Facturas"}
+                            </div>
+                        </label>
+                    ) : (
+                        <div className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-100/80 dark:bg-slate-900/60 text-slate-400 rounded-xl text-xs border border-slate-200 dark:border-slate-800 font-medium">
+                            <Lock className="h-3.5 w-3.5 text-slate-400" />
+                            <span>Facturación Masiva bloqueada en este plan</span>
+                        </div>
+                    )}
 
                     {/* Emitir Comprobante Individual button */}
                     <button
-                        onClick={() => setIsIndividualModalOpen(true)}
-                        disabled={processing}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-xl transition-all shadow-sm border border-orange-700 hover:shadow cursor-pointer"
-                        title="Emitir un comprobante individual (Factura, Nota de Crédito/Débito, etc.)"
+                        onClick={() => {
+                            if (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes) {
+                                alert("Has alcanzado el límite de comprobantes mensuales para tu plan. Contacta al administrador para subir de plan.");
+                            } else {
+                                setIsIndividualModalOpen(true);
+                            }
+                        }}
+                        disabled={processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)}
+                        className={`flex items-center gap-2 px-4 py-2.5 font-medium rounded-xl transition-all shadow-sm border ${
+                            processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)
+                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                                : "bg-orange-600 hover:bg-orange-700 text-white border-orange-700 hover:shadow cursor-pointer shadow-orange-600/10"
+                        }`}
+                        title={issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes ? "Límite mensual alcanzado" : "Emitir un comprobante individual (Factura, Nota de Crédito/Débito, etc.)"}
                     >
                         <PlusCircle className="h-4.5 w-4.5" />
                         Comprobante Individual

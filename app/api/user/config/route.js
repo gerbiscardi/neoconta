@@ -3,6 +3,78 @@ import { writeFile, readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
+const PLAN_DEFAULTS = {
+    base: {
+        facturacionManual: true,
+        facturacionMasiva: false,
+        limiteComprobantes: 50,
+        moduloBanco: true,
+        variasCuentas: false,
+        limiteCuentas: 1,
+        conciliacionAsistida: false,
+        cruceFacturaBanco: false,
+        biBasico: true,
+        biAvanzado: false,
+        biPremium: false,
+        reportesMensuales: false,
+        reportesEjecutivos: false,
+        exportacionDatos: false,
+        alertasSimples: false,
+        alertasInteligentes: false,
+        moduloImagenWeb: false,
+        analisisReputacion: false,
+        acompanamientoMensual: false,
+        usuariosIncluidos: 1,
+        soporteTipo: "estandar"
+    },
+    pro: {
+        facturacionManual: true,
+        facturacionMasiva: true,
+        limiteComprobantes: 300,
+        moduloBanco: true,
+        variasCuentas: true,
+        limiteCuentas: 3,
+        conciliacionAsistida: true,
+        cruceFacturaBanco: true,
+        biBasico: true,
+        biAvanzado: true,
+        biPremium: false,
+        reportesMensuales: true,
+        reportesEjecutivos: false,
+        exportacionDatos: true,
+        alertasSimples: true,
+        alertasInteligentes: false,
+        moduloImagenWeb: false,
+        analisisReputacion: false,
+        acompanamientoMensual: false,
+        usuariosIncluidos: 3,
+        soporteTipo: "prioritario"
+    },
+    full: {
+        facturacionManual: true,
+        facturacionMasiva: true,
+        limiteComprobantes: 1000,
+        moduloBanco: true,
+        variasCuentas: true,
+        limiteCuentas: 5,
+        conciliacionAsistida: true,
+        cruceFacturaBanco: true,
+        biBasico: true,
+        biAvanzado: true,
+        biPremium: true,
+        reportesMensuales: true,
+        reportesEjecutivos: true,
+        exportacionDatos: true,
+        alertasSimples: true,
+        alertasInteligentes: true,
+        moduloImagenWeb: true,
+        analisisReputacion: true,
+        acompanamientoMensual: true,
+        usuariosIncluidos: 5,
+        soporteTipo: "preferencial"
+    }
+};
+
 export async function GET(request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -22,13 +94,17 @@ export async function GET(request) {
             config = JSON.parse(fileData);
         }
 
+        const assignedPlan = config.plan || "base";
+
         return NextResponse.json({
             success: true,
             razonSocial: config.razonSocial || "",
             cuit: config.cuit || "",
             production: config.production === true,
             logo: config.logo || "",
-            hasCert: existsSync(certPath)
+            hasCert: existsSync(certPath),
+            plan: assignedPlan,
+            features: config.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base
         });
 
     } catch (error) {

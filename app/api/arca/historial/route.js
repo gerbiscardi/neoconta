@@ -126,6 +126,31 @@ export async function GET(request) {
             status: inv.status || 'aprobado'
         }));
 
+        // Calculate current month's approved invoice count
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        let currentMonthInvoiceCount = 0;
+
+        normalized.forEach(inv => {
+            if (inv.status !== 'aprobado') return;
+            const dateStr = inv.created_at || inv.cbteFch;
+            if (dateStr) {
+                let invDate;
+                if (String(dateStr).includes('-') || String(dateStr).includes('/')) {
+                    invDate = new Date(dateStr);
+                } else if (String(dateStr).length === 8) {
+                    const year = parseInt(String(dateStr).substring(0, 4), 10);
+                    const month = parseInt(String(dateStr).substring(4, 6), 10) - 1;
+                    const day = parseInt(String(dateStr).substring(6, 8), 10);
+                    invDate = new Date(year, month, day);
+                }
+                if (invDate && invDate.getFullYear() === currentYear && invDate.getMonth() === currentMonth) {
+                    currentMonthInvoiceCount++;
+                }
+            }
+        });
+
         const isFrequent = searchParams.get('frequent') === 'true';
 
         if (isFrequent) {
@@ -331,7 +356,8 @@ export async function GET(request) {
 
             return NextResponse.json({
                 history: paginated,
-                total: filtered.length
+                total: filtered.length,
+                currentMonthInvoiceCount
             });
         }
 
@@ -342,7 +368,8 @@ export async function GET(request) {
 
         return NextResponse.json({
             history: finalHistory,
-            total: filtered.length
+            total: filtered.length,
+            currentMonthInvoiceCount
         });
 
     } catch (error) {

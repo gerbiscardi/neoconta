@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 export default function DashboardLayout({ children }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
+    const [userConfig, setUserConfig] = useState(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
@@ -15,11 +16,45 @@ export default function DashboardLayout({ children }) {
         const userStr = localStorage.getItem('neoconta_user');
         if (!userStr) {
             router.push("/login");
+            setLoading(false);
         } else {
-            setCurrentUser(JSON.parse(userStr));
+            const user = JSON.parse(userStr);
+            setCurrentUser(user);
+            
+            if (user.role === 'cliente') {
+                fetch(`/api/user/config?userId=${user.id}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            setUserConfig(data);
+                        }
+                        setLoading(false);
+                    })
+                    .catch(err => {
+                        console.error("Error loading config:", err);
+                        setLoading(false);
+                    });
+            } else {
+                setLoading(false);
+            }
         }
-        setLoading(false);
     }, [router]);
+
+    useEffect(() => {
+        if (!loading && currentUser && currentUser.role === 'cliente' && userConfig) {
+            const features = userConfig.features || {};
+            const path = pathname;
+            if (path === '/dashboard/commentor' && !features.moduloImagenWeb) {
+                router.push('/dashboard');
+            } else if (path === '/dashboard/commander' && !(features.biBasico || features.biAvanzado || features.biPremium)) {
+                router.push('/dashboard');
+            } else if (path === '/dashboard/banco' && !features.moduloBanco) {
+                router.push('/dashboard');
+            } else if (path === '/dashboard/facturacion' && !(features.facturacionManual || features.facturacionMasiva)) {
+                router.push('/dashboard');
+            }
+        }
+    }, [pathname, loading, currentUser, userConfig, router]);
 
     const handleLogout = () => {
         localStorage.removeItem('neoconta_user');
@@ -59,48 +94,71 @@ export default function DashboardLayout({ children }) {
                 gradient: "from-emerald-500 to-teal-500",
                 activeStyle: "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm",
                 inactiveHoverStyle: "hover:border-emerald-500/20 hover:bg-emerald-500/5 dark:hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400"
-            },
-            { 
-                name: "Facturación Masiva", 
+            }
+        ];
+
+        const features = userConfig?.features || {
+            facturacionManual: true,
+            facturacionMasiva: true,
+            moduloBanco: true,
+            biBasico: true,
+            biAvanzado: true,
+            biPremium: true,
+            moduloImagenWeb: true
+        };
+
+        if (features.facturacionManual || features.facturacionMasiva) {
+            items.push({ 
+                name: features.facturacionMasiva ? "Facturación Masiva" : "Facturación Manual", 
                 icon: <FileText className="h-5 w-5" />, 
                 href: "/dashboard/facturacion",
                 gradient: "from-blue-500 to-indigo-500",
                 activeStyle: "border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 shadow-sm",
                 inactiveHoverStyle: "hover:border-blue-500/20 hover:bg-blue-500/5 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400"
-            },
-            { 
+            });
+        }
+
+        if (features.biBasico || features.biAvanzado || features.biPremium) {
+            items.push({ 
                 name: "Commander BI", 
                 icon: <LineChart className="h-5 w-5" />, 
                 href: "/dashboard/commander",
                 gradient: "from-rose-500 to-pink-500",
                 activeStyle: "border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-sm",
                 inactiveHoverStyle: "hover:border-rose-500/20 hover:bg-rose-500/5 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
-            },
-            { 
+            });
+        }
+
+        if (features.moduloBanco) {
+            items.push({ 
                 name: "Banco", 
                 icon: <Wallet className="h-5 w-5" />, 
                 href: "/dashboard/banco",
                 gradient: "from-violet-500 to-fuchsia-500",
                 activeStyle: "border-violet-500/30 bg-violet-500/5 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 shadow-sm",
                 inactiveHoverStyle: "hover:border-violet-500/20 hover:bg-violet-500/5 dark:hover:bg-violet-500/10 hover:text-violet-600 dark:hover:text-violet-400"
-            },
-            { 
+            });
+        }
+
+        if (features.moduloImagenWeb) {
+            items.push({ 
                 name: "Commentor", 
                 icon: <MessageSquare className="h-5 w-5" />, 
                 href: "/dashboard/commentor",
                 gradient: "from-orange-500 to-amber-500",
                 activeStyle: "border-orange-500/30 bg-orange-500/5 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 shadow-sm",
-                inactiveHoverStyle: "hover:border-orange-500/20 hover:bg-orange-500/5 dark:hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
-            },
-            { 
-                name: "Configuración", 
-                icon: <Settings className="h-5 w-5" />, 
-                href: "/dashboard/configuracion",
-                gradient: "from-slate-400 to-slate-500",
-                activeStyle: "border-slate-500/30 bg-slate-500/5 dark:bg-slate-500/10 text-slate-600 dark:text-slate-400 shadow-sm",
-                inactiveHoverStyle: "hover:border-slate-500/20 hover:bg-slate-500/5 dark:hover:bg-slate-500/10 hover:text-slate-600 dark:hover:text-slate-400"
-            },
-        ];
+                inactiveHoverStyle: "hover:border-orange-500/20 hover:bg-orange-500/5 dark:hover:bg-emerald-500/10 hover:text-orange-600 dark:hover:text-orange-400"
+            });
+        }
+
+        items.push({ 
+            name: "Configuración", 
+            icon: <Settings className="h-5 w-5" />, 
+            href: "/dashboard/configuracion",
+            gradient: "from-slate-400 to-slate-500",
+            activeStyle: "border-slate-500/30 bg-slate-500/5 dark:bg-slate-500/10 text-slate-600 dark:text-slate-400 shadow-sm",
+            inactiveHoverStyle: "hover:border-slate-500/20 hover:bg-slate-500/5 dark:hover:bg-slate-500/10 hover:text-slate-600 dark:hover:text-slate-400"
+        });
 
         if (role === 'owner') {
             items.push({

@@ -4,6 +4,78 @@ import { join } from 'path';
 
 const DB_PATH = join(process.cwd(), 'data', 'users.json');
 
+const PLAN_DEFAULTS = {
+    base: {
+        facturacionManual: true,
+        facturacionMasiva: false,
+        limiteComprobantes: 50,
+        moduloBanco: true,
+        variasCuentas: false,
+        limiteCuentas: 1,
+        conciliacionAsistida: false,
+        cruceFacturaBanco: false,
+        biBasico: true,
+        biAvanzado: false,
+        biPremium: false,
+        reportesMensuales: false,
+        reportesEjecutivos: false,
+        exportacionDatos: false,
+        alertasSimples: false,
+        alertasInteligentes: false,
+        moduloImagenWeb: false,
+        analisisReputacion: false,
+        acompanamientoMensual: false,
+        usuariosIncluidos: 1,
+        soporteTipo: "estandar"
+    },
+    pro: {
+        facturacionManual: true,
+        facturacionMasiva: true,
+        limiteComprobantes: 300,
+        moduloBanco: true,
+        variasCuentas: true,
+        limiteCuentas: 3,
+        conciliacionAsistida: true,
+        cruceFacturaBanco: true,
+        biBasico: true,
+        biAvanzado: true,
+        biPremium: false,
+        reportesMensuales: true,
+        reportesEjecutivos: false,
+        exportacionDatos: true,
+        alertasSimples: true,
+        alertasInteligentes: false,
+        moduloImagenWeb: false,
+        analisisReputacion: false,
+        acompanamientoMensual: false,
+        usuariosIncluidos: 3,
+        soporteTipo: "prioritario"
+    },
+    full: {
+        facturacionManual: true,
+        facturacionMasiva: true,
+        limiteComprobantes: 1000,
+        moduloBanco: true,
+        variasCuentas: true,
+        limiteCuentas: 5,
+        conciliacionAsistida: true,
+        cruceFacturaBanco: true,
+        biBasico: true,
+        biAvanzado: true,
+        biPremium: true,
+        reportesMensuales: true,
+        reportesEjecutivos: true,
+        exportacionDatos: true,
+        alertasSimples: true,
+        alertasInteligentes: true,
+        moduloImagenWeb: true,
+        analisisReputacion: true,
+        acompanamientoMensual: true,
+        usuariosIncluidos: 5,
+        soporteTipo: "preferencial"
+    }
+};
+
 async function getUsers() {
     try {
         const data = await readFile(DB_PATH, 'utf-8');
@@ -59,15 +131,19 @@ export async function GET(request) {
                 lastInvoiceDate: null
             };
 
-            // Load CUIT and Razón Social from config.json if they exist
+            // Load CUIT, Razón Social, Plan and Features from config.json if they exist
             userInfo.cuit = "";
             userInfo.razonSocial = "";
+            userInfo.plan = "base";
+            userInfo.features = PLAN_DEFAULTS.base;
             try {
                 const configJsonPath = join(process.cwd(), 'data', 'users', user.id, 'config.json');
                 const configData = await readFile(configJsonPath, 'utf-8');
                 const userConfig = JSON.parse(configData);
                 userInfo.cuit = userConfig.cuit || "";
                 userInfo.razonSocial = userConfig.razonSocial || "";
+                userInfo.plan = userConfig.plan || "base";
+                userInfo.features = userConfig.features || PLAN_DEFAULTS[userInfo.plan] || PLAN_DEFAULTS.base;
             } catch (e) {
                 // Ignore missing config files
             }
@@ -142,7 +218,7 @@ export async function GET(request) {
 // POST: Create a new user (For owner only)
 export async function POST(request) {
     try {
-        const { callerRole, nombre, email, password, role, tipoUsuario, cuit, razonSocial } = await request.json();
+        const { callerRole, nombre, email, password, role, tipoUsuario, cuit, razonSocial, plan, features } = await request.json();
 
         if (callerRole !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
@@ -177,12 +253,27 @@ export async function POST(request) {
         users.push(newUser);
         await saveUsers(users);
 
-        // If CUIT or Razón Social are provided, save config.json
-        if (cuit || razonSocial) {
+        // Save config.json for clients
+        if (role === 'cliente' || cuit || razonSocial) {
             const userDir = join(process.cwd(), 'data', 'users', userId);
             await mkdir(userDir, { recursive: true });
             const configPath = join(userDir, 'config.json');
-            await writeFile(configPath, JSON.stringify({ cuit: cuit || "", razonSocial: razonSocial || "" }, null, 2), 'utf-8');
+            
+            let existingConfig = {};
+            try {
+                const configData = await readFile(configPath, 'utf-8');
+                existingConfig = JSON.parse(configData);
+            } catch (e) {}
+
+            const assignedPlan = plan || "base";
+            const updatedConfig = {
+                ...existingConfig,
+                cuit: cuit || "",
+                razonSocial: razonSocial || "",
+                plan: assignedPlan,
+                features: features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base
+            };
+            await writeFile(configPath, JSON.stringify(updatedConfig, null, 2), 'utf-8');
         }
 
         return NextResponse.json({ success: true, message: "Usuario creado exitosamente.", userId });
@@ -196,7 +287,7 @@ export async function POST(request) {
 // PUT: Edit user details (For owner only)
 export async function PUT(request) {
     try {
-        const { callerRole, userId, nombre, email, password, role, tipoUsuario, cuit, razonSocial } = await request.json();
+        const { callerRole, userId, nombre, email, password, role, tipoUsuario, cuit, razonSocial, plan, features } = await request.json();
 
         if (callerRole !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
@@ -237,11 +328,28 @@ export async function PUT(request) {
 
         await saveUsers(users);
 
-        // Update config.json (CUIT/Razón Social)
-        const userDir = join(process.cwd(), 'data', 'users', userId);
-        await mkdir(userDir, { recursive: true });
-        const configPath = join(userDir, 'config.json');
-        await writeFile(configPath, JSON.stringify({ cuit: cuit || "", razonSocial: razonSocial || "" }, null, 2), 'utf-8');
+        // Update config.json (CUIT/Razón Social/Plan/Features)
+        if (role === 'cliente' || cuit || razonSocial) {
+            const userDir = join(process.cwd(), 'data', 'users', userId);
+            await mkdir(userDir, { recursive: true });
+            const configPath = join(userDir, 'config.json');
+
+            let existingConfig = {};
+            try {
+                const configData = await readFile(configPath, 'utf-8');
+                existingConfig = JSON.parse(configData);
+            } catch (e) {}
+
+            const assignedPlan = plan || existingConfig.plan || "base";
+            const updatedConfig = {
+                ...existingConfig,
+                cuit: cuit || "",
+                razonSocial: razonSocial || "",
+                plan: assignedPlan,
+                features: features || existingConfig.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base
+            };
+            await writeFile(configPath, JSON.stringify(updatedConfig, null, 2), 'utf-8');
+        }
 
         return NextResponse.json({ success: true, message: "Usuario actualizado exitosamente." });
 

@@ -11,6 +11,7 @@ export default function BankingPage() {
     const [importing, setImporting] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedTx, setSelectedTx] = useState(null);
+    const [userConfig, setUserConfig] = useState(null);
 
     useEffect(() => {
         const userStr = localStorage.getItem('neoconta_user');
@@ -23,6 +24,17 @@ export default function BankingPage() {
             router.push("/dashboard");
             return;
         }
+
+        // Fetch user config/features
+        fetch(`/api/user/config?userId=${user.id}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    setUserConfig(data);
+                }
+            })
+            .catch(err => console.error("Error loading config:", err));
+
         loadTransactions();
     }, [router]);
 
@@ -117,6 +129,12 @@ export default function BankingPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {userConfig?.features?.limiteCuentas !== undefined && (
+                        <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-slate-800">
+                            <Scale className="h-3.5 w-3.5 text-orange-600" />
+                            <span>Límite de Cuentas: {userConfig.features.limiteCuentas}</span>
+                        </div>
+                    )}
                     <label className="relative cursor-pointer">
                         <input
                             type="file"
@@ -261,6 +279,7 @@ export default function BankingPage() {
             {selectedTx && (
                 <BankingDetailModal
                     transactionId={selectedTx.id}
+                    features={userConfig?.features || {}}
                     onClose={() => {
                         setSelectedTx(null);
                         loadTransactions(); // refresh to get potential invoice link updates

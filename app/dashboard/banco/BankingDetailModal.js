@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { X, Search, Link as LinkIcon, AlertCircle, FileText, CheckCircle2, Copy } from "lucide-react";
 
-export default function BankingDetailModal({ transactionId, onClose }) {
+export default function BankingDetailModal({ transactionId, features = {}, onClose }) {
     const [details, setDetails] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -119,7 +119,7 @@ export default function BankingDetailModal({ transactionId, onClose }) {
                 let invoicesToScore = rawInvoices;
                 
                 // If we have a transaction to match, send it to Python FastAPI to compute XGBoost matching scores!
-                if (details && details.transaction && invoicesToScore.length > 0) {
+                if (features.conciliacionAsistida !== false && details && details.transaction && invoicesToScore.length > 0) {
                     try {
                         const tx = details.transaction;
                         const matchRes = await fetch("/api-ds/api/reconcile/match", {
@@ -449,18 +449,25 @@ export default function BankingDetailModal({ transactionId, onClose }) {
                     <div>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Facturas Asociadas ({invs.length})</h3>
-                            <button
-                                onClick={() => {
-                                    setShowLinker(!showLinker);
-                                    if (!showLinker && availableInvoices.length === 0) {
-                                        loadAvailableInvoices();
-                                    }
-                                }}
-                                className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-xl transition-colors"
-                            >
-                                <LinkIcon className="h-4 w-4" />
-                                {showLinker ? "Cerrar Buscador" : "Asociar Factura"}
-                            </button>
+                            {features.cruceFacturaBanco !== false ? (
+                                <button
+                                    onClick={() => {
+                                        setShowLinker(!showLinker);
+                                        if (!showLinker && availableInvoices.length === 0) {
+                                            loadAvailableInvoices();
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-xl transition-colors"
+                                >
+                                    <LinkIcon className="h-4 w-4" />
+                                    {showLinker ? "Cerrar Buscador" : "Asociar Factura"}
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-medium">
+                                    <X className="h-3.5 w-3.5" />
+                                    <span>Cruce de Factura/Banco bloqueado en este plan</span>
+                                </div>
+                            )}
                         </div>
 
                         {showLinker && (
