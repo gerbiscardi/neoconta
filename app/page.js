@@ -70,9 +70,11 @@ export default function Home() {
             />
             
             <div className="max-w-4xl px-2">
-              <h2 className="text-3xl md:text-5xl font-light tracking-tight text-white mb-6 leading-tight max-w-3xl mx-auto">
+              <h2 className="text-3xl md:text-5xl font-light tracking-tight text-white mb-6 leading-tight max-w-4xl mx-auto">
                 Menos tiempo administrando. <br />
-                <span className="font-semibold text-[#ff5e00]">Más tiempo haciendo crecer tu negocio.</span>
+                <span className="font-semibold text-transparent bg-clip-text bg-gradient-to-r from-[#ff4d00] to-[#ff9d00] md:whitespace-nowrap">
+                  Más tiempo haciendo crecer tu negocio.
+                </span>
               </h2>
               <p className="text-xs md:text-sm text-slate-300 mb-16 font-medium leading-relaxed max-w-2xl mx-auto">
                 NeoConta es un sistema de gestión para emprendedores y profesionales que reúne las herramientas esenciales para organizar ingresos, gastos, clientes, presupuestos y resultados <span className="font-bold text-white">en un solo lugar.</span>
