@@ -76,8 +76,8 @@ export default function Home() {
                   Más tiempo haciendo crecer tu negocio.
                 </span>
               </h2>
-              <p className="text-xs md:text-sm text-slate-300 mb-16 font-medium leading-relaxed max-w-2xl mx-auto">
-                NeoConta es un sistema de gestión para emprendedores y profesionales que reúne las herramientas esenciales para organizar ingresos, gastos, clientes, presupuestos y resultados <span className="font-bold text-white">en un solo lugar.</span>
+              <p className="text-xs md:text-sm text-white mb-16 font-medium leading-relaxed max-w-2xl mx-auto">
+                NeoConta es un sistema de gestión para emprendedores y profesionales que reúne las herramientas esenciales para organizar ingresos, gastos, clientes, presupuestos y resultados <span className="font-bold">en un solo lugar.</span>
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
