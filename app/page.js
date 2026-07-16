@@ -69,25 +69,26 @@ export default function Home() {
               className="w-56 md:w-80 h-auto drop-shadow-2xl mb-14"
             />
             
-            <div className="max-w-2xl px-2">
-              <h2 className="text-lg md:text-xl font-bold tracking-tight text-white mb-4 leading-snug">
-                Menos tiempo administrando. Más tiempo haciendo crecer tu negocio.
+            <div className="max-w-4xl px-2">
+              <h2 className="text-3xl md:text-5xl font-light tracking-tight text-white mb-6 leading-tight max-w-3xl mx-auto">
+                Menos tiempo administrando. <br />
+                <span className="font-semibold text-[#ff5e00]">Más tiempo haciendo crecer tu negocio.</span>
               </h2>
-              <p className="text-xs md:text-sm text-slate-200/90 mb-16 font-medium leading-relaxed max-w-2xl mx-auto">
-                NeoConta es un sistema de gestión para emprendedores y profesionales que reúne las herramientas esenciales para organizar ingresos, gastos, clientes, presupuestos y resultados en un solo lugar.
+              <p className="text-xs md:text-sm text-slate-300 mb-16 font-medium leading-relaxed max-w-2xl mx-auto">
+                NeoConta es un sistema de gestión para emprendedores y profesionales que reúne las herramientas esenciales para organizar ingresos, gastos, clientes, presupuestos y resultados <span className="font-bold text-white">en un solo lugar.</span>
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
                 <Link
                   href="/registro"
-                  className="w-full sm:w-auto px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-orange-600/25 text-xs flex items-center justify-center gap-1.5"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-orange-600/25 text-xs flex items-center justify-center gap-1.5"
                 >
                   Probar NeoConta
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
                 <Link
                   href="#features"
-                  className="w-full sm:w-auto px-6 py-2 bg-white/10 hover:bg-white/20 text-white/95 font-semibold rounded-xl border border-white/10 hover:border-white/30 backdrop-blur-sm transition-all text-xs flex items-center justify-center"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white/95 font-semibold rounded-xl border border-white/20 transition-all text-xs flex items-center justify-center"
                 >
                   Conocé las herramientas
                 </Link>
