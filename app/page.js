@@ -51,7 +51,7 @@ export default function Home() {
           {/* Background Image */}
           <div className="absolute inset-0 z-0">
             <img
-              src="/assets/hero-bg.jpg"
+              src="/assets/hero-bg.png"
               alt="Background"
               className="w-full h-full object-cover"
             />
