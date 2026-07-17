@@ -506,6 +506,10 @@ export default function Dashboard() {
         } else {
             const parsedUser = JSON.parse(userStr);
             setCurrentUser(parsedUser);
+            if (parsedUser.role === 'vitacore-professional') {
+                router.push("/dashboard/vitacore");
+                return;
+            }
             if (parsedUser.mustChangePassword === true) {
                 setShowChangePasswordOverlay(true);
             } else {

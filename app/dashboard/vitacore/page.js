@@ -37,7 +37,8 @@ export default function VitacoreDirectory() {
         } else {
             const user = JSON.parse(userStr);
             setCurrentUser(user);
-            fetchPatients(user.id);
+            const targetUserId = user.role === 'vitacore-professional' ? user.parentId : user.id;
+            fetchPatients(targetUserId);
         }
     }, [router]);
 
@@ -66,11 +67,12 @@ export default function VitacoreDirectory() {
 
         try {
             setSubmitting(true);
+            const targetUserId = currentUser.role === 'vitacore-professional' ? currentUser.parentId : currentUser.id;
             const res = await fetch("/api/vitacore/patients", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    userId: currentUser.id,
+                    userId: targetUserId,
                     patient: newPatient
                 })
             });
@@ -88,7 +90,7 @@ export default function VitacoreDirectory() {
                     affiliateNumber: "",
                     importantDetails: ""
                 });
-                fetchPatients(currentUser.id);
+                fetchPatients(targetUserId);
             } else {
                 setFormError(data.error || "Ocurrió un error al registrar el paciente.");
             }
@@ -209,7 +211,10 @@ export default function VitacoreDirectory() {
                     </select>
 
                     <button
-                        onClick={() => fetchPatients(currentUser?.id)}
+                        onClick={() => {
+                            const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser?.parentId : currentUser?.id;
+                            fetchPatients(targetUserId);
+                        }}
                         className="p-2 bg-white hover:bg-gray-150 dark:bg-zinc-900 dark:hover:bg-slate-800 border border-gray-200 dark:border-zinc-800 rounded-xl text-gray-500 hover:text-gray-800 transition-all"
                         title="Actualizar Fichero"
                     >

@@ -21,8 +21,9 @@ export default function DashboardLayout({ children }) {
             const user = JSON.parse(userStr);
             setCurrentUser(user);
             
-            if (user.role === 'cliente') {
-                fetch(`/api/user/config?userId=${user.id}`)
+            const targetUserId = user.role === 'vitacore-professional' ? user.parentId : user.id;
+            if (user.role === 'cliente' || user.role === 'vitacore-professional') {
+                fetch(`/api/user/config?userId=${targetUserId}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.success) {
@@ -41,19 +42,25 @@ export default function DashboardLayout({ children }) {
     }, [router]);
 
     useEffect(() => {
-        if (!loading && currentUser && currentUser.role === 'cliente' && userConfig) {
+        if (!loading && currentUser && (currentUser.role === 'cliente' || currentUser.role === 'vitacore-professional') && userConfig) {
             const features = userConfig.features || {};
             const path = pathname;
-            if (path === '/dashboard/commentor' && !features.moduloImagenWeb) {
-                router.push('/dashboard');
-            } else if (path === '/dashboard/commander' && !(features.biBasico || features.biAvanzado || features.biPremium)) {
-                router.push('/dashboard');
-            } else if (path === '/dashboard/banco' && !features.moduloBanco) {
-                router.push('/dashboard');
-            } else if (path === '/dashboard/facturacion' && !(features.facturacionManual || features.facturacionMasiva)) {
-                router.push('/dashboard');
-            } else if (path.startsWith('/dashboard/vitacore') && !features.moduloVitacore) {
-                router.push('/dashboard');
+            if (currentUser.role === 'vitacore-professional') {
+                if (!path.startsWith('/dashboard/vitacore')) {
+                    router.push('/dashboard/vitacore');
+                }
+            } else {
+                if (path === '/dashboard/commentor' && !features.moduloImagenWeb) {
+                    router.push('/dashboard');
+                } else if (path === '/dashboard/commander' && !(features.biBasico || features.biAvanzado || features.biPremium)) {
+                    router.push('/dashboard');
+                } else if (path === '/dashboard/banco' && !features.moduloBanco) {
+                    router.push('/dashboard');
+                } else if (path === '/dashboard/facturacion' && !(features.facturacionManual || features.facturacionMasiva)) {
+                    router.push('/dashboard');
+                } else if (path.startsWith('/dashboard/vitacore') && !features.moduloVitacore) {
+                    router.push('/dashboard');
+                }
             }
         }
     }, [pathname, loading, currentUser, userConfig, router]);
@@ -66,6 +73,18 @@ export default function DashboardLayout({ children }) {
     const getNavItems = () => {
         if (!currentUser) return [];
         const role = currentUser.role;
+        if (role === 'vitacore-professional') {
+            return [
+                { 
+                    name: "Vitacore", 
+                    icon: <HeartPulse className="h-5 w-5" />, 
+                    href: "/dashboard/vitacore",
+                    gradient: "from-teal-500 to-cyan-500",
+                    activeStyle: "border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 shadow-sm",
+                    inactiveHoverStyle: "hover:border-teal-500/20 hover:bg-teal-500/5 dark:hover:bg-teal-500/10 hover:text-teal-600 dark:hover:text-teal-400"
+                }
+            ];
+        }
 
         if (role === 'no-cliente') {
             return [
@@ -163,6 +182,16 @@ export default function DashboardLayout({ children }) {
                 activeStyle: "border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 shadow-sm",
                 inactiveHoverStyle: "hover:border-teal-500/20 hover:bg-teal-500/5 dark:hover:bg-teal-500/10 hover:text-teal-600 dark:hover:text-teal-400"
             });
+            if (role === 'cliente') {
+                items.push({ 
+                    name: "Usuarios Vitacore", 
+                    icon: <Users className="h-5 w-5" />, 
+                    href: "/dashboard/vitacore/profesionales",
+                    gradient: "from-cyan-500 to-blue-500",
+                    activeStyle: "border-cyan-500/30 bg-cyan-500/5 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-sm",
+                    inactiveHoverStyle: "hover:border-cyan-500/20 hover:bg-cyan-500/5 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-400"
+                });
+            }
         }
 
         items.push({ 
