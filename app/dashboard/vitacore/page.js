@@ -190,7 +190,7 @@ export default function VitacoreDirectory() {
                         placeholder="Buscar por nombre, DNI o obra social..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:focus:ring-teal-500/30 focus:border-teal-500 transition-all text-gray-900 dark:text-white"
+                        className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:focus:ring-teal-500/30 focus:border-teal-500 transition-all text-gray-900 dark:text-slate-100"
                     />
                 </div>
 
@@ -200,7 +200,7 @@ export default function VitacoreDirectory() {
                     <select
                         value={selectedObraSocial}
                         onChange={(e) => setSelectedObraSocial(e.target.value)}
-                        className="w-full md:w-48 py-2 px-3 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all text-gray-900 dark:text-white"
+                        className="w-full md:w-48 py-2 px-3 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all text-gray-900 dark:text-slate-100"
                     >
                         <option value="">Todas las Coberturas</option>
                         {obrasSocialesList.map(os => (
@@ -210,7 +210,7 @@ export default function VitacoreDirectory() {
 
                     <button
                         onClick={() => fetchPatients(currentUser?.id)}
-                        className="p-2 bg-gray-50 hover:bg-gray-100 dark:bg-slate-805/50 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-500 hover:text-gray-800 transition-all"
+                        className="p-2 bg-white hover:bg-gray-150 dark:bg-zinc-900 dark:hover:bg-slate-800 border border-gray-200 dark:border-zinc-800 rounded-xl text-gray-500 hover:text-gray-800 transition-all"
                         title="Actualizar Fichero"
                     >
                         <RefreshCw className="h-4 w-4" />
@@ -332,7 +332,7 @@ export default function VitacoreDirectory() {
                                         placeholder="Ej: Juan Pérez"
                                         value={newPatient.name}
                                         onChange={(e) => setNewPatient({ ...newPatient, name: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100"
                                     />
                                 </div>
 
@@ -345,7 +345,7 @@ export default function VitacoreDirectory() {
                                         placeholder="Ej: 30123456"
                                         value={newPatient.dni}
                                         onChange={(e) => setNewPatient({ ...newPatient, dni: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100"
                                     />
                                 </div>
 
@@ -356,7 +356,7 @@ export default function VitacoreDirectory() {
                                         type="date"
                                         value={newPatient.birthDate}
                                         onChange={(e) => setNewPatient({ ...newPatient, birthDate: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100"
                                     />
                                 </div>
 
@@ -368,7 +368,7 @@ export default function VitacoreDirectory() {
                                         placeholder="Ej: +54911234567"
                                         value={newPatient.phone}
                                         onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100"
                                     />
                                 </div>
 
@@ -380,7 +380,7 @@ export default function VitacoreDirectory() {
                                         placeholder="Ej: paciente@email.com"
                                         value={newPatient.email}
                                         onChange={(e) => setNewPatient({ ...newPatient, email: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100"
                                     />
                                 </div>
 
@@ -392,7 +392,7 @@ export default function VitacoreDirectory() {
                                         placeholder="Ej: OSDE, Medicus, S/C"
                                         value={newPatient.obraSocial}
                                         onChange={(e) => setNewPatient({ ...newPatient, obraSocial: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100"
                                     />
                                 </div>
 
@@ -404,7 +404,7 @@ export default function VitacoreDirectory() {
                                         placeholder="Ej: 1-123456-8"
                                         value={newPatient.affiliateNumber}
                                         onChange={(e) => setNewPatient({ ...newPatient, affiliateNumber: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100"
                                     />
                                 </div>
 
@@ -416,7 +416,7 @@ export default function VitacoreDirectory() {
                                         placeholder="Alergias a medicamentos, patologías previas crónicas, intolerancias, etc."
                                         value={newPatient.importantDetails}
                                         onChange={(e) => setNewPatient({ ...newPatient, importantDetails: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-white resize-none"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 text-gray-900 dark:text-slate-100 resize-none"
                                     />
                                 </div>
                             </div>

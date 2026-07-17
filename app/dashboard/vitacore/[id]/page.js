@@ -406,14 +406,28 @@ export default function PatientDetail({ params }) {
                                     }`} />
 
                                     {/* Consultation card */}
-                                    <div className={`bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border p-6 space-y-4 shadow-sm hover:shadow-md transition-all duration-300 ${
+                                    <div className={`bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border p-6 space-y-5 shadow-sm hover:shadow-md transition-all duration-300 ${
                                         consultation.isImportant 
                                             ? "border-rose-400/50 bg-rose-500/[0.01] dark:border-rose-900/30" 
                                             : "border-gray-200/80 dark:border-slate-800"
                                     } print:border-gray-300 print:shadow-none print:p-4 print:bg-white`}>
-                                        {/* Card Header */}
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div>
+                                        
+                                        {/* Professional Header */}
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-3">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-2 bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 rounded-lg shrink-0">
+                                                    <User className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <span className="font-extrabold text-xs text-gray-800 dark:text-slate-200 uppercase tracking-wider block">
+                                                        {currentUser?.razonSocial || currentUser?.name || "Profesional de la Salud"}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 block">
+                                                        Firma Electrónica Autorizada • CUIT {currentUser?.cuit || "---"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="text-left sm:text-right shrink-0">
                                                 <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider block">
                                                     {new Date(consultation.date).toLocaleDateString("es-AR", {
                                                         day: "numeric",
@@ -421,13 +435,26 @@ export default function PatientDetail({ params }) {
                                                         year: "numeric"
                                                     })}
                                                 </span>
-                                                <h4 className="font-extrabold text-base text-gray-900 dark:text-white mt-1 print:text-black">
+                                                <span className="text-[10px] text-gray-400 dark:text-gray-500 block">
+                                                    {new Date(consultation.date).toLocaleTimeString("es-AR", {
+                                                        hour: "2-digit",
+                                                        minute: "2-digit"
+                                                    })} hs
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Reason & Diagnostics */}
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider block">Motivo / Diagnóstico</span>
+                                                <h4 className="font-black text-base text-teal-600 dark:text-teal-400 print:text-black">
                                                     {consultation.reason}
                                                 </h4>
                                             </div>
                                             
                                             {/* Action icons (hidden in print) */}
-                                            <div className="flex items-center gap-1.5 print:hidden">
+                                            <div className="flex items-center gap-1.5 print:hidden shrink-0">
                                                 <button
                                                     onClick={() => handleToggleImportant(consultation)}
                                                     className={`p-1.5 rounded-lg border border-gray-100 dark:border-slate-800 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors ${
@@ -456,30 +483,44 @@ export default function PatientDetail({ params }) {
                                         {/* Observations / Observations Notes */}
                                         {consultation.observations && (
                                             <div className="space-y-1">
-                                                <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider block">Observaciones</span>
-                                                <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300 leading-relaxed print:text-black whitespace-pre-line">
+                                                <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider block">Evolución Clínica</span>
+                                                <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300 leading-relaxed print:text-black whitespace-pre-line bg-gray-50/30 dark:bg-slate-950/20 p-4 rounded-xl border border-gray-100 dark:border-slate-800/50 print:bg-white print:p-0 print:border-none">
                                                     {consultation.observations}
                                                 </p>
                                             </div>
                                         )}
 
-                                        {/* Prescriptions */}
+                                        {/* Recetario / Prescriptions */}
                                         {consultation.prescription && (
-                                            <div className="p-4 bg-teal-50/30 dark:bg-teal-950/10 border border-teal-100/30 dark:border-teal-900/30 rounded-xl space-y-1.5 print:bg-gray-100 print:text-black">
-                                                <span className="text-[10px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-wider block">Indicaciones / Tratamiento</span>
-                                                <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300 font-bold whitespace-pre-line print:text-black">
+                                            <div className="relative p-6 bg-white dark:bg-zinc-950 border-2 border-dashed border-teal-500/20 dark:border-teal-500/30 rounded-2xl space-y-4 print:bg-white print:border-2 print:border-dashed print:border-gray-400 overflow-hidden">
+                                                {/* Dotted/dashed card decoration mimicking physical prescription */}
+                                                <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 dark:bg-teal-400/5 rounded-full blur-2xl pointer-events-none" />
+                                                
+                                                <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-2">
+                                                    <span className="text-xs font-black text-teal-600 dark:text-teal-400 tracking-wider">Rp/ Prescripción</span>
+                                                    <span className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">VALIDEZ NACIONAL</span>
+                                                </div>
+                                                
+                                                <p className="text-xs md:text-sm text-gray-800 dark:text-slate-200 font-bold whitespace-pre-line leading-relaxed min-h-[50px] print:text-black">
                                                     {consultation.prescription}
                                                 </p>
+
+                                                {/* Stamp & Signature area */}
+                                                <div className="flex flex-col items-end text-[9px] text-gray-400 pt-2">
+                                                    <div className="w-36 border-t border-gray-300 dark:border-slate-700/80 my-1.5" />
+                                                    <span className="font-bold text-gray-400 dark:text-gray-500">{currentUser?.razonSocial || currentUser?.name || "Profesional Firmante"}</span>
+                                                    <span>Firma y Sello Electrónico</span>
+                                                </div>
                                             </div>
                                         )}
 
                                         {/* Tags */}
                                         {consultation.tags && consultation.tags.length > 0 && (
-                                            <div className="flex flex-wrap gap-1.5 pt-2">
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
                                                 {consultation.tags.map((tag, idx) => (
                                                     <span 
                                                         key={idx}
-                                                        className="px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 rounded text-[10px] font-bold"
+                                                        className="px-2.5 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 rounded text-[9px] font-bold"
                                                     >
                                                         {tag}
                                                     </span>
@@ -512,7 +553,7 @@ export default function PatientDetail({ params }) {
                                         required
                                         value={editForm.name}
                                         onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -522,7 +563,7 @@ export default function PatientDetail({ params }) {
                                         required
                                         value={editForm.dni}
                                         onChange={(e) => setEditForm({ ...editForm, dni: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -531,7 +572,7 @@ export default function PatientDetail({ params }) {
                                         type="date"
                                         value={editForm.birthDate}
                                         onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -540,7 +581,7 @@ export default function PatientDetail({ params }) {
                                         type="tel"
                                         value={editForm.phone}
                                         onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -549,7 +590,7 @@ export default function PatientDetail({ params }) {
                                         type="email"
                                         value={editForm.email}
                                         onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -558,7 +599,7 @@ export default function PatientDetail({ params }) {
                                         type="text"
                                         value={editForm.obraSocial}
                                         onChange={(e) => setEditForm({ ...editForm, obraSocial: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1 sm:col-span-2">
@@ -567,7 +608,7 @@ export default function PatientDetail({ params }) {
                                         type="text"
                                         value={editForm.affiliateNumber}
                                         onChange={(e) => setEditForm({ ...editForm, affiliateNumber: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1 sm:col-span-2">
@@ -576,7 +617,7 @@ export default function PatientDetail({ params }) {
                                         rows="2"
                                         value={editForm.importantDetails}
                                         onChange={(e) => setEditForm({ ...editForm, importantDetails: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white resize-none"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
                                     />
                                 </div>
                             </div>
@@ -624,7 +665,7 @@ export default function PatientDetail({ params }) {
                                         required
                                         value={newConsultation.date}
                                         onChange={(e) => setNewConsultation({ ...newConsultation, date: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -635,7 +676,7 @@ export default function PatientDetail({ params }) {
                                         placeholder="Ej: Control de rutina, Angina, etc."
                                         value={newConsultation.reason}
                                         onChange={(e) => setNewConsultation({ ...newConsultation, reason: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="space-y-1 sm:col-span-2">
@@ -645,7 +686,7 @@ export default function PatientDetail({ params }) {
                                         placeholder="Escriba aquí los detalles del control médico o examen físico..."
                                         value={newConsultation.observations}
                                         onChange={(e) => setNewConsultation({ ...newConsultation, observations: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white resize-none"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
                                     />
                                 </div>
                                 <div className="space-y-1 sm:col-span-2">
@@ -655,7 +696,7 @@ export default function PatientDetail({ params }) {
                                         placeholder="Prescripción de medicamentos, indicaciones higiénico-dietéticas, etc."
                                         value={newConsultation.prescription}
                                         onChange={(e) => setNewConsultation({ ...newConsultation, prescription: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white resize-none"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -665,7 +706,7 @@ export default function PatientDetail({ params }) {
                                         placeholder="Ej: Control, Hipertensión, Receta"
                                         value={newConsultation.tagsInput}
                                         onChange={(e) => setNewConsultation({ ...newConsultation, tagsInput: e.target.value })}
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-805/50 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
                                 <div className="flex items-center gap-2 pt-6">
