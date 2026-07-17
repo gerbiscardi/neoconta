@@ -214,6 +214,30 @@ export default function Footer() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                         &copy; {new Date().getFullYear()} NeoConta. Todos los derechos reservados.
                     </p>
+                    
+                    {/* Sectigo Positive SSL Seal */}
+                    <div className="flex items-center">
+                        <a 
+                            href="#" 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                window.open(
+                                    `https://secure.trust-provider.com/ttb_searcher/trustlogo?v_querytype=W&v_shortname=CL1&v_search=https://${window.location.host}/`, 
+                                    "tl_wnd_credentials" + new Date().getTime(), 
+                                    "toolbar=0,scrollbars=1,location=1,status=1,menubar=1,resizable=1,width=374,height=660"
+                                );
+                            }}
+                            className="transition-opacity hover:opacity-90 active:scale-95 duration-200 inline-block"
+                            title="Haz clic para verificar nuestro Certificado SSL de Sectigo Positive"
+                        >
+                            <img 
+                                src="https://micuenta.donweb.com/img/sectigo_positive_md.png" 
+                                alt="Sectigo Positive SSL Secured" 
+                                className="h-10 w-auto rounded"
+                            />
+                        </a>
+                    </div>
+
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <span>Hecho con</span>
                         <Heart className="h-4 w-4 mx-1 text-red-500 fill-current" />
