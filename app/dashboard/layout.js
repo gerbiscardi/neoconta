@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, FileText, Wallet, Settings, Menu, X, Bell, User, LogOut, Users, MessageSquare, LineChart } from "lucide-react";
+import { LayoutDashboard, FileText, Wallet, Settings, Menu, X, Bell, User, LogOut, Users, MessageSquare, LineChart, HeartPulse } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function DashboardLayout({ children }) {
@@ -51,6 +51,8 @@ export default function DashboardLayout({ children }) {
             } else if (path === '/dashboard/banco' && !features.moduloBanco) {
                 router.push('/dashboard');
             } else if (path === '/dashboard/facturacion' && !(features.facturacionManual || features.facturacionMasiva)) {
+                router.push('/dashboard');
+            } else if (path.startsWith('/dashboard/vitacore') && !features.moduloVitacore) {
                 router.push('/dashboard');
             }
         }
@@ -104,7 +106,8 @@ export default function DashboardLayout({ children }) {
             biBasico: true,
             biAvanzado: true,
             biPremium: true,
-            moduloImagenWeb: true
+            moduloImagenWeb: true,
+            moduloVitacore: true
         };
 
         if (features.facturacionManual || features.facturacionMasiva) {
@@ -148,6 +151,17 @@ export default function DashboardLayout({ children }) {
                 gradient: "from-orange-500 to-amber-500",
                 activeStyle: "border-orange-500/30 bg-orange-500/5 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 shadow-sm",
                 inactiveHoverStyle: "hover:border-orange-500/20 hover:bg-orange-500/5 dark:hover:bg-emerald-500/10 hover:text-orange-600 dark:hover:text-orange-400"
+            });
+        }
+
+        if (features.moduloVitacore || features.moduloVitacore === undefined) {
+            items.push({ 
+                name: "Vitacore", 
+                icon: <HeartPulse className="h-5 w-5" />, 
+                href: "/dashboard/vitacore",
+                gradient: "from-teal-500 to-cyan-500",
+                activeStyle: "border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 shadow-sm",
+                inactiveHoverStyle: "hover:border-teal-500/20 hover:bg-teal-500/5 dark:hover:bg-teal-500/10 hover:text-teal-600 dark:hover:text-teal-400"
             });
         }
 
