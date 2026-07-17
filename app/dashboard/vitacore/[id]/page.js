@@ -42,11 +42,6 @@ export default function PatientDetail({ params }) {
         professionalSpecialty: "",
         professionalMatricula: ""
     });
-
-    // Modal state for editing consultation
-    const [isEditConsultationModalOpen, setIsEditConsultationModalOpen] = useState(false);
-    const [editingConsultation, setEditingConsultation] = useState(null);
-
     const [submitting, setSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
 
@@ -236,57 +231,7 @@ export default function PatientDetail({ params }) {
         }
     };
 
-    const handleUpdateConsultation = async (e) => {
-        e.preventDefault();
-        setErrorMsg("");
-        if (!editingConsultation || !editingConsultation.reason.trim()) {
-            setErrorMsg("El motivo de consulta es requerido.");
-            return;
-        }
 
-        const tagsArray = editingConsultation.tagsInput
-            ? editingConsultation.tagsInput.split(",").map(t => t.trim()).filter(t => t !== "")
-            : (Array.isArray(editingConsultation.tags) ? editingConsultation.tags : []);
-
-        try {
-            setSubmitting(true);
-            const res = await fetch("/api/vitacore/consultations", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    userId: targetUserId,
-                    patientId: patient.id,
-                    consultationId: editingConsultation.id,
-                    updatedData: {
-                        date: new Date(editingConsultation.date).toISOString(),
-                        reason: editingConsultation.reason,
-                        observations: editingConsultation.observations,
-                        prescription: editingConsultation.prescription,
-                        tags: tagsArray,
-                        isImportant: editingConsultation.isImportant,
-                        professionalId: editingConsultation.professionalId,
-                        professionalName: editingConsultation.professionalName,
-                        professionalSpecialty: editingConsultation.professionalSpecialty,
-                        professionalMatricula: editingConsultation.professionalMatricula
-                    }
-                })
-            });
-
-            const data = await res.json();
-            if (res.ok && data.success) {
-                setIsEditConsultationModalOpen(false);
-                setEditingConsultation(null);
-                fetchPatientData(targetUserId);
-            } else {
-                setErrorMsg(data.error || "Error al actualizar la consulta.");
-            }
-        } catch (error) {
-            console.error("Error updating consultation:", error);
-            setErrorMsg("Error de conexión. Intente de nuevo.");
-        } finally {
-            setSubmitting(false);
-        }
-    };
 
     const handleToggleImportant = async (consultation) => {
         try {
@@ -358,8 +303,8 @@ export default function PatientDetail({ params }) {
         : null;
 
     return (
-        <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 text-gray-900 dark:text-slate-100 print:p-0 print:bg-white print:text-black print:dark:text-black">
-            {/* Top Nav & Action bar (hidden in print) */}
+        <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 text-gray-900 dark:text-slate-100 print:p-0 print:bg-white print:text-black print:dark:text-black">
+            {/* Top Nav (hidden in print) */}
             <div className="flex items-center justify-between gap-4 print:hidden">
                 <button
                     onClick={() => router.push("/dashboard/vitacore")}
@@ -368,27 +313,75 @@ export default function PatientDetail({ params }) {
                     <ArrowLeft className="h-4 w-4" />
                     Volver al Fichero
                 </button>
-                <div className="flex items-center gap-2">
+            </div>
+
+            {/* Premium Patient Header Card (model screenshot style) */}
+            <div className="bg-white dark:bg-zinc-900/50 backdrop-blur-md rounded-3xl border border-gray-200/80 dark:border-zinc-800 p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 shadow-sm print:hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    {/* Initials Avatar */}
+                    <div className="w-14 h-14 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 font-extrabold text-lg rounded-full flex items-center justify-center shrink-0 uppercase border border-teal-100 dark:border-teal-900/30">
+                        {patient.name ? patient.name.split(" ").map(w => w[0]).join("").slice(0, 2) : "P"}
+                    </div>
+                    
+                    <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="text-xl font-black text-gray-900 dark:text-slate-100">{patient.name}</h2>
+                            <span className="px-2 py-0.5 bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                Paciente
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-400 dark:text-gray-500 font-bold">
+                            <span>DNI {patient.dni}</span>
+                            <span>•</span>
+                            <span>{age} años</span>
+                            {patient.phone && (
+                                <>
+                                    <span>•</span>
+                                    <span>{patient.phone}</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Cobertura & Emergencias badges */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2 bg-blue-50/50 dark:bg-blue-950/10 text-blue-700 dark:text-blue-400 border border-blue-100/50 dark:border-blue-900/20 px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm">
+                        <Award className="h-4 w-4 shrink-0 text-blue-500" />
+                        <span>COBERTURA: {patient.obraSocial || "Particular"}</span>
+                        {patient.affiliateNumber && <span className="opacity-75">#{patient.affiliateNumber}</span>}
+                    </div>
+
+                    {patient.importantDetails && (
+                        <div className="flex items-center gap-2 bg-rose-50/50 dark:bg-rose-950/10 text-rose-700 dark:text-rose-400 border border-rose-200/35 dark:border-rose-900/20 px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm">
+                            <ShieldAlert className="h-4 w-4 shrink-0 text-rose-500" />
+                            <span>ALERTA MÉDICA: {patient.importantDetails}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Circular action buttons */}
+                <div className="flex items-center gap-2 shrink-0">
                     <button
                         onClick={handlePrint}
-                        className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition-all"
+                        className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-gray-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
+                        title="Imprimir / PDF"
                     >
                         <Printer className="h-4 w-4" />
-                        Imprimir / PDF
                     </button>
                     <button
                         onClick={() => setIsEditModalOpen(true)}
-                        className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition-all text-teal-600 dark:text-teal-400"
+                        className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-teal-600 dark:text-teal-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
+                        title="Editar Ficha"
                     >
                         <Edit2 className="h-4 w-4" />
-                        Editar Ficha
                     </button>
                     <button
                         onClick={handleDeletePatient}
-                        className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl text-xs font-bold transition-all text-rose-600 dark:text-rose-400"
+                        className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-rose-600 dark:text-rose-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
+                        title="Eliminar Paciente"
                     >
                         <Trash2 className="h-4 w-4" />
-                        Eliminar
                     </button>
                 </div>
             </div>
@@ -551,58 +544,76 @@ export default function PatientDetail({ params }) {
                                             </div>
                                         </div>
 
+                                        {/* Error indicator banner */}
+                                        {consultation.isError && (
+                                            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-bold">
+                                                <ShieldAlert className="h-4 w-4 shrink-0 animate-bounce" />
+                                                <span>REGISTRO ANULADO POR ERROR POR {consultation.errorMarkedBy || "Profesional"} el {new Date(consultation.errorMarkedAt || consultation.date).toLocaleDateString("es-AR")}</span>
+                                            </div>
+                                        )}
+
                                         {/* Reason & Diagnostics */}
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="space-y-1">
                                                 <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider block">Motivo / Diagnóstico</span>
-                                                <h4 className="font-black text-base text-teal-600 dark:text-teal-400 print:text-black">
+                                                <h4 className={`font-black text-base text-teal-600 dark:text-teal-400 print:text-black ${consultation.isError ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
                                                     {consultation.reason}
                                                 </h4>
                                             </div>
                                             
                                             {/* Action icons (hidden in print) */}
                                             <div className="flex items-center gap-1.5 print:hidden shrink-0">
-                                                <button
-                                                    onClick={() => handleToggleImportant(consultation)}
-                                                    className={`p-1.5 rounded-lg border border-gray-100 dark:border-slate-800 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors ${
-                                                        consultation.isImportant 
-                                                            ? "text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-950/10" 
-                                                            : "text-gray-400 hover:text-gray-600"
-                                                    }`}
-                                                    title={consultation.isImportant ? "Quitar destaque" : "Marcar como importante"}
-                                                >
-                                                    {consultation.isImportant ? (
-                                                        <BookmarkCheck className="h-4 w-4" />
-                                                    ) : (
-                                                        <Bookmark className="h-4 w-4" />
-                                                    )}
-                                                </button>
+                                                {!consultation.isError && (
+                                                    <button
+                                                        onClick={() => handleToggleImportant(consultation)}
+                                                        className={`p-1.5 rounded-lg border border-gray-100 dark:border-slate-800 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors ${
+                                                            consultation.isImportant 
+                                                                ? "text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-950/10" 
+                                                                : "text-gray-400 hover:text-gray-600"
+                                                        }`}
+                                                        title={consultation.isImportant ? "Quitar destaque" : "Marcar como importante"}
+                                                    >
+                                                        {consultation.isImportant ? (
+                                                            <BookmarkCheck className="h-4 w-4" />
+                                                        ) : (
+                                                            <Bookmark className="h-4 w-4" />
+                                                        )}
+                                                    </button>
+                                                )}
                                                 
-                                                {/* Allow edit/delete only for clinic owner/client OR the specific professional who logged it */}
-                                                {(currentUser?.role === 'cliente' || currentUser?.role === 'owner' || consultation.professionalId === currentUser?.id) && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingConsultation({
-                                                                    ...consultation,
-                                                                    date: new Date(consultation.date).toISOString().split("T")[0],
-                                                                    tagsInput: Array.isArray(consultation.tags) ? consultation.tags.join(", ") : ""
+                                                {/* Allow marking as error only for clinic owner/client OR the specific professional who logged it */}
+                                                {!consultation.isError && (currentUser?.role === 'cliente' || currentUser?.role === 'owner' || consultation.professionalId === currentUser?.id) && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!confirm("¿Desea anular este registro y marcarlo como ERRÓNEO? Esta acción no se puede deshacer de acuerdo con la legislación vigente.")) return;
+                                                            try {
+                                                                const res = await fetch("/api/vitacore/consultations", {
+                                                                    method: "PUT",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({
+                                                                        userId: targetUserId,
+                                                                        patientId: patient.id,
+                                                                        consultationId: consultation.id,
+                                                                        updatedData: {
+                                                                            isError: true,
+                                                                            errorMarkedBy: currentUser.nombre,
+                                                                            errorMarkedAt: new Date().toISOString()
+                                                                        }
+                                                                    })
                                                                 });
-                                                                setIsEditConsultationModalOpen(true);
-                                                            }}
-                                                            className="p-1.5 text-gray-400 hover:text-teal-600 hover:border-teal-100 rounded-lg border border-gray-100 dark:border-slate-800 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all"
-                                                            title="Editar evolución"
-                                                        >
-                                                            <Edit2 className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteConsultation(consultation.id)}
-                                                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:border-rose-100 rounded-lg border border-gray-100 dark:border-slate-800 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all"
-                                                            title="Eliminar consulta"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </>
+                                                                if (res.ok) {
+                                                                    fetchPatientData(targetUserId);
+                                                                }
+                                                            } catch (e) {
+                                                                console.error(e);
+                                                            }
+                                                        }}
+                                                        className="p-1.5 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg border border-rose-100 dark:border-rose-900/30 transition-all text-xs font-bold flex items-center gap-1"
+                                                        title="Marcar como Erróneo"
+                                                    >
+                                                        <ShieldAlert className="h-4.5 w-4.5" />
+                                                        <span>Anular por Error</span>
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -611,7 +622,9 @@ export default function PatientDetail({ params }) {
                                         {consultation.observations && (
                                             <div className="space-y-1">
                                                 <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider block">Evolución Clínica</span>
-                                                <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300 leading-relaxed print:text-black whitespace-pre-line bg-gray-50/30 dark:bg-slate-950/20 p-4 rounded-xl border border-gray-100 dark:border-slate-800/50 print:bg-white print:p-0 print:border-none">
+                                                <p className={`text-xs md:text-sm leading-relaxed whitespace-pre-line bg-white dark:bg-zinc-900 p-4 rounded-xl border border-gray-200 dark:border-zinc-800 text-[#4a5568] dark:text-[#a0aec0] font-medium print:bg-white print:p-0 print:border-none ${
+                                                    consultation.isError ? 'line-through opacity-40' : ''
+                                                }`}>
                                                     {consultation.observations}
                                                 </p>
                                             </div>
@@ -619,7 +632,9 @@ export default function PatientDetail({ params }) {
 
                                         {/* Recetario / Prescriptions */}
                                         {consultation.prescription && (
-                                            <div className="relative p-6 bg-white dark:bg-zinc-950 border-2 border-dashed border-teal-500/20 dark:border-teal-500/30 rounded-2xl space-y-4 print:bg-white print:border-2 print:border-dashed print:border-gray-400 overflow-hidden">
+                                            <div className={`relative p-6 bg-white dark:bg-zinc-950 border-2 border-dashed border-teal-500/20 dark:border-teal-500/30 rounded-2xl space-y-4 print:bg-white print:border-2 print:border-dashed print:border-gray-400 overflow-hidden ${
+                                                consultation.isError ? 'opacity-40' : ''
+                                            }`}>
                                                 {/* Dotted/dashed card decoration mimicking physical prescription */}
                                                 <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 dark:bg-teal-400/5 rounded-full blur-2xl pointer-events-none" />
                                                 
@@ -628,14 +643,16 @@ export default function PatientDetail({ params }) {
                                                     <span className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">VALIDEZ NACIONAL</span>
                                                 </div>
                                                 
-                                                <p className="text-xs md:text-sm text-gray-800 dark:text-slate-200 font-bold whitespace-pre-line leading-relaxed min-h-[50px] print:text-black">
+                                                <p className={`text-xs md:text-sm text-gray-800 dark:text-slate-200 font-bold whitespace-pre-line leading-relaxed min-h-[50px] print:text-black ${
+                                                    consultation.isError ? 'line-through' : ''
+                                                }`}>
                                                     {consultation.prescription}
                                                 </p>
 
                                                 {/* Stamp & Signature area */}
                                                 <div className="flex flex-col items-end text-[9px] text-gray-400 pt-2">
                                                     <div className="w-36 border-t border-gray-300 dark:border-slate-700/80 my-1.5" />
-                                                    <span className="font-bold text-gray-400 dark:text-gray-500">{currentUser?.razonSocial || currentUser?.name || "Profesional Firmante"}</span>
+                                                    <span className="font-bold text-gray-400 dark:text-gray-500">{consultation.professionalName || currentUser?.razonSocial || currentUser?.name || "Profesional Firmante"}</span>
                                                     <span>Firma y Sello Electrónico</span>
                                                 </div>
                                             </div>
@@ -647,7 +664,9 @@ export default function PatientDetail({ params }) {
                                                 {consultation.tags.map((tag, idx) => (
                                                     <span 
                                                         key={idx}
-                                                        className="px-2.5 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 rounded text-[9px] font-bold"
+                                                        className={`px-2.5 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 rounded text-[9px] font-bold ${
+                                                            consultation.isError ? 'line-through opacity-45' : ''
+                                                        }`}
                                                     >
                                                         {tag}
                                                     </span>
@@ -891,131 +910,6 @@ export default function PatientDetail({ params }) {
                                     className="px-5 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-bold rounded-xl text-sm shadow-md"
                                 >
                                     {submitting ? "Guardando..." : "Guardar Evolución"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal de Editar Consulta/Evolución */}
-            {isEditConsultationModalOpen && editingConsultation && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div onClick={() => { setIsEditConsultationModalOpen(false); setEditingConsultation(null); }} className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-                    <div className="bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl relative z-10 space-y-6">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xl font-bold">Editar Evolución Clínica</h3>
-                            <button onClick={() => { setIsEditConsultationModalOpen(false); setEditingConsultation(null); }} className="p-1 text-gray-400 hover:text-white">✕</button>
-                        </div>
-                        {errorMsg && (
-                            <div className="p-3 bg-rose-50 text-rose-700 border border-rose-100 rounded-xl text-xs">
-                                <span>{errorMsg}</span>
-                            </div>
-                        )}
-                        <form onSubmit={handleUpdateConsultation} className="space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Fecha *</label>
-                                    <input
-                                        type="date"
-                                        required
-                                        value={editingConsultation.date}
-                                        onChange={(e) => setEditingConsultation({ ...editingConsultation, date: e.target.value })}
-                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Motivo / Diagnóstico *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={editingConsultation.reason}
-                                        onChange={(e) => setEditingConsultation({ ...editingConsultation, reason: e.target.value })}
-                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
-                                    />
-                                </div>
-
-                                {currentUser?.role === 'cliente' && (
-                                    <div className="space-y-1 sm:col-span-2">
-                                        <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Profesional a cargo *</label>
-                                        <select
-                                            required
-                                            value={editingConsultation.professionalId}
-                                            onChange={(e) => {
-                                                const p = professionals.find(pr => pr.id === e.target.value);
-                                                setEditingConsultation({
-                                                    ...editingConsultation,
-                                                    professionalId: e.target.value,
-                                                    professionalName: p ? p.nombre : currentUser.nombre,
-                                                    professionalSpecialty: p ? p.specialty : "Director Clínico",
-                                                    professionalMatricula: p ? p.matricula : ""
-                                                });
-                                            }}
-                                            className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        >
-                                            <option value="">-- Seleccionar Profesional --</option>
-                                            <option value={currentUser.id}>{currentUser.nombre} (Director Clínico)</option>
-                                            {professionals.map(p => (
-                                                <option key={p.id} value={p.id}>{p.nombre} ({p.specialty || "Médico"})</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
-                                <div className="space-y-1 sm:col-span-2">
-                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Observaciones Clínicas</label>
-                                    <textarea
-                                        rows="4"
-                                        value={editingConsultation.observations}
-                                        onChange={(e) => setEditingConsultation({ ...editingConsultation, observations: e.target.value })}
-                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
-                                    />
-                                </div>
-                                <div className="space-y-1 sm:col-span-2">
-                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Indicaciones / Receta / Tratamiento</label>
-                                    <textarea
-                                        rows="2"
-                                        value={editingConsultation.prescription}
-                                        onChange={(e) => setEditingConsultation({ ...editingConsultation, prescription: e.target.value })}
-                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Etiquetas (Separadas por comas)</label>
-                                    <input
-                                        type="text"
-                                        value={editingConsultation.tagsInput}
-                                        onChange={(e) => setEditingConsultation({ ...editingConsultation, tagsInput: e.target.value })}
-                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2 pt-6">
-                                    <input
-                                        type="checkbox"
-                                        id="modalEditImportant"
-                                        checked={editingConsultation.isImportant}
-                                        onChange={(e) => setEditingConsultation({ ...editingConsultation, isImportant: e.target.checked })}
-                                        className="h-4 w-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
-                                    />
-                                    <label htmlFor="modalEditImportant" className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase cursor-pointer">
-                                        Destacar como importante
-                                    </label>
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-800">
-                                <button
-                                    type="button"
-                                    onClick={() => { setIsEditConsultationModalOpen(false); setEditingConsultation(null); }}
-                                    className="px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-bold text-gray-500 hover:text-gray-800"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submitting}
-                                    className="px-5 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-bold rounded-xl text-sm shadow-md"
-                                >
-                                    {submitting ? "Guardando..." : "Guardar Cambios"}
                                 </button>
                             </div>
                         </form>
