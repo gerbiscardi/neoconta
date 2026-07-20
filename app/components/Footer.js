@@ -128,7 +128,7 @@ export default function Footer() {
                             </span>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-                            Redefiniendo tu administración de la mano de la Inteligencia Artificial.
+                            Plataforma de servicios digitales e Inteligencia Artificial para la gestión de tu negocio.
                         </p>
                         <div className="flex space-x-4">
                             <Link href="#" className="text-gray-400 hover:text-[#ff5e00] transition-colors">
@@ -291,7 +291,7 @@ export default function Footer() {
 
                             {/* Description Paragraph */}
                             <p className="text-gray-600 dark:text-gray-300 text-sm md:text-base leading-relaxed mb-6">
-                                En NeoConta redefinimos la administración empresarial a través de la consultoría estratégica y la integración de Inteligencia Artificial. Nos especializamos en repensar y automatizar los procesos contables y operativos de tu negocio, transformando la gestión administrativa tradicional en un ecosistema ágil, eficiente y adaptado a la era digital.
+                                En NeoConta brindamos una plataforma web de servicios digitales e Inteligencia Artificial diseñada para optimizar y automatizar la gestión administrativa, médica y financiera de profesionales, PyMEs y emprendedores, ofreciendo herramientas como facturación masiva ARCA, historia clínica digital y business intelligence.
                             </p>
 
                             {/* Close Action Button */}
@@ -698,7 +698,7 @@ export default function Footer() {
                                     </h4>
                                     <ul className="list-disc pl-5 space-y-1.5">
                                         <li>
-                                            <strong>Objeto:</strong> NeoConta brinda servicios de consultoría estratégica y desarrollo de soluciones basadas en Inteligencia Artificial para la optimización de procesos contables y administrativos.
+                                            <strong>Objeto:</strong> NeoConta brinda una plataforma web de servicios digitales y soluciones basadas en Inteligencia Artificial para la optimización y automatización de procesos contables, administrativos y de gestión.
                                         </li>
                                         <li>
                                             <strong>Ausencia de Asesoramiento Matricular Directo:</strong> La plataforma y sus reportes actúan como herramientas de asistencia y automatización. No constituyen, en sí mismas, un reemplazo del dictamen profesional de contadores públicos matriculados según las normativas de los consejos profesionales locales.

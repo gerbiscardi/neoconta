@@ -106,7 +106,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Original Hero Content (now secondary) */}
+        {/* Secondary Section: Platform Overview */}
         <section className="relative py-24 lg:py-32 overflow-hidden bg-slate-50 dark:bg-[#1a0b2e]/50">
           <div className="absolute inset-0 -z-10">
             {/* Bright, colorful glowing orbs */}
@@ -120,13 +120,13 @@ export default function Home() {
                 {/* Text Content */}
                 <div className="p-10 md:p-16 lg:pr-12">
                   <div className="inline-block px-5 py-2 rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-bold text-sm mb-6 shadow-sm border border-violet-100 dark:border-violet-800/50 uppercase tracking-wider">
-                    Nuestra Misión
+                    Servicios Digitales
                   </div>
                   <h2 className="text-4xl md:text-5xl font-semibold tracking-tight mb-6 text-slate-900 dark:text-white leading-tight">
-                    Transformación <br/><span className="font-light text-transparent bg-clip-text bg-gradient-to-r from-[#ff5e00] to-violet-500 dark:to-violet-400">Inteligente</span>
+                    Plataforma <br/><span className="font-light text-transparent bg-clip-text bg-gradient-to-r from-[#ff5e00] to-violet-500 dark:to-violet-400">Integral Web</span>
                   </h2>
                   <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed text-left">
-                    Integramos la experiencia en gestión de negocios con consultorías especializadas en Inteligencia Artificial. Transformamos la realidad de emprendedores y PyMES aplicando IA en áreas clave: desde la automatización de procesos operativos y financieros para lograr eficiencia escalable, hasta el desarrollo de estrategias de contenido y comunicación impulsadas por inteligencia artificial.
+                    NeoConta es una plataforma web de servicios digitales e Inteligencia Artificial diseñada para profesionalizar y automatizar la gestión operativa de emprendedores, profesionales y PyMES. Reunimos herramientas clave como facturación electrónica ARCA, historias clínicas digitales (Vitacore), conciliación bancaria y business intelligence en una única solución web eficiente y escalable.
                   </p>
                 </div>
 
@@ -160,28 +160,28 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center max-w-3xl mx-auto mb-20">
               <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 dark:text-white mb-6">
-                El poder de la IA potenciando la <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff5e00] to-violet-500 dark:to-violet-400">Gestión de Negocios</span>
+                Módulos y Servicios <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff5e00] to-violet-500 dark:to-violet-400">Diseñados para Tu Negocio</span>
               </h2>
               <p className="text-xl text-slate-600 dark:text-slate-400">
-                Implementamos soluciones de IA que potencian cada negocio eliminando tareas manuales repetitivas, dando espacio a aquellas con verdadero valor personal. Estructuramos la información y la convertimos en una auténtica ingeniería de datos, optimizando así la gestión integral de proyectos y organizaciones.
+                Nuestra plataforma integra servicios digitales e inteligencia artificial para automatizar tus tareas diarias, eliminar errores manuales y centralizar toda tu gestión operativa en un solo lugar.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
               {[
                 {
-                  icon: <BarChart3 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />,
-                  title: "Estrategia de IA para Negocios",
-                  description: "Diagnosticamos tu empresa, tus procesos y tus objetivos para diseñar un plan concreto de incorporación de inteligencia artificial. Nada de humo futurista: identificamos dónde la IA puede ahorrar tiempo, reducir errores, mejorar decisiones y generar nuevas oportunidades de crecimiento. Resultado: una hoja de ruta clara para aplicar IA de forma práctica, rentable y escalable.",
+                  icon: <ShieldCheck className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />,
+                  title: "Facturación Electrónica ARCA / AFIP",
+                  description: "Servicio digital para la emisión masiva, gestión y control de comprobantes electrónicos autorizados. Conexión directa y transparente con ARCA/AFIP para gestionar tus cobranzas sin demoras ni trámites manuales.",
                   gradient: "from-emerald-500 to-teal-400",
                   shadow: "hover:shadow-emerald-500/20",
                   iconBg: "bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800",
                   titleColor: "text-emerald-600 dark:text-emerald-400"
                 },
                 {
-                  icon: <ShieldCheck className="h-8 w-8 text-blue-600 dark:text-blue-400" />,
-                  title: "Automatización Inteligente",
-                  description: "Diseñamos flujos automatizados con IA para reducir tareas repetitivas, conectar herramientas y optimizar la gestión diaria de tu organización. Desde carga de datos y reportes hasta respuestas automáticas, tableros, alertas y asistentes internos. Resultado: menos trabajo manual, más velocidad operativa y equipos enfocados en lo importante.",
+                  icon: <BarChart3 className="h-8 w-8 text-blue-600 dark:text-blue-400" />,
+                  title: "Vitacore - Historia Clínica Digital",
+                  description: "Plataforma médica especializada para profesionales de la salud. Fichero digital de pacientes, registro de evoluciones con firma electrónica, recetas y trazabilidad clínica bajo estrictas normas de seguridad.",
                   gradient: "from-blue-500 to-indigo-400",
                   shadow: "hover:shadow-blue-500/20",
                   iconBg: "bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800",
@@ -189,17 +189,17 @@ export default function Home() {
                 },
                 {
                   icon: <Users className="h-8 w-8 text-rose-600 dark:text-rose-400" />,
-                  title: "Commander©",
-                  description: "Plataforma de Business Intelligence personalizada. Sin importar el tamaño de tu empresa, con Commander© tendrás toda la información clave al alcance de tu mano para dominar cada decisión de tu proyecto.",
+                  title: "Commander© - Business Intelligence",
+                  description: "Tablero inteligente de información empresarial en tiempo real. Visualizá ingresos, gastos, flujo de fondos e indicadores estratégicos para tomar decisiones fundamentadas en datos precisos.",
                   gradient: "from-rose-500 to-pink-400",
                   shadow: "hover:shadow-rose-500/20",
                   iconBg: "bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800",
                   titleColor: "text-rose-600 dark:text-rose-400"
                 },
                 {
-                  icon: <Mic className="h-8 w-8 text-purple-600 dark:text-purple-400" />,
-                  title: "Contenido y Cultura IA",
-                  description: "Acompañamos a empresas, profesionales y equipos en el aprendizaje real de la inteligencia artificial. Diseñamos capacitaciones, guías de uso, contenidos estratégicos y metodologías para que la IA no sea una moda, sino una herramienta incorporada con criterio. Resultado: equipos más preparados, más autónomos y con menos miedo a usar tecnología.",
+                  icon: <Zap className="h-8 w-8 text-purple-600 dark:text-purple-400" />,
+                  title: "Gestión Bancaria y Automatización IA",
+                  description: "Módulo web para conciliación de cuentas, registro de tesorería y automatización de procesos repetitivos. Tecnología avanzada para mantener tus cuentas al día y ahorrar horas de trabajo operativo.",
                   gradient: "from-purple-500 to-fuchsia-400",
                   shadow: "hover:shadow-purple-500/20",
                   iconBg: "bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800",
@@ -228,10 +228,10 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {[
-                { label: "Clientes Acompañados", value: "10+", icon: <Users className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
-                { label: "Procesos Repensados", value: "30+", icon: <RefreshCw className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
-                { label: "Soluciones Brindadas", value: "15+", icon: <Lightbulb className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
-                { label: "Personalización", value: "100%", icon: <ShieldCheck className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
+                { label: "Usuarios y Profesionales", value: "100+", icon: <Users className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
+                { label: "Comprobantes y Registros", value: "10.000+", icon: <RefreshCw className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
+                { label: "Módulos de Servicio", value: "100% Web", icon: <Lightbulb className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
+                { label: "Disponibilidad del Sistema", value: "99.9%", icon: <ShieldCheck className="h-5 w-5 mx-auto mb-2 text-slate-400" /> },
               ].map((stat, idx) => (
                 <div key={idx} className="p-4">
                   {stat.icon}
@@ -253,10 +253,10 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 dark:text-white mb-4">
-                ¿Hablamos de tu <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff5e00] to-violet-500 dark:to-violet-400">proyecto?</span>
+                ¿Querés conocer nuestros <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff5e00] to-violet-500 dark:to-violet-400">servicios digitales?</span>
               </h2>
               <p className="text-lg text-slate-600 dark:text-slate-400">
-                Dejanos tu consulta y un especialista en Inteligencia Artificial y gestión se pondrá en contacto con vos a la brevedad.
+                Dejanos tu consulta y un representante de nuestro equipo se pondrá en contacto con vos para mostrarte la plataforma.
               </p>
             </div>
 
@@ -370,7 +370,7 @@ export default function Home() {
                           disabled={status === "submitting"}
                           required
                           rows={4}
-                          placeholder="Hola, me gustaría saber más sobre cómo implementar IA en mi empresa..."
+                          placeholder="Hola, me gustaría recibir más información sobre la plataforma de servicios NeoConta..."
                           className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-800/50 border border-slate-200 dark:border-neutral-700 rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#ff5e00]/50 dark:focus:ring-[#ff5e00]/30 focus:border-[#ff5e00] transition-all duration-200 resize-none"
                         ></textarea>
                       </div>

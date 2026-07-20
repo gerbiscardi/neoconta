@@ -6,23 +6,23 @@ import { FileText, PieChart, Users, Zap } from 'lucide-react';
 const services = [
     {
         icon: <FileText className="w-8 h-8" />,
-        title: "Facturador Masivo AFIP",
-        description: "Automatiza la emisión de facturas electrónicas. Conexión directa y segura con AFIP."
-    },
-    {
-        icon: <PieChart className="w-8 h-8" />,
-        title: "Consultoría Financiera",
-        description: "Análisis detallado de tus finanzas para tomar las mejores decisiones de negocio."
+        title: "Facturación Masiva ARCA / AFIP",
+        description: "Automatiza la emisión de comprobantes electrónicos con conexión directa a ARCA/AFIP."
     },
     {
         icon: <Users className="w-8 h-8" />,
-        title: "Gestión de Nómina",
-        description: "Liquidación de sueldos y cargas sociales al día, sin complicaciones."
+        title: "Historia Clínica Digital",
+        description: "Plataforma Vitacore para gestión médica de pacientes, evoluciones clínicas y recetas digitales."
+    },
+    {
+        icon: <PieChart className="w-8 h-8" />,
+        title: "Commander© Business Intelligence",
+        description: "Tableros de control en tiempo real para visualizar ingresos, gastos e indicadores de tu negocio."
     },
     {
         icon: <Zap className="w-8 h-8" />,
-        title: "Asesoría Impositiva",
-        description: "Optimización fiscal y cumplimiento de todas tus obligaciones tributarias."
+        title: "Gestión Bancaria & Automatización IA",
+        description: "Conciliación bancaria y flujo de caja automatizado mediante inteligencia artificial."
     }
 ];
 
