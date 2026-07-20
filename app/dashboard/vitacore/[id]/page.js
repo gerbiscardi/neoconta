@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
     ArrowLeft, User, Phone, Mail, Calendar, ShieldAlert, Award, 
-    Plus, FileText, CheckCircle, Trash2, Edit2, Bookmark, BookmarkCheck, Printer 
+    Plus, FileText, CheckCircle, Trash2, Edit2, Bookmark, BookmarkCheck, Printer,
+    Sparkles, Bot, Brain, Copy, Check 
 } from "lucide-react";
 
 export default function PatientDetail({ params }) {
@@ -44,6 +45,17 @@ export default function PatientDetail({ params }) {
     });
     const [submitting, setSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
+
+    // Gemini AI States
+    const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+    const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+    const [aiSummaryData, setAiSummaryData] = useState(null);
+
+    const [aiSoepLoading, setAiSoepLoading] = useState(false);
+
+    const [aiGuideLoading, setAiGuideLoading] = useState(false);
+    const [aiGuideData, setAiGuideData] = useState(null);
+    const [copiedGuide, setCopiedGuide] = useState(false);
 
     const router = useRouter();
 
@@ -231,7 +243,96 @@ export default function PatientDetail({ params }) {
         }
     };
 
+    const handleFetchAiSummary = async () => {
+        setIsSummaryModalOpen(true);
+        if (aiSummaryData) return; // Cached for current view
 
+        try {
+            setAiSummaryLoading(true);
+            const res = await fetch("/api/vitacore/ai", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "summary",
+                    patient
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setAiSummaryData(data.data);
+            } else {
+                alert(data.error || "No se pudo generar el resumen de IA.");
+            }
+        } catch (err) {
+            console.error("AI summary error:", err);
+        } finally {
+            setAiSummaryLoading(false);
+        }
+    };
+
+    const handleFormatSoep = async () => {
+        if (!newConsultation.observations.trim()) {
+            alert("Por favor escribe un borrador o notas breves en Observaciones Clínicas primero.");
+            return;
+        }
+
+        try {
+            setAiSoepLoading(true);
+            const res = await fetch("/api/vitacore/ai", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "soep",
+                    reason: newConsultation.reason,
+                    draftText: newConsultation.observations
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.data.formattedSOEP) {
+                setNewConsultation(prev => ({
+                    ...prev,
+                    observations: data.data.formattedSOEP
+                }));
+            } else {
+                alert(data.error || "No se pudo formatear el texto.");
+            }
+        } catch (err) {
+            console.error("AI SOEP error:", err);
+        } finally {
+            setAiSoepLoading(false);
+        }
+    };
+
+    const handleGeneratePatientGuide = async () => {
+        if (!newConsultation.prescription.trim() && !newConsultation.observations.trim()) {
+            alert("Por favor ingrese la prescripción u observaciones antes de solicitar la guía.");
+            return;
+        }
+
+        try {
+            setAiGuideLoading(true);
+            const res = await fetch("/api/vitacore/ai", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "patient_instructions",
+                    patient,
+                    prescription: newConsultation.prescription,
+                    observations: newConsultation.observations
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setAiGuideData(data.data);
+            } else {
+                alert(data.error || "No se pudo generar la guía del paciente.");
+            }
+        } catch (err) {
+            console.error("AI Guide error:", err);
+        } finally {
+            setAiGuideLoading(false);
+        }
+    };
 
     const handleToggleImportant = async (consultation) => {
         try {
@@ -360,8 +461,16 @@ export default function PatientDetail({ params }) {
                     )}
                 </div>
 
-                {/* Circular action buttons */}
+                {/* Circular action buttons & AI button */}
                 <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        onClick={handleFetchAiSummary}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-indigo-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                        title="Generar Resumen de Historia Clínica con Gemini AI"
+                    >
+                        <Sparkles className="h-4 w-4 text-amber-300 animate-pulse" />
+                        <span>Resumen IA</span>
+                    </button>
                     <button
                         onClick={handlePrint}
                         className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-gray-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
@@ -854,17 +963,39 @@ export default function PatientDetail({ params }) {
                                 )}
 
                                 <div className="space-y-1 sm:col-span-2">
-                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Observaciones Clínicas</label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Observaciones Clínicas</label>
+                                        <button
+                                            type="button"
+                                            onClick={handleFormatSoep}
+                                            disabled={aiSoepLoading}
+                                            className="flex items-center gap-1 text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:text-violet-700 bg-violet-50 dark:bg-violet-950/30 px-2.5 py-1 rounded-lg border border-violet-200 dark:border-violet-800 transition-all cursor-pointer disabled:opacity-50"
+                                        >
+                                            <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                                            <span>{aiSoepLoading ? "Formateando SOEP..." : "Formatear SOEP con IA"}</span>
+                                        </button>
+                                    </div>
                                     <textarea
                                         rows="4"
-                                        placeholder="Escriba aquí los detalles del control médico o examen físico..."
+                                        placeholder="Escriba borrador o examen físico y presione 'Formatear SOEP con IA'..."
                                         value={newConsultation.observations}
                                         onChange={(e) => setNewConsultation({ ...newConsultation, observations: e.target.value })}
-                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none font-mono text-xs"
                                     />
                                 </div>
                                 <div className="space-y-1 sm:col-span-2">
-                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Indicaciones / Receta / Tratamiento</label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Indicaciones / Receta / Tratamiento</label>
+                                        <button
+                                            type="button"
+                                            onClick={handleGeneratePatientGuide}
+                                            disabled={aiGuideLoading}
+                                            className="flex items-center gap-1 text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 bg-teal-50 dark:bg-teal-950/30 px-2.5 py-1 rounded-lg border border-teal-200 dark:border-teal-800 transition-all cursor-pointer disabled:opacity-50"
+                                        >
+                                            <Sparkles className="h-3.5 w-3.5 text-teal-500" />
+                                            <span>{aiGuideLoading ? "Analizando..." : "Chequear Alergias & Guía Paciente"}</span>
+                                        </button>
+                                    </div>
                                     <textarea
                                         rows="2"
                                         placeholder="Prescripción de medicamentos, indicaciones higiénico-dietéticas, etc."
@@ -873,6 +1004,41 @@ export default function PatientDetail({ params }) {
                                         className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
                                     />
                                 </div>
+
+                                {/* Display AI Safety Alert or Patient Guide if generated */}
+                                {aiGuideData && (
+                                    <div className="sm:col-span-2 space-y-3 pt-2">
+                                        {aiGuideData.hasSafetyWarning && aiGuideData.safetyWarning && (
+                                            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-amber-800 dark:text-amber-300 rounded-xl text-xs flex items-start gap-2.5 font-bold">
+                                                <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                                                <span>⚠️ ALERTA DE SEGURIDAD IA: {aiGuideData.safetyWarning}</span>
+                                            </div>
+                                        )}
+
+                                        {aiGuideData.patientGuide && (
+                                            <div className="p-4 bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/40 rounded-xl space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-black text-teal-700 dark:text-teal-300 uppercase tracking-wider">Guía de Tratamiento para el Paciente (Gemini AI)</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(aiGuideData.patientGuide);
+                                                            setCopiedGuide(true);
+                                                            setTimeout(() => setCopiedGuide(false), 2000);
+                                                        }}
+                                                        className="flex items-center gap-1 text-[11px] font-bold text-teal-700 dark:text-teal-300 hover:text-teal-900 bg-white dark:bg-zinc-900 px-2 py-1 rounded-md border border-teal-200 dark:border-teal-800"
+                                                    >
+                                                        {copiedGuide ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                                        <span>{copiedGuide ? "Copiado!" : "Copiar Texto"}</span>
+                                                    </button>
+                                                </div>
+                                                <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed font-medium whitespace-pre-wrap">
+                                                    {aiGuideData.patientGuide}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Etiquetas (Separadas por comas)</label>
                                     <input
@@ -913,6 +1079,107 @@ export default function PatientDetail({ params }) {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Resumen Clínico Inteligente (Gemini AI) */}
+            {isSummaryModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div onClick={() => setIsSummaryModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="bg-white dark:bg-zinc-950 border border-violet-500/30 rounded-3xl w-full max-w-2xl p-6 shadow-2xl relative z-10 space-y-6 overflow-hidden">
+                        {/* Glow element */}
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                        <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-gradient-to-tr from-violet-600 to-indigo-600 text-white rounded-2xl shadow-md">
+                                    <Brain className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-gray-900 dark:text-slate-100">Resumen Clínico Inteligente</h3>
+                                    <p className="text-xs text-violet-600 dark:text-violet-400 font-bold">Generado con Google Gemini 2.5 Flash</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsSummaryModalOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white rounded-lg">✕</button>
+                        </div>
+
+                        {aiSummaryLoading ? (
+                            <div className="py-12 text-center space-y-3">
+                                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-600 mx-auto"></div>
+                                <p className="text-xs font-bold text-gray-500 animate-pulse">Analizando historial médico y evoluciones clínicas con Gemini AI...</p>
+                            </div>
+                        ) : aiSummaryData ? (
+                            <div className="space-y-5 text-sm max-h-[65vh] overflow-y-auto pr-1">
+                                {/* Summary Box */}
+                                <div className="p-4 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/30 rounded-2xl space-y-2">
+                                    <span className="text-xs font-black text-violet-700 dark:text-violet-300 uppercase tracking-wider block">Síntesis General del Paciente</span>
+                                    <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
+                                        {aiSummaryData.summary}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Active Conditions */}
+                                    <div className="p-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl space-y-2">
+                                        <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Diagnósticos / Condiciones Activas</span>
+                                        <ul className="space-y-1.5 text-xs">
+                                            {aiSummaryData.activeConditions && aiSummaryData.activeConditions.length > 0 ? (
+                                                aiSummaryData.activeConditions.map((cond, idx) => (
+                                                    <li key={idx} className="flex items-start gap-2 text-gray-800 dark:text-slate-200 font-semibold">
+                                                        <span className="text-teal-500">•</span>
+                                                        <span>{cond}</span>
+                                                    </li>
+                                                ))
+                                            ) : (
+                                                <li className="text-gray-400 text-xs italic">Sin condiciones crónicas registradas.</li>
+                                            )}
+                                        </ul>
+                                    </div>
+
+                                    {/* Current Treatments */}
+                                    <div className="p-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl space-y-2">
+                                        <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Tratamientos Prescritos</span>
+                                        <ul className="space-y-1.5 text-xs">
+                                            {aiSummaryData.currentTreatments && aiSummaryData.currentTreatments.length > 0 ? (
+                                                aiSummaryData.currentTreatments.map((treat, idx) => (
+                                                    <li key={idx} className="flex items-start gap-2 text-gray-800 dark:text-slate-200 font-semibold">
+                                                        <span className="text-indigo-500">•</span>
+                                                        <span>{treat}</span>
+                                                    </li>
+                                                ))
+                                            ) : (
+                                                <li className="text-gray-400 text-xs italic">Sin tratamientos activos.</li>
+                                            )}
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                {/* Key Alerts */}
+                                {aiSummaryData.keyAlerts && aiSummaryData.keyAlerts.length > 0 && (
+                                    <div className="p-4 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/50 dark:border-rose-900/30 rounded-2xl space-y-2">
+                                        <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider block">Alertas Clínicas y Recomendaciones</span>
+                                        <ul className="space-y-1 text-xs">
+                                            {aiSummaryData.keyAlerts.map((alertItem, idx) => (
+                                                <li key={idx} className="flex items-start gap-2 text-rose-700 dark:text-rose-300 font-bold">
+                                                    <ShieldAlert className="h-4 w-4 shrink-0 text-rose-500 mt-0.5" />
+                                                    <span>{alertItem}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
+
+                        <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-slate-800">
+                            <button
+                                onClick={() => setIsSummaryModalOpen(false)}
+                                className="px-5 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl text-xs cursor-pointer"
+                            >
+                                Entendido
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
