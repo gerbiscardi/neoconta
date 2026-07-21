@@ -57,6 +57,15 @@ export default function PatientDetail({ params }) {
     const [aiGuideData, setAiGuideData] = useState(null);
     const [copiedGuide, setCopiedGuide] = useState(false);
 
+    // Medical Glossary Autocomplete States
+    const [diagSuggestions, setDiagSuggestions] = useState([]);
+    const [diagLoading, setDiagLoading] = useState(false);
+    const [showDiagDropdown, setShowDiagDropdown] = useState(false);
+
+    const [rxSuggestions, setRxSuggestions] = useState([]);
+    const [rxLoading, setRxLoading] = useState(false);
+    const [showRxDropdown, setShowRxDropdown] = useState(false);
+
     const router = useRouter();
 
     const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser.parentId : currentUser?.id;
@@ -331,6 +340,52 @@ export default function PatientDetail({ params }) {
             console.error("AI Guide error:", err);
         } finally {
             setAiGuideLoading(false);
+        }
+    };
+
+    const handleReasonChange = async (val) => {
+        setNewConsultation(prev => ({ ...prev, reason: val }));
+        if (val.trim().length >= 2) {
+            setShowDiagDropdown(true);
+            setDiagLoading(true);
+            try {
+                const res = await fetch(`/api/vitacore/medical-terms?q=${encodeURIComponent(val.trim())}&source=ICD-11&limit=8`);
+                const data = await res.json();
+                if (data.success) {
+                    setDiagSuggestions(data.terms || []);
+                }
+            } catch (err) {
+                console.error("Error fetching diagnosis terms:", err);
+            } finally {
+                setDiagLoading(false);
+            }
+        } else {
+            setShowDiagDropdown(false);
+            setDiagSuggestions([]);
+        }
+    };
+
+    const handlePrescriptionChange = async (val) => {
+        setNewConsultation(prev => ({ ...prev, prescription: val }));
+        const lines = val.split("\n");
+        const currentLine = lines[lines.length - 1].trim();
+        if (currentLine.length >= 3) {
+            setShowRxDropdown(true);
+            setRxLoading(true);
+            try {
+                const res = await fetch(`/api/vitacore/medical-terms?q=${encodeURIComponent(currentLine)}&limit=8`);
+                const data = await res.json();
+                if (data.success) {
+                    setRxSuggestions(data.terms || []);
+                }
+            } catch (err) {
+                console.error("Error fetching Rx terms:", err);
+            } finally {
+                setRxLoading(false);
+            }
+        } else {
+            setShowRxDropdown(false);
+            setRxSuggestions([]);
         }
     };
 
@@ -923,16 +978,53 @@ export default function PatientDetail({ params }) {
                                         className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
                                 </div>
-                                <div className="space-y-1">
+                                <div className="space-y-1 relative">
                                     <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Motivo / Diagnóstico *</label>
                                     <input
                                         type="text"
                                         required
-                                        placeholder="Ej: Control de rutina, Angina, etc."
+                                        placeholder="Tippee síntoma o diagnóstico (ej: Diabetes, Angina)..."
                                         value={newConsultation.reason}
-                                        onChange={(e) => setNewConsultation({ ...newConsultation, reason: e.target.value })}
+                                        onChange={(e) => handleReasonChange(e.target.value)}
+                                        onFocus={() => { if (diagSuggestions.length > 0) setShowDiagDropdown(true); }}
                                         className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
                                     />
+                                    {/* Dropdown de Autocompletado CIE-11 / OMS */}
+                                    {showDiagDropdown && (
+                                        <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white dark:bg-zinc-900 border border-teal-200 dark:border-teal-900/50 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100 dark:divide-zinc-800">
+                                            {diagLoading ? (
+                                                <div className="p-3 text-xs text-teal-600 dark:text-teal-400 animate-pulse font-medium">Buscando en catálogo OMS CIE-11...</div>
+                                            ) : diagSuggestions.length > 0 ? (
+                                                diagSuggestions.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        onClick={() => {
+                                                            const text = item.icdCode ? `${item.term} (CIE-11: ${item.icdCode})` : item.term;
+                                                            setNewConsultation(prev => ({ ...prev, reason: text }));
+                                                            setShowDiagDropdown(false);
+                                                        }}
+                                                        className="p-2.5 hover:bg-teal-50/60 dark:hover:bg-teal-950/30 cursor-pointer text-xs flex items-center justify-between transition-colors"
+                                                    >
+                                                        <div className="font-semibold text-gray-800 dark:text-slate-200 pr-2">
+                                                            {item.term}
+                                                        </div>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            {item.icdCode && (
+                                                                <span className="px-2 py-0.5 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 font-extrabold rounded text-[10px]">
+                                                                    OMS CIE-11: {item.icdCode}
+                                                                </span>
+                                                            )}
+                                                            <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-zinc-800 text-gray-500 text-[10px] rounded uppercase">
+                                                                {item.source}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="p-3 text-xs text-gray-400 italic">Sin sugerencias exactas en catálogo OMS.</div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {currentUser?.role === 'cliente' && (
@@ -983,7 +1075,7 @@ export default function PatientDetail({ params }) {
                                         className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none font-mono text-xs"
                                     />
                                 </div>
-                                <div className="space-y-1 sm:col-span-2">
+                                <div className="space-y-1 sm:col-span-2 relative">
                                     <div className="flex items-center justify-between mb-1">
                                         <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Indicaciones / Receta / Tratamiento</label>
                                         <button
@@ -998,11 +1090,42 @@ export default function PatientDetail({ params }) {
                                     </div>
                                     <textarea
                                         rows="2"
-                                        placeholder="Prescripción de medicamentos, indicaciones higiénico-dietéticas, etc."
+                                        placeholder="Prescripción de medicamentos (ej: Ibuprofeno), laboratorios (LOINC), etc."
                                         value={newConsultation.prescription}
-                                        onChange={(e) => setNewConsultation({ ...newConsultation, prescription: e.target.value })}
+                                        onChange={(e) => handlePrescriptionChange(e.target.value)}
+                                        onFocus={() => { if (rxSuggestions.length > 0) setShowRxDropdown(true); }}
                                         className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 resize-none"
                                     />
+                                    {/* Dropdown de Autocompletado Vademecum RxNorm / LOINC */}
+                                    {showRxDropdown && (
+                                        <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-gray-100 dark:divide-zinc-800">
+                                            {rxLoading ? (
+                                                <div className="p-3 text-xs text-blue-600 dark:text-blue-400 animate-pulse font-medium">Buscando en Vademécum RxNorm / LOINC...</div>
+                                            ) : rxSuggestions.length > 0 ? (
+                                                rxSuggestions.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        onClick={() => {
+                                                            const lines = newConsultation.prescription.split("\n");
+                                                            lines[lines.length - 1] = item.term;
+                                                            setNewConsultation(prev => ({ ...prev, prescription: lines.join("\n") }));
+                                                            setShowRxDropdown(false);
+                                                        }}
+                                                        className="p-2.5 hover:bg-blue-50/60 dark:hover:bg-blue-950/30 cursor-pointer text-xs flex items-center justify-between transition-colors"
+                                                    >
+                                                        <div className="font-semibold text-gray-800 dark:text-slate-200 pr-2">
+                                                            {item.term}
+                                                        </div>
+                                                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-extrabold rounded text-[10px] uppercase">
+                                                            {item.source}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="p-3 text-xs text-gray-400 italic">Sin sugerencias en Vademécum.</div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Display AI Safety Alert or Patient Guide if generated */}

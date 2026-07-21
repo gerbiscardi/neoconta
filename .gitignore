@@ -43,3 +43,9 @@ next-env.d.ts
 # sensitive user data, private keys, certificates and invoice databases
 /data/
 
+
+*.zip
+INSTRUCCIONES.txt
+SHA256.txt
+counts.json
+README.md
