@@ -1,20 +1,28 @@
 import { NextResponse } from 'next/server';
 import { join } from 'path';
-import { DatabaseSync } from 'node:sqlite';
+import sqlite3 from 'sqlite3';
 
 let dbInstance = null;
 
 function getDb() {
     if (!dbInstance) {
         const dbPath = join(process.cwd(), 'data', 'glosario_medico_bilingue.sqlite');
-        try {
-            dbInstance = new DatabaseSync(dbPath, { readOnly: true });
-        } catch (err) {
-            console.error('Error opening medical SQLite database:', err);
-            throw err;
-        }
+        dbInstance = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+            if (err) {
+                console.error('Error opening sqlite3 database:', err);
+            }
+        });
     }
     return dbInstance;
+}
+
+function runQuery(db, sql, params) {
+    return new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => {
+            if (err) return reject(err);
+            resolve(rows);
+        });
+    });
 }
 
 export async function GET(request) {
@@ -61,12 +69,10 @@ export async function GET(request) {
         sql += ` ORDER BY (CASE WHEN g.term LIKE ? THEN 0 ELSE 1 END), g.preferred DESC, LENGTH(g.term) ASC LIMIT ?`;
         params.push(searchLike, limit);
 
-        const stmt = db.prepare(sql);
-        const rows = stmt.all(...params);
+        const rows = await runQuery(db, sql, params);
 
         const terms = rows.map(r => {
-            // Clean up hierarchy hyphens like "- - - Diabetes"
-            const cleanedTerm = r.term.replace(/^[\s\-]+/, '');
+            const cleanedTerm = (r.term || '').replace(/^[\s\-]+/, '');
             return {
                 id: r.term_id,
                 source: r.source,
