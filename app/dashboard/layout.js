@@ -58,7 +58,7 @@ export default function DashboardLayout({ children }) {
                     router.push('/dashboard');
                 } else if (path === '/dashboard/facturacion' && !(features.facturacionManual || features.facturacionMasiva)) {
                     router.push('/dashboard');
-                } else if (path.startsWith('/dashboard/vitacore') && !features.moduloVitacore) {
+                } else if (path.startsWith('/dashboard/vitacore') && features.moduloVitacore === false) {
                     router.push('/dashboard');
                 }
             }
