@@ -126,7 +126,7 @@ export default function Home() {
                     Plataforma <br/><span className="font-light text-transparent bg-clip-text bg-gradient-to-r from-[#ff5e00] to-violet-500 dark:to-violet-400">Integral Web</span>
                   </h2>
                   <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed text-left">
-                    NeoConta es una plataforma micro ERP diseñada para profesionalizar y automatizar la gestión administrativa de emprendedores, profesionales y PyMES que combina un sólido servicio web con la potencia de Gemini para darle apoyo a las principales tareas administrativas de tu negocio. NeoConta reune herramientas clave como facturación electrónica ARCA (individual y masiva), Historia Clínica Digital (Vitacore), conciliación de cuentas por cobrar y Business Intelligence en una única solución web eficiente y escalable.
+                    NeoConta es una plataforma micro ERP diseñada para automatizar y optimizar la gestión administrativa de emprendedores, profesionales y PyMES que combina un sólido servicio web con la potencia de Gemini para darle apoyo a las principales tareas administrativas de tu negocio. NeoConta reune herramientas clave como facturación electrónica ARCA (individual y masiva), Historia Clínica Digital (Vitacore), conciliación de cuentas por cobrar y Business Intelligence en una única solución web eficiente y escalable.
                   </p>
                 </div>
 
