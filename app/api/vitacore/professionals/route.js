@@ -109,7 +109,10 @@ export async function PUT(request) {
             nombre: updatedData.nombre ?? users[index].nombre,
             password: updatedData.password ?? users[index].password,
             specialty: updatedData.specialty ?? users[index].specialty,
-            matricula: updatedData.matricula ?? users[index].matricula
+            matricula: updatedData.matricula ?? users[index].matricula,
+            cuit: updatedData.cuit ?? users[index].cuit,
+            signature: updatedData.signature ?? users[index].signature,
+            stampDetails: updatedData.stampDetails ?? users[index].stampDetails
         };
 
         await writeUsers(users);

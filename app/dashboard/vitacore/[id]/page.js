@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { 
     ArrowLeft, User, Phone, Mail, Calendar, ShieldAlert, Award, 
     Plus, FileText, CheckCircle, Trash2, Edit2, Bookmark, BookmarkCheck, Printer,
-    Sparkles, Bot, Brain, Copy, Check 
+    Sparkles, Bot, Brain, Copy, Check, Pill, PenTool, Download, ExternalLink, QrCode, ShieldCheck, Clock, CheckCircle2
 } from "lucide-react";
+import SignatureCanvas from "@/app/components/SignatureCanvas";
+import { generatePrescriptionPDF } from "@/app/lib/generatePrescriptionPDF";
 
 export default function PatientDetail({ params }) {
     // React.use(params) to unwrap Next.js async params
@@ -66,6 +68,22 @@ export default function PatientDetail({ params }) {
     const [rxLoading, setRxLoading] = useState(false);
     const [showRxDropdown, setShowRxDropdown] = useState(false);
 
+    // Recetario Digital States
+    const [prescriptions, setPrescriptions] = useState([]);
+    const [isRxModalOpen, setIsRxModalOpen] = useState(false);
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [rxItems, setRxItems] = useState([
+        { drugName: "", dosage: "", frequency: "", duration: "", totalQuantity: "1" }
+    ]);
+    const [rxDiagnosis, setRxDiagnosis] = useState("");
+    const [rxObservations, setRxObservations] = useState("");
+    const [rxUseDigitalSignature, setRxUseDigitalSignature] = useState(true);
+    const [rxSelectedProfessionalId, setRxSelectedProfessionalId] = useState("");
+    const [customSignatureBase64, setCustomSignatureBase64] = useState("");
+    const [rxSubmitting, setRxSubmitting] = useState(false);
+    const [itemRxSuggestions, setItemRxSuggestions] = useState({});
+    const [activeTab, setActiveTab] = useState("consultations"); // 'consultations' | 'prescriptions'
+
     const router = useRouter();
 
     const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser.parentId : currentUser?.id;
@@ -80,8 +98,21 @@ export default function PatientDetail({ params }) {
             const targetId = user.role === 'vitacore-professional' ? user.parentId : user.id;
             fetchPatientData(targetId);
             fetchProfessionals(targetId);
+            fetchPrescriptions(targetId, patientId);
         }
     }, [router, patientId]);
+
+    const fetchPrescriptions = async (userId, targetPatientId) => {
+        try {
+            const res = await fetch(`/api/vitacore/prescriptions?userId=${userId}&patientId=${targetPatientId}`);
+            const data = await res.json();
+            if (data.success) {
+                setPrescriptions(data.prescriptions || []);
+            }
+        } catch (err) {
+            console.error("Error fetching prescriptions:", err);
+        }
+    };
 
     const fetchProfessionals = async (userId) => {
         try {
@@ -389,6 +420,120 @@ export default function PatientDetail({ params }) {
         }
     };
 
+    const handleAddRxItem = () => {
+        setRxItems(prev => [...prev, { drugName: "", dosage: "", frequency: "", duration: "", totalQuantity: "1" }]);
+    };
+
+    const handleRemoveRxItem = (index) => {
+        setRxItems(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleRxItemChange = async (index, field, value) => {
+        setRxItems(prev => {
+            const copy = [...prev];
+            copy[index] = { ...copy[index], [field]: value };
+            return copy;
+        });
+
+        if (field === 'drugName' && value.trim().length >= 2) {
+            try {
+                const res = await fetch(`/api/vitacore/medical-terms?q=${encodeURIComponent(value.trim())}&limit=6`);
+                const data = await res.json();
+                if (data.success) {
+                    setItemRxSuggestions(prev => ({ ...prev, [index]: data.terms || [] }));
+                }
+            } catch (err) {
+                console.error("Error fetching drug terms:", err);
+            }
+        } else if (field === 'drugName') {
+            setItemRxSuggestions(prev => ({ ...prev, [index]: [] }));
+        }
+    };
+
+    const handleSelectRxItemSuggestion = (index, term) => {
+        setRxItems(prev => {
+            const copy = [...prev];
+            copy[index] = { ...copy[index], drugName: term.term };
+            return copy;
+        });
+        setItemRxSuggestions(prev => ({ ...prev, [index]: [] }));
+    };
+
+    const handleSavePrescription = async (e) => {
+        e.preventDefault();
+        if (!patient || rxItems.length === 0) return;
+        setRxSubmitting(true);
+
+        const targetId = currentUser.role === 'vitacore-professional' ? currentUser.parentId : currentUser.id;
+        const selectedProf = professionals.find(p => p.id === rxSelectedProfessionalId);
+
+        const profName = selectedProf ? selectedProf.nombre : (currentUser.nombre || 'Dr. Profesional Tratante');
+        const profSpecialty = selectedProf ? (selectedProf.specialty || 'Medicina General') : 'Director Clínico';
+        const profMatricula = selectedProf ? (selectedProf.matricula || '') : '';
+        const profCuit = selectedProf ? (selectedProf.cuit || '') : '';
+        const signatureToUse = customSignatureBase64 || (selectedProf ? selectedProf.signature : currentUser.signature) || '';
+
+        try {
+            const res = await fetch('/api/vitacore/prescriptions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: targetId,
+                    patientId: patient.id,
+                    professionalId: selectedProf ? selectedProf.id : currentUser.id,
+                    professionalName: profName,
+                    professionalSpecialty: profSpecialty,
+                    professionalMatricula: profMatricula,
+                    professionalCuit: profCuit,
+                    patientName: patient.name,
+                    patientDni: patient.dni,
+                    patientObraSocial: patient.obraSocial,
+                    patientNumeroAfiliado: patient.affiliateNumber,
+                    patientFechaNacimiento: patient.birthDate,
+                    diagnosis: rxDiagnosis || 'Consulta Médica General',
+                    items: rxItems,
+                    observations: rxObservations,
+                    useDigitalSignature: rxUseDigitalSignature,
+                    signatureBase64: signatureToUse
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setIsRxModalOpen(false);
+                setRxItems([{ drugName: "", dosage: "", frequency: "", duration: "", totalQuantity: "1" }]);
+                setRxDiagnosis("");
+                setRxObservations("");
+                fetchPrescriptions(targetId, patient.id);
+            } else {
+                alert(data.error || "Error al guardar la receta");
+            }
+        } catch (err) {
+            console.error("Error saving prescription:", err);
+            alert("Error de conexión al guardar la receta");
+        } finally {
+            setRxSubmitting(false);
+        }
+    };
+
+    const handleDeletePrescription = async (rxId) => {
+        if (!window.confirm("¿Deseas dar de baja esta prescripción médica?")) return;
+        const targetId = currentUser.role === 'vitacore-professional' ? currentUser.parentId : currentUser.id;
+        try {
+            const res = await fetch(`/api/vitacore/prescriptions?userId=${targetId}&prescriptionId=${rxId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                fetchPrescriptions(targetId, patient.id);
+            } else {
+                alert(data.error || "No se pudo eliminar la receta");
+            }
+        } catch (err) {
+            console.error("Error deleting rx:", err);
+        }
+    };
+
     const handleToggleImportant = async (consultation) => {
         try {
             const res = await fetch("/api/vitacore/consultations", {
@@ -629,31 +774,71 @@ export default function PatientDetail({ params }) {
 
                 {/* Right Column: Timeline / Consultation Records */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center justify-between print:hidden">
-                        <h3 className="text-lg font-bold">Historial de Evoluciones</h3>
-                        <button
-                            onClick={() => setIsConsultationModalOpen(true)}
-                            className="flex items-center gap-1 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-teal-500/10"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Nueva Evolución
-                        </button>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden border-b border-gray-200 dark:border-zinc-800 pb-3">
+                        {/* Tab Switcher */}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setActiveTab('consultations')}
+                                className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    activeTab === 'consultations'
+                                        ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/30 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-slate-300'
+                                }`}
+                            >
+                                <FileText className="h-4 w-4" />
+                                <span>Evoluciones Clínicas ({patient.consultations?.length || 0})</span>
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('prescriptions')}
+                                className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    activeTab === 'prescriptions'
+                                        ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/30 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-slate-300'
+                                }`}
+                            >
+                                <Pill className="h-4 w-4 text-teal-500" />
+                                <span>Recetario & Prescripciones ({prescriptions?.length || 0})</span>
+                            </button>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2">
+                            {activeTab === 'consultations' ? (
+                                <button
+                                    onClick={() => setIsConsultationModalOpen(true)}
+                                    className="flex items-center gap-1.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-500/10 cursor-pointer"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    <span>Nueva Evolución</span>
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => setIsRxModalOpen(true)}
+                                    className="flex items-center gap-1.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-500/10 cursor-pointer"
+                                >
+                                    <Pill className="h-4 w-4 text-amber-300" />
+                                    <span>Nueva Receta Médica</span>
+                                </button>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Evoluciones list */}
-                    {(!patient.consultations || patient.consultations.length === 0) ? (
-                        <div className="text-center py-20 bg-white dark:bg-slate-900/40 rounded-3xl border border-gray-200 dark:border-slate-800">
-                            <FileText className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                            <h3 className="text-base font-bold text-gray-700 dark:text-gray-300">No hay consultas registradas</h3>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-sm mx-auto">
-                                Comenzá a registrar la historia médica del paciente haciendo clic en el botón de Nueva Evolución.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-6 relative before:absolute before:left-4 before:top-4 before:bottom-4 before:w-[2px] before:bg-gray-200 dark:before:bg-slate-800 print:before:bg-gray-300">
-                            {patient.consultations.map(consultation => (
-                                <div 
-                                    key={consultation.id}
+                    {/* Tab 1: Evoluciones list */}
+                    {activeTab === 'consultations' ? (
+                        (!patient.consultations || patient.consultations.length === 0) ? (
+                            <div className="text-center py-20 bg-white dark:bg-slate-900/40 rounded-3xl border border-gray-200 dark:border-slate-800">
+                                <FileText className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                                <h3 className="text-base font-bold text-gray-700 dark:text-gray-300">No hay consultas registradas</h3>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-sm mx-auto">
+                                    Comenzá a registrar la historia médica del paciente haciendo clic en el botón de Nueva Evolución.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6 relative before:absolute before:left-4 before:top-4 before:bottom-4 before:w-[2px] before:bg-gray-200 dark:before:bg-slate-800 print:before:bg-gray-300">
+                                {patient.consultations.map(consultation => (
+                                    <div 
+                                        key={consultation.id}
                                     className={`relative pl-10 group transition-all ${
                                         consultation.isImportant 
                                             ? "scale-[1.01] print:scale-100" 
@@ -841,7 +1026,125 @@ export default function PatientDetail({ params }) {
                                 </div>
                             ))}
                         </div>
-                    )}
+                    )
+                ) : (
+                    /* Tab 2: Recetario & Prescripciones List */
+                    (!prescriptions || prescriptions.length === 0) ? (
+                        <div className="text-center py-20 bg-white dark:bg-slate-900/40 rounded-3xl border border-gray-200 dark:border-slate-800 space-y-3">
+                            <Pill className="h-12 w-12 text-teal-500/50 mx-auto" />
+                            <h3 className="text-base font-bold text-gray-700 dark:text-gray-300">No hay recetas emitidas</h3>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 max-w-sm mx-auto">
+                                Creá y firmá digitalmente la primera prescripción médica del paciente haciendo clic en "Nueva Receta Médica".
+                            </p>
+                            <button
+                                onClick={() => setIsRxModalOpen(true)}
+                                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-teal-600 to-cyan-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+                            >
+                                <Pill className="h-4 w-4 text-amber-300" />
+                                <span>Emitir Receta Médica</span>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {prescriptions.map(rx => {
+                                const isExpired = new Date(rx.expirationDate) < new Date();
+                                return (
+                                    <div key={rx.id} className="bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-slate-800 p-5 space-y-4 shadow-sm hover:shadow-md transition-all">
+                                        {/* Header Card */}
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-3">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-2 bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 rounded-lg shrink-0">
+                                                    <Pill className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-extrabold text-xs text-gray-800 dark:text-slate-200">RECETA N° {rx.id}</span>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                                                            isExpired 
+                                                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' 
+                                                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                        }`}>
+                                                            {isExpired ? 'VENCIDA' : 'VIGENTE'}
+                                                        </span>
+                                                        {rx.useDigitalSignature && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/10 text-teal-600 dark:text-teal-300 border border-teal-500/20 flex items-center gap-1">
+                                                                <CheckCircle2 className="h-3 w-3 text-teal-500" /> Firma Digital
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 block">
+                                                        {rx.professionalName} {rx.professionalSpecialty && `(${rx.professionalSpecialty})`}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="text-left sm:text-right shrink-0 text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                                                <div>Emitida: <span className="font-bold text-gray-700 dark:text-slate-300">{new Date(rx.createdAt).toLocaleDateString("es-AR")}</span></div>
+                                                <div>Vence: <span className="font-bold text-gray-700 dark:text-slate-300">{new Date(rx.expirationDate).toLocaleDateString("es-AR")}</span></div>
+                                            </div>
+                                        </div>
+
+                                        {/* Diagnosis & Rp Items */}
+                                        <div className="space-y-2">
+                                            <div className="text-xs font-semibold text-gray-700 dark:text-slate-300">
+                                                <span className="text-gray-400 font-bold uppercase text-[10px] mr-1">DIAGNÓSTICO:</span>
+                                                <span className="text-teal-600 dark:text-teal-400 font-bold">{rx.diagnosis}</span>
+                                            </div>
+                                            <div className="bg-slate-50/70 dark:bg-zinc-950 p-3.5 rounded-xl border border-gray-100 dark:border-zinc-800 space-y-2 text-xs">
+                                                <span className="text-[10px] font-extrabold text-teal-600 dark:text-teal-400 tracking-wider uppercase block">Prescripción (Rp/)</span>
+                                                <ul className="space-y-1.5 divide-y divide-gray-100 dark:divide-zinc-800">
+                                                    {(rx.items || []).map((item, idx) => (
+                                                        <li key={idx} className="pt-1.5 first:pt-0 flex items-start justify-between gap-3">
+                                                            <div>
+                                                                <p className="font-bold text-gray-800 dark:text-slate-200">{item.drugName}</p>
+                                                                <p className="text-[11px] text-gray-500 dark:text-slate-400">{item.dosage} {item.frequency && `• ${item.frequency}`} {item.duration && `• ${item.duration}`}</p>
+                                                            </div>
+                                                            <span className="px-2 py-0.5 bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 font-mono font-bold text-[10px] rounded shrink-0">
+                                                                Cant: {item.totalQuantity || '1'}
+                                                            </span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        {/* Footer Actions */}
+                                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 dark:border-slate-800">
+                                            <div className="flex items-center gap-1.5 text-[10px] font-mono text-gray-400">
+                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                                                <span>SHA-256: {rx.verificationHash ? rx.verificationHash.substring(0, 16) + '...' : 'OK'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <a
+                                                    href={`/validar-receta/${rx.id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                    <span>Validación QR</span>
+                                                </a>
+                                                <button
+                                                    onClick={() => generatePrescriptionPDF(rx)}
+                                                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                                                >
+                                                    <Download className="h-3.5 w-3.5" />
+                                                    <span>Descargar PDF</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeletePrescription(rx.id)}
+                                                    className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all cursor-pointer"
+                                                    title="Eliminar Receta"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
+                )}
                 </div>
             </div>
 
@@ -1303,6 +1606,309 @@ export default function PatientDetail({ params }) {
                                 Entendido
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Nueva Receta Médica */}
+            {isRxModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+                    <div onClick={() => setIsRxModalOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-3xl w-full max-w-3xl p-6 sm:p-8 shadow-2xl relative z-10 space-y-6 my-8 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between border-b border-gray-100 dark:border-zinc-800 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/20">
+                                    <Pill className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Emitir Receta Médica Digital</h3>
+                                    <p className="text-xs text-gray-400">Paciente: <span className="font-bold text-teal-600 dark:text-teal-400">{patient?.name}</span> (DNI {patient?.dni})</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsRxModalOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-white text-lg">✕</button>
+                        </div>
+
+                        <form onSubmit={handleSavePrescription} className="space-y-6">
+                            {/* Professional Selector */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Profesional Emisor *</label>
+                                    <select
+                                        value={rxSelectedProfessionalId}
+                                        onChange={(e) => setRxSelectedProfessionalId(e.target.value)}
+                                        className="w-full px-3 py-2.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500"
+                                    >
+                                        <option value="">{currentUser?.nombre || 'Dr. Profesional Tratante (Usted)'} — M.N. / M.P. Registrada</option>
+                                        {professionals.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.nombre} ({p.specialty || 'Medicina General'} • Mat: {p.matricula || 'S/N'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-1 relative">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Diagnóstico (CIE-11 OMS) *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Ej: J00 Rinitis aguda, Hipertensión arterial..."
+                                        value={rxDiagnosis}
+                                        onChange={(e) => {
+                                            setRxDiagnosis(e.target.value);
+                                            handleDiagnosisSearch(e.target.value);
+                                        }}
+                                        className="w-full px-3 py-2.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500"
+                                    />
+                                    {showDiagDropdown && diagSuggestions.length > 0 && (
+                                        <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-xl z-30 max-h-48 overflow-y-auto divide-y divide-gray-100 dark:divide-zinc-800">
+                                            {diagSuggestions.map((item, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        setRxDiagnosis(`${item.code ? item.code + ' - ' : ''}${item.term}`);
+                                                        setShowDiagDropdown(false);
+                                                    }}
+                                                    className="p-2.5 text-xs hover:bg-teal-50 dark:hover:bg-teal-950/40 cursor-pointer font-medium"
+                                                >
+                                                    {item.code && <span className="font-bold text-teal-600 dark:text-teal-400 mr-1 shadow-sm font-mono">[{item.code}]</span>}
+                                                    {item.term}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Prescribed Items Dynamic Table (Rp/) */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Pill className="h-4 w-4" /> Prescripción de Medicamentos (Rp/)
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddRxItem}
+                                        className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" /> Agregar Medicamento
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {rxItems.map((item, index) => (
+                                        <div key={index} className="p-4 bg-slate-50 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 rounded-2xl space-y-3 relative">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[11px] font-extrabold text-gray-500 uppercase">Item #{index + 1}</span>
+                                                {rxItems.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveRxItem(index)}
+                                                        className="text-xs text-rose-500 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" /> Quitar
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <div className="sm:col-span-3 space-y-1 relative">
+                                                    <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Medicamento / Principio Activo *</label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        placeholder="Ej: Amoxicilina 500mg, Ibupirac 600..."
+                                                        value={item.drugName}
+                                                        onChange={(e) => handleRxItemChange(index, 'drugName', e.target.value)}
+                                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold"
+                                                    />
+                                                    {itemRxSuggestions[index] && itemRxSuggestions[index].length > 0 && (
+                                                        <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-xl z-30 max-h-40 overflow-y-auto divide-y divide-gray-100 dark:divide-zinc-800">
+                                                            {itemRxSuggestions[index].map((term, tIdx) => (
+                                                                <div
+                                                                    key={tIdx}
+                                                                    onClick={() => handleSelectRxItemSuggestion(index, term)}
+                                                                    className="p-2 text-xs hover:bg-teal-50 dark:hover:bg-teal-950/40 cursor-pointer font-semibold flex items-center justify-between"
+                                                                >
+                                                                    <span>{term.term}</span>
+                                                                    <span className="text-[9px] bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 font-extrabold px-1.5 py-0.5 rounded">RxNorm</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Dosis / Concentración</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ej: 1 comprimido"
+                                                        value={item.dosage}
+                                                        onChange={(e) => handleRxItemChange(index, 'dosage', e.target.value)}
+                                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Frecuencia</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ej: Cada 8 hs"
+                                                        value={item.frequency}
+                                                        onChange={(e) => handleRxItemChange(index, 'frequency', e.target.value)}
+                                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Duración / Cantidad</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Ej: 7 días"
+                                                            value={item.duration}
+                                                            onChange={(e) => handleRxItemChange(index, 'duration', e.target.value)}
+                                                            className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="1 caja"
+                                                            value={item.totalQuantity}
+                                                            onChange={(e) => handleRxItemChange(index, 'totalQuantity', e.target.value)}
+                                                            className="w-20 px-2 py-2 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-center"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Indications / Observations */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Indicaciones Generales / Observaciones</label>
+                                <textarea
+                                    rows={2}
+                                    placeholder="Ej: Tomar con abundante agua antes de las comidas principales..."
+                                    value={rxObservations}
+                                    onChange={(e) => setRxObservations(e.target.value)}
+                                    className="w-full px-3 py-2.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-medium"
+                                />
+                            </div>
+
+                            {/* Signature Type Option (Digital vs Manual) */}
+                            <div className="p-4 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-900/40 rounded-2xl space-y-3">
+                                <span className="text-xs font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wider block">Modalidad de Firma Médica (Ley 27.553)</span>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <label className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                                        rxUseDigitalSignature 
+                                            ? 'bg-white dark:bg-zinc-900 border-teal-500 shadow-sm' 
+                                            : 'bg-transparent border-gray-200 dark:border-zinc-800 opacity-60'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name="sigOption"
+                                            checked={rxUseDigitalSignature}
+                                            onChange={() => setRxUseDigitalSignature(true)}
+                                            className="mt-0.5 text-teal-600 focus:ring-teal-500"
+                                        />
+                                        <div className="space-y-0.5 text-xs">
+                                            <span className="font-extrabold text-gray-900 dark:text-white flex items-center gap-1">
+                                                <PenTool className="h-3.5 w-3.5 text-teal-500" /> Firma Digitalizada Incrustada
+                                            </span>
+                                            <p className="text-[11px] text-gray-500">Incrustar firma y sello oficial directamente en el PDF descargable.</p>
+                                        </div>
+                                    </label>
+
+                                    <label className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                                        !rxUseDigitalSignature 
+                                            ? 'bg-white dark:bg-zinc-900 border-teal-500 shadow-sm' 
+                                            : 'bg-transparent border-gray-200 dark:border-zinc-800 opacity-60'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name="sigOption"
+                                            checked={!rxUseDigitalSignature}
+                                            onChange={() => setRxUseDigitalSignature(false)}
+                                            className="mt-0.5 text-teal-600 focus:ring-teal-500"
+                                        />
+                                        <div className="space-y-0.5 text-xs">
+                                            <span className="font-extrabold text-gray-900 dark:text-white flex items-center gap-1">
+                                                <Printer className="h-3.5 w-3.5 text-cyan-500" /> Firma Holográfica Manual
+                                            </span>
+                                            <p className="text-[11px] text-gray-500">Imprimir receta con recuadro delimitado para firmar y sellar a mano.</p>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {rxUseDigitalSignature && (
+                                    <div className="flex items-center justify-between pt-2 border-t border-teal-200/40 dark:border-teal-900/40">
+                                        <div className="flex items-center gap-2">
+                                            {(customSignatureBase64 || (professionals.find(p => p.id === rxSelectedProfessionalId)?.signature) || currentUser?.signature) ? (
+                                                <img 
+                                                    src={customSignatureBase64 || (professionals.find(p => p.id === rxSelectedProfessionalId)?.signature) || currentUser?.signature} 
+                                                    alt="Firma" 
+                                                    className="h-10 max-w-[120px] object-contain bg-white dark:bg-zinc-900 p-1 rounded border" 
+                                                />
+                                            ) : (
+                                                <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold italic">Sin firma digital trazada aún.</span>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsSignatureModalOpen(true)}
+                                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <PenTool className="h-3.5 w-3.5" />
+                                            <span>Dibujar / Subir Firma</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Modal Actions */}
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRxModalOpen(false)}
+                                    className="px-4 py-2.5 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={rxSubmitting}
+                                    className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white text-xs font-extrabold rounded-xl shadow-lg shadow-teal-600/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    <span>{rxSubmitting ? "Emitiendo Receta..." : "Guardar & Emitir Receta Médica"}</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Trazado de Firma Canvas */}
+            {isSignatureModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div onClick={() => setIsSignatureModalOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative z-10 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <PenTool className="h-4 w-4 text-teal-500" /> Trazar Firma Digitalizada & Sello
+                            </h3>
+                            <button onClick={() => setIsSignatureModalOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+                        </div>
+                        <SignatureCanvas
+                            initialSignature={customSignatureBase64}
+                            onSave={(base64) => {
+                                setCustomSignatureBase64(base64);
+                                setIsSignatureModalOpen(false);
+                            }}
+                            onClose={() => setIsSignatureModalOpen(false)}
+                        />
                     </div>
                 </div>
             )}
