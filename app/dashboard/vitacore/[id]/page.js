@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { 
     ArrowLeft, User, Phone, Mail, Calendar, ShieldAlert, Award, 
     Plus, FileText, CheckCircle, Trash2, Edit2, Bookmark, BookmarkCheck, Printer,
-    Sparkles, Bot, Brain, Copy, Check, Pill, FileSignature, QrCode, Download, CheckSquare, Square
+    Sparkles, Bot, Brain, Copy, Check, Pill, FileSignature, QrCode, Download, CheckSquare, Square,
+    FlaskConical, Microscope
 } from "lucide-react";
 import SignatureCanvas from "@/app/components/SignatureCanvas";
 import { generatePrescriptionPDF } from "@/app/lib/generatePrescriptionPDF";
+import { generateOrderPDF } from "@/app/lib/generateOrderPDF";
 
 export default function PatientDetail({ params }) {
     // React.use(params) to unwrap Next.js async params
@@ -84,6 +86,20 @@ export default function PatientDetail({ params }) {
         professionalMatricula: ''
     });
     const [prescriptionSubmitting, setPrescriptionSubmitting] = useState(false);
+
+    // Órdenes de Estudios States
+    const [orders, setOrders] = useState([]);
+    const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+    const [newOrder, setNewOrder] = useState({
+        category: 'Laboratorio / Análisis Clínicos',
+        presumptiveDiagnosis: '',
+        clinicalSummary: '',
+        studies: [{ name: '', loincCode: '', clinicalNotes: '' }],
+        useDigitalSignature: true,
+        professionalId: ''
+    });
+    const [orderSubmitting, setOrderSubmitting] = useState(false);
+
     const [activeTab, setActiveTab] = useState('evoluciones');
 
     const router = useRouter();
@@ -101,8 +117,21 @@ export default function PatientDetail({ params }) {
             fetchPatientData(targetId);
             fetchProfessionals(targetId);
             fetchPrescriptions(targetId, patientId);
+            fetchOrders(targetId, patientId);
         }
     }, [router, patientId]);
+
+    const fetchOrders = async (userId, patId) => {
+        try {
+            const res = await fetch(`/api/vitacore/orders?userId=${userId}&patientId=${patId}`);
+            const data = await res.json();
+            if (data.success) {
+                setOrders(data.orders || []);
+            }
+        } catch (error) {
+            console.error("Error fetching orders:", error);
+        }
+    };
 
     const fetchPrescriptions = async (userId, patId) => {
         try {
@@ -511,6 +540,94 @@ export default function PatientDetail({ params }) {
         }
     };
 
+    const handleAddStudyLine = () => {
+        setNewOrder(prev => ({
+            ...prev,
+            studies: [...prev.studies, { name: '', loincCode: '', clinicalNotes: '' }]
+        }));
+    };
+
+    const handleRemoveStudyLine = (index) => {
+        setNewOrder(prev => ({
+            ...prev,
+            studies: prev.studies.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleStudyChange = (index, field, value) => {
+        setNewOrder(prev => {
+            const updated = [...prev.studies];
+            updated[index] = { ...updated[index], [field]: value };
+            return { ...prev, studies: updated };
+        });
+    };
+
+    const handleSaveOrder = async (e) => {
+        e.preventDefault();
+        if (!newOrder.studies || newOrder.studies.length === 0 || !newOrder.studies[0].name.trim()) {
+            alert("Por favor ingrese al menos un estudio o práctica a solicitar.");
+            return;
+        }
+
+        setOrderSubmitting(true);
+        try {
+            const prof = currentUser.role === 'vitacore-professional' ? currentUser : professionals.find(p => p.id === newOrder.professionalId) || currentUser;
+
+            const payload = {
+                userId: targetUserId,
+                order: {
+                    patientId: patient.id,
+                    patientName: patient.name,
+                    patientDni: patient.dni,
+                    patientSocialSecurity: patient.obraSocial,
+                    patientAffiliateNumber: patient.affiliateNumber,
+
+                    professionalId: prof.id || targetUserId,
+                    professionalName: prof.nombre || currentUser.nombre,
+                    professionalSpecialty: prof.specialty || 'Director Clínico',
+                    professionalMatricula: prof.matricula || '',
+                    professionalCuit: prof.cuit || '',
+
+                    category: newOrder.category,
+                    presumptiveDiagnosis: newOrder.presumptiveDiagnosis,
+                    studies: newOrder.studies,
+                    clinicalSummary: newOrder.clinicalSummary,
+
+                    useDigitalSignature: newOrder.useDigitalSignature,
+                    signatureUrl: profSignature || prof.signature || null
+                }
+            };
+
+            const res = await fetch("/api/vitacore/orders", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setOrders(prev => [data.order, ...prev]);
+                setIsOrderModalOpen(false);
+                setNewOrder({
+                    category: 'Laboratorio / Análisis Clínicos',
+                    presumptiveDiagnosis: '',
+                    clinicalSummary: '',
+                    studies: [{ name: '', loincCode: '', clinicalNotes: '' }],
+                    useDigitalSignature: true,
+                    professionalId: ''
+                });
+                alert("Orden de estudio emitida exitosamente.");
+            } else {
+                alert(data.error || "Error al emitir la orden médica.");
+            }
+        } catch (error) {
+            console.error("Error saving medical order:", error);
+            alert("Error de conexión al guardar la orden médica.");
+        } finally {
+            setOrderSubmitting(false);
+        }
+    };
+
     const handleToggleImportant = async (consultation) => {
         try {
             const res = await fetch("/api/vitacore/consultations", {
@@ -657,6 +774,14 @@ export default function PatientDetail({ params }) {
                         <span>Nueva Receta</span>
                     </button>
                     <button
+                        onClick={() => setIsOrderModalOpen(true)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-cyan-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                        title="Emitir orden de estudio o laboratorio (LOINC)"
+                    >
+                        <FlaskConical className="h-4 w-4" />
+                        <span>Nueva Orden</span>
+                    </button>
+                    <button
                         onClick={() => setIsSignatureModalOpen(true)}
                         className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-cyan-600 dark:text-cyan-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
                         title="Configurar mi Firma & Sello Digitalizado"
@@ -687,8 +812,8 @@ export default function PatientDetail({ params }) {
                 </div>
             </div>
 
-            {/* Navigation Tabs (Evoluciones vs Recetario) */}
-            <div className="flex items-center gap-3 border-b border-gray-200 dark:border-zinc-800 pb-3 print:hidden">
+            {/* Navigation Tabs (Evoluciones vs Recetario vs Órdenes) */}
+            <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 dark:border-zinc-800 pb-3 print:hidden">
                 <button
                     onClick={() => setActiveTab('evoluciones')}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
@@ -710,6 +835,17 @@ export default function PatientDetail({ params }) {
                 >
                     <Pill className="h-4 w-4" />
                     <span>Recetario Digital ({prescriptions.length})</span>
+                </button>
+                <button
+                    onClick={() => setActiveTab('ordenes')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'ordenes'
+                            ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
+                            : 'bg-white dark:bg-zinc-900/60 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-800'
+                    }`}
+                >
+                    <FlaskConical className="h-4 w-4" />
+                    <span>Órdenes de Estudios ({orders.length})</span>
                 </button>
             </div>
 
@@ -901,6 +1037,126 @@ export default function PatientDetail({ params }) {
                                                             const origin = window.location.origin;
                                                             navigator.clipboard.writeText(`${origin}/validar-receta/${presc.id}`);
                                                             alert("Link público de verificación QR copiado al portapapeles.");
+                                                        }}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-semibold rounded-xl text-xs cursor-pointer"
+                                                    >
+                                                        <Copy className="h-3.5 w-3.5" />
+                                                        <span>Copiar QR</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : activeTab === 'ordenes' ? (
+                        /* Órdenes de Estudios View */
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between print:hidden">
+                                <div>
+                                    <h3 className="text-lg font-bold">Solicitudes de Estudios & Laboratorio</h3>
+                                    <p className="text-xs text-gray-400">Órdenes médicas estandarizadas con código LOINC, diagnóstico CIE-11 y firma digitalizada.</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsOrderModalOpen(true)}
+                                    className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-cyan-500/10 cursor-pointer"
+                                >
+                                    <FlaskConical className="h-4 w-4" />
+                                    Nueva Orden
+                                </button>
+                            </div>
+
+                            {orders.length === 0 ? (
+                                <div className="text-center py-20 bg-white dark:bg-slate-900/40 rounded-3xl border border-gray-200 dark:border-slate-800">
+                                    <FlaskConical className="h-12 w-12 text-cyan-500/40 mx-auto mb-4" />
+                                    <h3 className="text-base font-bold text-gray-700 dark:text-gray-300">No hay órdenes de estudio emitidas aún</h3>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-sm mx-auto">
+                                        Solicitá análisis clínicos de laboratorio o estudios por imágenes con firma digital e inalterabilidad QR.
+                                    </p>
+                                    <button
+                                        onClick={() => setIsOrderModalOpen(true)}
+                                        className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition-all"
+                                    >
+                                        <Plus className="h-4 w-4" /> Emitir Primera Orden
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {orders.map((ord) => (
+                                        <div 
+                                            key={ord.id}
+                                            className="bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 space-y-4 shadow-sm hover:shadow-md transition-all"
+                                        >
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-600 dark:text-cyan-400 rounded-xl">
+                                                        <FlaskConical className="h-5 w-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-extrabold text-sm text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                                                            <span>Orden ID: {ord.id}</span>
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-cyan-100 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300">
+                                                                {ord.category}
+                                                            </span>
+                                                        </h4>
+                                                        <p className="text-xs text-gray-400">
+                                                            {ord.professionalName} ({ord.professionalSpecialty || 'Médico'}) • M.N./M.P. N° {ord.professionalMatricula || 'S/D'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right text-xs text-gray-400 font-medium">
+                                                    <p>Solicitado: {new Date(ord.issuedAt).toLocaleDateString('es-AR')}</p>
+                                                    <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-bold">Vence: {new Date(ord.expiresAt).toLocaleDateString('es-AR')}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Requested Studies list */}
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Estudios Solicitados:</p>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {ord.studies.map((s, idx) => (
+                                                        <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-gray-100 dark:border-slate-800 text-xs flex justify-between items-center">
+                                                            <div>
+                                                                <p className="font-bold text-gray-900 dark:text-slate-100">{idx + 1}. {s.name}</p>
+                                                                {s.clinicalNotes && <p className="text-gray-500 text-[11px]">Indicaciones: {s.clinicalNotes}</p>}
+                                                            </div>
+                                                            {s.loincCode && (
+                                                                <span className="px-2.5 py-1 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 font-mono font-bold rounded-lg text-[10px] shrink-0">
+                                                                    LOINC: {s.loincCode}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {ord.presumptiveDiagnosis && (
+                                                <p className="text-xs text-gray-500">
+                                                    <strong className="text-gray-700 dark:text-slate-300">Diag. Presuntivo (CIE-11):</strong> {ord.presumptiveDiagnosis}
+                                                </p>
+                                            )}
+
+                                            {/* Security Footer & Buttons */}
+                                            <div className="pt-2 border-t border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                                <div className="flex items-center gap-1.5 text-gray-400 font-mono text-[10px]">
+                                                    <QrCode className="h-4 w-4 text-cyan-500 shrink-0" />
+                                                    <span className="truncate max-w-xs">Hash: {ord.hash}</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => generateOrderPDF(ord)}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl shadow-sm text-xs cursor-pointer"
+                                                    >
+                                                        <Download className="h-3.5 w-3.5" />
+                                                        <span>Descargar PDF</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            const origin = window.location.origin;
+                                                            navigator.clipboard.writeText(`${origin}/validar-receta/${ord.id}`);
+                                                            alert("Link de verificación QR copiado al portapapeles.");
                                                         }}
                                                         className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-semibold rounded-xl text-xs cursor-pointer"
                                                     >
@@ -1796,6 +2052,186 @@ export default function PatientDetail({ params }) {
                                 Confirmar y Cerrar
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: SOLICITAR ÓRDENES DE ESTUDIOS & LABORATORIO */}
+            {isOrderModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div onClick={() => setIsOrderModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="bg-white dark:bg-zinc-950 border border-cyan-500/30 rounded-3xl w-full max-w-3xl p-6 shadow-2xl relative z-10 space-y-6 overflow-hidden max-h-[92vh] overflow-y-auto">
+                        <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-md">
+                                    <FlaskConical className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-gray-900 dark:text-slate-100">Solicitud de Estudios & Laboratorio</h3>
+                                    <p className="text-xs text-gray-400">Orden médica oficial de prácticas clínicas con validez sanitaria y firma digitalizada.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsOrderModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white font-bold">✕</button>
+                        </div>
+
+                        <form onSubmit={handleSaveOrder} className="space-y-6">
+                            {/* Professional Selector (if Client Owner) */}
+                            {currentUser?.role === 'cliente' && professionals.length > 0 && (
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Profesional Solicitante *</label>
+                                    <select
+                                        value={newOrder.professionalId}
+                                        onChange={(e) => setNewOrder({ ...newOrder, professionalId: e.target.value })}
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-gray-900 dark:text-slate-100"
+                                    >
+                                        <option value="">-- {currentUser.nombre} (Director Clínico) --</option>
+                                        {professionals.map(p => (
+                                            <option key={p.id} value={p.id}>{p.nombre} ({p.specialty || 'Médico'}) - Mat. {p.matricula}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Category & Diagnosis */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Tipo de Práctica / Categoría *</label>
+                                    <select
+                                        value={newOrder.category}
+                                        onChange={(e) => setNewOrder(prev => ({ ...prev, category: e.target.value }))}
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold"
+                                    >
+                                        <option value="Laboratorio / Análisis Clínicos">Laboratorio / Análisis Clínicos</option>
+                                        <option value="Diagnóstico por Imágenes (RX, TAC, RMN, Eco)">Diagnóstico por Imágenes (RX, TAC, RMN, Eco)</option>
+                                        <option value="Cardiología / Electrocardiograma">Cardiología / Electrocardiograma</option>
+                                        <option value="Anatomía Patológica / Biopsia">Anatomía Patológica / Biopsia</option>
+                                        <option value="Estudios Especiales / Endoscopías">Estudios Especiales / Endoscopías</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Diagnóstico Presuntivo (CIE-11)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej: Síndrome metabólico, Dolor abdominal a fechar..."
+                                        value={newOrder.presumptiveDiagnosis}
+                                        onChange={(e) => setNewOrder(prev => ({ ...prev, presumptiveDiagnosis: e.target.value }))}
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Studies Repeater */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Estudios Solicitados *</label>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddStudyLine}
+                                        className="flex items-center gap-1 text-xs font-bold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 cursor-pointer"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" /> Agregar Estudio
+                                    </button>
+                                </div>
+
+                                {newOrder.studies.map((std, index) => (
+                                    <div key={index} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-gray-200/80 dark:border-slate-800 space-y-3 relative">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-extrabold text-cyan-600 dark:text-cyan-400">Estudio / Práctica N° {index + 1}</span>
+                                            {newOrder.studies.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveStudyLine(index)}
+                                                    className="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" /> Quitar
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div className="sm:col-span-2 space-y-1">
+                                                <label className="text-[11px] font-bold text-gray-400 uppercase">Nombre de la Práctica / Estudio *</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Ej: Hemograma completo, Glucemia en ayunas, Ecografía abdominal..."
+                                                    value={std.name}
+                                                    onChange={(e) => handleStudyChange(index, 'name', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] font-bold text-gray-400 uppercase">Código LOINC (Opcional)</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ej: 5792-7, 2345-7"
+                                                    value={std.loincCode}
+                                                    onChange={(e) => handleStudyChange(index, 'loincCode', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-mono font-semibold"
+                                                />
+                                            </div>
+
+                                            <div className="sm:col-span-3 space-y-1">
+                                                <label className="text-[11px] font-bold text-gray-400 uppercase">Indicaciones Clínicas / Preparación de Paciente</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ej: Ayuno de 8 a 12 horas / Con vejiga llena"
+                                                    value={std.clinicalNotes}
+                                                    onChange={(e) => handleStudyChange(index, 'clinicalNotes', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Clinical Summary */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400 uppercase">Resumen Clínico / Justificación Médica</label>
+                                <textarea
+                                    rows={2}
+                                    placeholder="Breve resumen del cuadro clínico que justifica la solicitud de las prácticas..."
+                                    value={newOrder.clinicalSummary}
+                                    onChange={(e) => setNewOrder(prev => ({ ...prev, clinicalSummary: e.target.value }))}
+                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs"
+                                />
+                            </div>
+
+                            {/* Signature Toggle */}
+                            <div className="p-4 bg-cyan-50/70 dark:bg-cyan-950/30 rounded-2xl border border-cyan-200/60 dark:border-cyan-900/40 space-y-2">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={newOrder.useDigitalSignature}
+                                        onChange={(e) => setNewOrder(prev => ({ ...prev, useDigitalSignature: e.target.checked }))}
+                                        className="h-4 w-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500"
+                                    />
+                                    <span className="text-xs font-bold text-gray-800 dark:text-slate-200">
+                                        Incrustar mi Firma & Sello Digitalizado en la Orden PDF
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsOrderModalOpen(false)}
+                                    className="px-4 py-2 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-bold text-gray-500"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={orderSubmitting}
+                                    className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl text-xs shadow-md cursor-pointer disabled:opacity-50"
+                                >
+                                    {orderSubmitting ? "Emitiendo..." : "Emitir y Generar Orden PDF"}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
