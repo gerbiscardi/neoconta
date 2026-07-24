@@ -36,7 +36,9 @@ export async function GET(request) {
                     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://neoconta.com.ar';
                     const confirmUrl = `${origin}/confirmar-turno/${app.id}?userId=${userId}`;
 
-                    const message = `👋 Hola *${app.patientName}*, te recordamos tu turno médico para mañana *${app.date.split('-').reverse().join('/')}* a las *${app.time} hs* con el/la *${app.professionalName}* (${app.professionalSpecialty || 'Médico'}).\n\n📌 Por favor confirma o gestiona tu asistencia ingresando al siguiente enlace:\n${confirmUrl}\n\n¡Te esperamos! - Vitacore NeoConta`;
+                    const placeName = app.professionalName ? `Consultorio ${app.professionalName}` : "nuestro Consultorio";
+
+                    const message = `Hola *${app.patientName}*, te recordamos tu turno médico para mañana *${app.date.split('-').reverse().join('/')}* a las *${app.time} hs* con el/la *${app.professionalName}* (${app.professionalSpecialty || 'Médico'}).\n\nPor favor confirma o gestiona tu asistencia ingresando al siguiente enlace:\n${confirmUrl}\n\n¡Te esperamos en ${placeName}!`;
 
                     const whatsappUrl = formattedPhone ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}` : null;
 

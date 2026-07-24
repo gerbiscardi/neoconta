@@ -701,6 +701,7 @@ export default function VitacoreTurnosPage() {
                 patientName={selectedAppForWhatsApp?.patientName}
                 patientPhone={selectedAppForWhatsApp?.patientPhone}
                 appointmentData={selectedAppForWhatsApp}
+                currentUser={currentUser}
             />
         </div>
     );
