@@ -5,9 +5,10 @@ import {
     ArrowLeft, User, Phone, Mail, Calendar, ShieldAlert, Award, 
     Plus, FileText, CheckCircle, Trash2, Edit2, Bookmark, BookmarkCheck, Printer,
     Sparkles, Bot, Brain, Copy, Check, Pill, FileSignature, QrCode, Download, CheckSquare, Square,
-    FlaskConical, Microscope
+    FlaskConical, Microscope, Receipt
 } from "lucide-react";
 import SignatureCanvas from "@/app/components/SignatureCanvas";
+import MedicalInvoiceModal from "@/app/components/MedicalInvoiceModal";
 import { generatePrescriptionPDF } from "@/app/lib/generatePrescriptionPDF";
 import { generateOrderPDF } from "@/app/lib/generateOrderPDF";
 
@@ -99,6 +100,10 @@ export default function PatientDetail({ params }) {
         professionalId: ''
     });
     const [orderSubmitting, setOrderSubmitting] = useState(false);
+
+    // Invoicing States
+    const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+    const [invoiceReason, setInvoiceReason] = useState("Consulta Médica General");
 
     const [activeTab, setActiveTab] = useState('evoluciones');
 
@@ -780,6 +785,17 @@ export default function PatientDetail({ params }) {
                     >
                         <FlaskConical className="h-4 w-4" />
                         <span>Nueva Orden</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            setInvoiceReason("Atención y Consulta Médica");
+                            setIsInvoiceModalOpen(true);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                        title="Facturar consulta médica con ARCA / AFIP"
+                    >
+                        <Receipt className="h-4 w-4" />
+                        <span>Facturar ARCA</span>
                     </button>
                     <button
                         onClick={() => setIsSignatureModalOpen(true)}
@@ -2235,6 +2251,18 @@ export default function PatientDetail({ params }) {
                     </div>
                 </div>
             )}
+
+            {/* Modal: FACTURACIÓN ELECTRÓNICA ARCA */}
+            <MedicalInvoiceModal
+                isOpen={isInvoiceModalOpen}
+                onClose={() => setIsInvoiceModalOpen(false)}
+                patient={patient}
+                currentUser={currentUser}
+                consultationReason={invoiceReason}
+                onSuccess={(result) => {
+                    alert(`¡Factura emitidida con éxito en ARCA! CAE: ${result.cae}`);
+                }}
+            />
         </div>
     );
 }

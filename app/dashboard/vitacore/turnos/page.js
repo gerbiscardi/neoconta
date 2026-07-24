@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { 
     Calendar as CalendarIcon, Clock, User, Phone, Plus, Search, Filter, 
     CheckCircle2, AlertCircle, MessageCircle, X, ChevronLeft, ChevronRight, 
-    Award, ArrowRight, HeartPulse, Users, ShieldAlert, Sparkles, Check, Trash2
+    Award, ArrowRight, HeartPulse, Users, ShieldAlert, Sparkles, Check, Trash2, Receipt
 } from "lucide-react";
+import MedicalInvoiceModal from "@/app/components/MedicalInvoiceModal";
 
 export default function VitacoreTurnosPage() {
     const router = useRouter();
@@ -27,6 +28,11 @@ export default function VitacoreTurnosPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [patientSearch, setPatientSearch] = useState("");
     const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
+    // ARCA Invoicing states
+    const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+    const [selectedPatientForInvoice, setSelectedPatientForInvoice] = useState(null);
+    const [invoiceReason, setInvoiceReason] = useState("Consulta Médica");
 
     const [newAppointment, setNewAppointment] = useState({
         patientId: "",
@@ -465,6 +471,20 @@ export default function VitacoreTurnosPage() {
                                             </Link>
                                         )}
 
+                                        {/* ARCA Invoicing button */}
+                                        <button
+                                            onClick={() => {
+                                                setSelectedPatientForInvoice(foundPatient || { name: app.patientName, dni: app.patientDni, obraSocial: app.patientObraSocial });
+                                                setInvoiceReason(`Consulta Médica - Turno ${app.time} hs (${app.professionalName})`);
+                                                setIsInvoiceModalOpen(true);
+                                            }}
+                                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+                                            title="Facturar esta consulta con ARCA / AFIP"
+                                        >
+                                            <Receipt className="h-3.5 w-3.5" />
+                                            <span>Facturar</span>
+                                        </button>
+
                                         <button
                                             onClick={() => handleDeleteAppointment(app.id)}
                                             className="p-2 bg-slate-100 dark:bg-zinc-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-400 hover:text-red-600 rounded-xl border border-slate-200 dark:border-zinc-800 transition-all"
@@ -653,6 +673,18 @@ export default function VitacoreTurnosPage() {
                     </div>
                 </div>
             )}
+
+            {/* Modal: FACTURACIÓN ELECTRÓNICA ARCA */}
+            <MedicalInvoiceModal
+                isOpen={isInvoiceModalOpen}
+                onClose={() => setIsInvoiceModalOpen(false)}
+                patient={selectedPatientForInvoice}
+                currentUser={currentUser}
+                consultationReason={invoiceReason}
+                onSuccess={(result) => {
+                    alert(`¡Factura de consulta médica autorizada por ARCA! CAE: ${result.cae}`);
+                }}
+            />
         </div>
     );
 }
