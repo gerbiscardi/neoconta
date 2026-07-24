@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { 
     ArrowLeft, User, Phone, Mail, Calendar, ShieldAlert, Award, 
     Plus, FileText, CheckCircle, Trash2, Edit2, Bookmark, BookmarkCheck, Printer,
-    Sparkles, Bot, Brain, Copy, Check 
+    Sparkles, Bot, Brain, Copy, Check, Pill, FileSignature, QrCode, Download, CheckSquare, Square
 } from "lucide-react";
+import SignatureCanvas from "@/app/components/SignatureCanvas";
+import { generatePrescriptionPDF } from "@/app/lib/generatePrescriptionPDF";
 
 export default function PatientDetail({ params }) {
     // React.use(params) to unwrap Next.js async params
@@ -66,6 +68,24 @@ export default function PatientDetail({ params }) {
     const [rxLoading, setRxLoading] = useState(false);
     const [showRxDropdown, setShowRxDropdown] = useState(false);
 
+    // Recetario Digital States
+    const [prescriptions, setPrescriptions] = useState([]);
+    const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [profSignature, setProfSignature] = useState(null);
+    const [newPrescription, setNewPrescription] = useState({
+        medications: [{ name: '', dosage: '', quantity: '1', instructions: '' }],
+        diagnosis: '',
+        observations: '',
+        useDigitalSignature: true,
+        professionalId: '',
+        professionalName: '',
+        professionalSpecialty: '',
+        professionalMatricula: ''
+    });
+    const [prescriptionSubmitting, setPrescriptionSubmitting] = useState(false);
+    const [activeTab, setActiveTab] = useState('evoluciones');
+
     const router = useRouter();
 
     const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser.parentId : currentUser?.id;
@@ -80,8 +100,21 @@ export default function PatientDetail({ params }) {
             const targetId = user.role === 'vitacore-professional' ? user.parentId : user.id;
             fetchPatientData(targetId);
             fetchProfessionals(targetId);
+            fetchPrescriptions(targetId, patientId);
         }
     }, [router, patientId]);
+
+    const fetchPrescriptions = async (userId, patId) => {
+        try {
+            const res = await fetch(`/api/vitacore/prescriptions?userId=${userId}&patientId=${patId}`);
+            const data = await res.json();
+            if (data.success) {
+                setPrescriptions(data.prescriptions || []);
+            }
+        } catch (error) {
+            console.error("Error fetching prescriptions:", error);
+        }
+    };
 
     const fetchProfessionals = async (userId) => {
         try {
@@ -389,6 +422,95 @@ export default function PatientDetail({ params }) {
         }
     };
 
+    const handleAddMedicationLine = () => {
+        setNewPrescription(prev => ({
+            ...prev,
+            medications: [...prev.medications, { name: '', dosage: '', quantity: '1', instructions: '' }]
+        }));
+    };
+
+    const handleRemoveMedicationLine = (index) => {
+        setNewPrescription(prev => ({
+            ...prev,
+            medications: prev.medications.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleMedicationChange = (index, field, value) => {
+        setNewPrescription(prev => {
+            const updatedMeds = [...prev.medications];
+            updatedMeds[index] = { ...updatedMeds[index], [field]: value };
+            return { ...prev, medications: updatedMeds };
+        });
+    };
+
+    const handleSavePrescription = async (e) => {
+        e.preventDefault();
+        if (!newPrescription.medications || newPrescription.medications.length === 0 || !newPrescription.medications[0].name.trim()) {
+            alert("Por favor ingrese al menos un medicamento a prescribir.");
+            return;
+        }
+
+        setPrescriptionSubmitting(true);
+        try {
+            const prof = currentUser.role === 'vitacore-professional' ? currentUser : professionals.find(p => p.id === newPrescription.professionalId) || currentUser;
+
+            const payload = {
+                userId: targetUserId,
+                prescription: {
+                    patientId: patient.id,
+                    patientName: patient.name,
+                    patientDni: patient.dni,
+                    patientSocialSecurity: patient.obraSocial,
+                    patientAffiliateNumber: patient.affiliateNumber,
+
+                    professionalId: prof.id || targetUserId,
+                    professionalName: prof.nombre || currentUser.nombre,
+                    professionalSpecialty: prof.specialty || 'Director Clínico',
+                    professionalMatricula: prof.matricula || '',
+                    professionalCuit: prof.cuit || '',
+
+                    diagnosis: newPrescription.diagnosis,
+                    medications: newPrescription.medications,
+                    observations: newPrescription.observations,
+
+                    useDigitalSignature: newPrescription.useDigitalSignature,
+                    signatureUrl: profSignature || prof.signature || null
+                }
+            };
+
+            const res = await fetch("/api/vitacore/prescriptions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setPrescriptions(prev => [data.prescription, ...prev]);
+                setIsPrescriptionModalOpen(false);
+                setNewPrescription({
+                    medications: [{ name: '', dosage: '', quantity: '1', instructions: '' }],
+                    diagnosis: '',
+                    observations: '',
+                    useDigitalSignature: true,
+                    professionalId: '',
+                    professionalName: '',
+                    professionalSpecialty: '',
+                    professionalMatricula: ''
+                });
+                alert("Receta generada exitosamente.");
+            } else {
+                alert(data.error || "Error al generar la receta.");
+            }
+        } catch (error) {
+            console.error("Error saving prescription:", error);
+            alert("Error de conexión al guardar la receta.");
+        } finally {
+            setPrescriptionSubmitting(false);
+        }
+    };
+
     const handleToggleImportant = async (consultation) => {
         try {
             const res = await fetch("/api/vitacore/consultations", {
@@ -527,6 +649,21 @@ export default function PatientDetail({ params }) {
                         <span>Resumen IA</span>
                     </button>
                     <button
+                        onClick={() => setIsPrescriptionModalOpen(true)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-teal-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                        title="Emitir nueva receta o prescripción médica"
+                    >
+                        <Pill className="h-4 w-4" />
+                        <span>Nueva Receta</span>
+                    </button>
+                    <button
+                        onClick={() => setIsSignatureModalOpen(true)}
+                        className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-cyan-600 dark:text-cyan-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
+                        title="Configurar mi Firma & Sello Digitalizado"
+                    >
+                        <FileSignature className="h-4 w-4" />
+                    </button>
+                    <button
                         onClick={handlePrint}
                         className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-gray-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
                         title="Imprimir / PDF"
@@ -548,6 +685,32 @@ export default function PatientDetail({ params }) {
                         <Trash2 className="h-4 w-4" />
                     </button>
                 </div>
+            </div>
+
+            {/* Navigation Tabs (Evoluciones vs Recetario) */}
+            <div className="flex items-center gap-3 border-b border-gray-200 dark:border-zinc-800 pb-3 print:hidden">
+                <button
+                    onClick={() => setActiveTab('evoluciones')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'evoluciones'
+                            ? 'bg-teal-600 text-white shadow-md shadow-teal-500/20'
+                            : 'bg-white dark:bg-zinc-900/60 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-800'
+                    }`}
+                >
+                    <FileText className="h-4 w-4" />
+                    <span>Evoluciones Clínicas ({patient.consultations?.length || 0})</span>
+                </button>
+                <button
+                    onClick={() => setActiveTab('recetario')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'recetario'
+                            ? 'bg-teal-600 text-white shadow-md shadow-teal-500/20'
+                            : 'bg-white dark:bg-zinc-900/60 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-800'
+                    }`}
+                >
+                    <Pill className="h-4 w-4" />
+                    <span>Recetario Digital ({prescriptions.length})</span>
+                </button>
             </div>
 
             {/* Print Header (Visible only in print) */}
@@ -627,27 +790,129 @@ export default function PatientDetail({ params }) {
                     </div>
                 </div>
 
-                {/* Right Column: Timeline / Consultation Records */}
+                {/* Right Column: Timeline / Consultation Records OR Recetario Digital */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center justify-between print:hidden">
-                        <h3 className="text-lg font-bold">Historial de Evoluciones</h3>
-                        <button
-                            onClick={() => setIsConsultationModalOpen(true)}
-                            className="flex items-center gap-1 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-teal-500/10"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Nueva Evolución
-                        </button>
-                    </div>
+                    {activeTab === 'recetario' ? (
+                        /* Recetario Digital View */
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between print:hidden">
+                                <div>
+                                    <h3 className="text-lg font-bold">Recetario Digital & Prescripciones</h3>
+                                    <p className="text-xs text-gray-400">Prescripciones médicas oficiales registradas con código QR y Hash SHA-256 (Ley 27.553).</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsPrescriptionModalOpen(true)}
+                                    className="flex items-center gap-1.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-teal-500/10 cursor-pointer"
+                                >
+                                    <Pill className="h-4 w-4" />
+                                    Nueva Receta
+                                </button>
+                            </div>
 
-                    {/* Evoluciones list */}
-                    {(!patient.consultations || patient.consultations.length === 0) ? (
-                        <div className="text-center py-20 bg-white dark:bg-slate-900/40 rounded-3xl border border-gray-200 dark:border-slate-800">
-                            <FileText className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                            <h3 className="text-base font-bold text-gray-700 dark:text-gray-300">No hay consultas registradas</h3>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-sm mx-auto">
-                                Comenzá a registrar la historia médica del paciente haciendo clic en el botón de Nueva Evolución.
-                            </p>
+                            {prescriptions.length === 0 ? (
+                                <div className="text-center py-20 bg-white dark:bg-slate-900/40 rounded-3xl border border-gray-200 dark:border-slate-800">
+                                    <Pill className="h-12 w-12 text-teal-500/40 mx-auto mb-4" />
+                                    <h3 className="text-base font-bold text-gray-700 dark:text-gray-300">No hay recetas emitidas aún</h3>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-sm mx-auto">
+                                        Generá prescripciones médicas estandarizadas con firma digitalizada o manual listas para imprimir.
+                                    </p>
+                                    <button
+                                        onClick={() => setIsPrescriptionModalOpen(true)}
+                                        className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all"
+                                    >
+                                        <Plus className="h-4 w-4" /> Emitir Primera Receta
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {prescriptions.map((presc) => (
+                                        <div 
+                                            key={presc.id}
+                                            className="bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 space-y-4 shadow-sm hover:shadow-md transition-all"
+                                        >
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 rounded-xl">
+                                                        <Pill className="h-5 w-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-extrabold text-sm text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                                                            <span>Receta ID: {presc.id}</span>
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                                                presc.status === 'anulada' 
+                                                                    ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400' 
+                                                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                            }`}>
+                                                                {presc.status === 'anulada' ? 'Anulada' : 'Emitida / Oficial'}
+                                                            </span>
+                                                        </h4>
+                                                        <p className="text-xs text-gray-400">
+                                                            {presc.professionalName} ({presc.professionalSpecialty || 'Médico'}) • M.N./M.P. N° {presc.professionalMatricula || 'S/D'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right text-xs text-gray-400 font-medium">
+                                                    <p>Emisión: {new Date(presc.issuedAt).toLocaleDateString('es-AR')}</p>
+                                                    <p className="text-[11px] text-teal-600 dark:text-teal-400 font-bold">Vence: {new Date(presc.expiresAt).toLocaleDateString('es-AR')}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Medications list */}
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Medicamentos Prescritos (Rp/):</p>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {presc.medications.map((m, idx) => (
+                                                        <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-gray-100 dark:border-slate-800 text-xs flex justify-between items-center">
+                                                            <div>
+                                                                <p className="font-bold text-gray-900 dark:text-slate-100">{idx + 1}. {m.name}</p>
+                                                                <p className="text-gray-500 text-[11px]">Dosis: {m.dosage || 'Según indicación'} {m.instructions ? `• Indicación: ${m.instructions}` : ''}</p>
+                                                            </div>
+                                                            <span className="px-2.5 py-1 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 font-bold rounded-lg text-[11px] shrink-0">
+                                                                Cant: {m.quantity}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {presc.diagnosis && (
+                                                <p className="text-xs text-gray-500">
+                                                    <strong className="text-gray-700 dark:text-slate-300">Diagnóstico OMS:</strong> {presc.diagnosis}
+                                                </p>
+                                            )}
+
+                                            {/* Security Footer & Buttons */}
+                                            <div className="pt-2 border-t border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                                <div className="flex items-center gap-1.5 text-gray-400 font-mono text-[10px]">
+                                                    <QrCode className="h-4 w-4 text-teal-500 shrink-0" />
+                                                    <span className="truncate max-w-xs">Hash: {presc.hash}</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => generatePrescriptionPDF(presc)}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-sm text-xs cursor-pointer"
+                                                    >
+                                                        <Download className="h-3.5 w-3.5" />
+                                                        <span>Descargar PDF</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            const origin = window.location.origin;
+                                                            navigator.clipboard.writeText(`${origin}/validar-receta/${presc.id}`);
+                                                            alert("Link público de verificación QR copiado al portapapeles.");
+                                                        }}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-semibold rounded-xl text-xs cursor-pointer"
+                                                    >
+                                                        <Copy className="h-3.5 w-3.5" />
+                                                        <span>Copiar QR</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-6 relative before:absolute before:left-4 before:top-4 before:bottom-4 before:w-[2px] before:bg-gray-200 dark:before:bg-slate-800 print:before:bg-gray-300">
@@ -1301,6 +1566,234 @@ export default function PatientDetail({ params }) {
                                 className="px-5 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl text-xs cursor-pointer"
                             >
                                 Entendido
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: EMITIR NUEVA RECETA MÉDICA */}
+            {isPrescriptionModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div onClick={() => setIsPrescriptionModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="bg-white dark:bg-zinc-950 border border-teal-500/30 rounded-3xl w-full max-w-3xl p-6 shadow-2xl relative z-10 space-y-6 overflow-hidden max-h-[92vh] overflow-y-auto">
+                        <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-gradient-to-tr from-teal-600 to-cyan-600 text-white rounded-2xl shadow-md">
+                                    <Pill className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-gray-900 dark:text-slate-100">Emitir Receta Médica Digital</h3>
+                                    <p className="text-xs text-gray-400">Prescripción estandarizada de medicamentos con validez legal QR (Ley 27.553).</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsPrescriptionModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white font-bold">✕</button>
+                        </div>
+
+                        <form onSubmit={handleSavePrescription} className="space-y-6">
+                            {/* Professional Selector (if Client Owner) */}
+                            {currentUser?.role === 'cliente' && professionals.length > 0 && (
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Profesional Emisor *</label>
+                                    <select
+                                        value={newPrescription.professionalId}
+                                        onChange={(e) => setNewPrescription({ ...newPrescription, professionalId: e.target.value })}
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-gray-900 dark:text-slate-100"
+                                    >
+                                        <option value="">-- {currentUser.nombre} (Director Clínico) --</option>
+                                        {professionals.map(p => (
+                                            <option key={p.id} value={p.id}>{p.nombre} ({p.specialty || 'Médico'}) - Mat. {p.matricula}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Patient Info Summary */}
+                            <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-gray-200/80 dark:border-slate-800 text-xs flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-gray-900 dark:text-slate-100">Paciente: {patient.name} (DNI: {patient.dni})</p>
+                                    <p className="text-gray-500 text-[11px]">Cobertura: {patient.obraSocial || 'Particular'} {patient.affiliateNumber ? `#${patient.affiliateNumber}` : ''}</p>
+                                </div>
+                                <span className="px-2.5 py-1 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 font-bold rounded-lg text-[10px] uppercase">
+                                    Vencimiento: 30 Días
+                                </span>
+                            </div>
+
+                            {/* Prescribed Medications Repeater */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Medicamentos / Prescripción (Rp/) *</label>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddMedicationLine}
+                                        className="flex items-center gap-1 text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 cursor-pointer"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" /> Agregar Medicamento
+                                    </button>
+                                </div>
+
+                                {newPrescription.medications.map((med, index) => (
+                                    <div key={index} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-gray-200/80 dark:border-slate-800 space-y-3 relative">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-extrabold text-teal-600 dark:text-teal-400">Medicamento N° {index + 1}</span>
+                                            {newPrescription.medications.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveMedicationLine(index)}
+                                                    className="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" /> Quitar
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div className="sm:col-span-2 space-y-1">
+                                                <label className="text-[11px] font-bold text-gray-400 uppercase">Nombre / Principio Activo *</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Tippee medicamento (ej: Ibuprofeno 600mg, Amoxicilina 500mg)..."
+                                                    value={med.name}
+                                                    onChange={(e) => handleMedicationChange(index, 'name', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] font-bold text-gray-400 uppercase">Cantidad</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ej: 1 caja / 20 comp."
+                                                    value={med.quantity}
+                                                    onChange={(e) => handleMedicationChange(index, 'quantity', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-semibold"
+                                                />
+                                            </div>
+
+                                            <div className="sm:col-span-2 space-y-1">
+                                                <label className="text-[11px] font-bold text-gray-400 uppercase">Dosis y Posología</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ej: 1 comprimido cada 8 horas por 7 días"
+                                                    value={med.dosage}
+                                                    onChange={(e) => handleMedicationChange(index, 'dosage', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] font-bold text-gray-400 uppercase">Indicación Especial</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ej: Tomar con las comidas"
+                                                    value={med.instructions}
+                                                    onChange={(e) => handleMedicationChange(index, 'instructions', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Diagnosis & Observations */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Diagnóstico OMS (CIE-11)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej: Diabetes mellitus (5A11), Infección aguda..."
+                                        value={newPrescription.diagnosis}
+                                        onChange={(e) => setNewPrescription(prev => ({ ...prev, diagnosis: e.target.value }))}
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Observaciones Médicas</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Indicaciones higiénico-dietéticas o de control"
+                                        value={newPrescription.observations}
+                                        onChange={(e) => setNewPrescription(prev => ({ ...prev, observations: e.target.value }))}
+                                        className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Digital Signature Preference Toggle */}
+                            <div className="p-4 bg-teal-50/70 dark:bg-teal-950/30 rounded-2xl border border-teal-200/60 dark:border-teal-900/40 space-y-2">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={newPrescription.useDigitalSignature}
+                                        onChange={(e) => setNewPrescription(prev => ({ ...prev, useDigitalSignature: e.target.checked }))}
+                                        className="h-4 w-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500"
+                                    />
+                                    <span className="text-xs font-bold text-gray-800 dark:text-slate-200">
+                                        Incrustar mi Firma & Sello Digitalizado en el PDF generado
+                                    </span>
+                                </label>
+                                <p className="text-[11px] text-gray-500 pl-7">
+                                    {newPrescription.useDigitalSignature 
+                                        ? "El PDF se generará con su firma y sello estampados digitalmente listos para descargar o enviar." 
+                                        : "El PDF se generará con un recuadro delimitado para que imprima y firme holográficamente a mano."}
+                                </p>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPrescriptionModalOpen(false)}
+                                    className="px-4 py-2 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-bold text-gray-500"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={prescriptionSubmitting}
+                                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow-md cursor-pointer disabled:opacity-50"
+                                >
+                                    {prescriptionSubmitting ? "Emitiendo..." : "Emitir y Generar Receta PDF"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: CONFIGURAR FIRMA & SELLO DIGITALIZADO */}
+            {isSignatureModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div onClick={() => setIsSignatureModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="bg-white dark:bg-zinc-950 border border-cyan-500/30 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative z-10 space-y-6 overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-cyan-600 text-white rounded-2xl shadow-md">
+                                    <FileSignature className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-gray-900 dark:text-slate-100">Firma & Sello Digitalizado</h3>
+                                    <p className="text-xs text-gray-400">Configure su estampa médica para recetas digitales (Ley 27.553).</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsSignatureModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white font-bold">✕</button>
+                        </div>
+
+                        <SignatureCanvas
+                            initialImage={profSignature}
+                            onSave={(imgData) => setProfSignature(imgData)}
+                        />
+
+                        <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-slate-800">
+                            <button
+                                onClick={() => {
+                                    setIsSignatureModalOpen(false);
+                                    alert("Firma digitalizada guardada correctamente para sus próximas recetas.");
+                                }}
+                                className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer"
+                            >
+                                Confirmar y Cerrar
                             </button>
                         </div>
                     </div>
