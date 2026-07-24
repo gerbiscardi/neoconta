@@ -8,6 +8,7 @@ import {
     Award, ArrowRight, HeartPulse, Users, ShieldAlert, Sparkles, Check, Trash2, Receipt
 } from "lucide-react";
 import MedicalInvoiceModal from "@/app/components/MedicalInvoiceModal";
+import WhatsAppModal from "@/app/components/WhatsAppModal";
 
 export default function VitacoreTurnosPage() {
     const router = useRouter();
@@ -33,6 +34,10 @@ export default function VitacoreTurnosPage() {
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [selectedPatientForInvoice, setSelectedPatientForInvoice] = useState(null);
     const [invoiceReason, setInvoiceReason] = useState("Consulta Médica");
+
+    // WhatsApp Modal states
+    const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+    const [selectedAppForWhatsApp, setSelectedAppForWhatsApp] = useState(null);
 
     const [newAppointment, setNewAppointment] = useState({
         patientId: "",
@@ -453,7 +458,10 @@ export default function VitacoreTurnosPage() {
 
                                         {/* Send WhatsApp button */}
                                         <button
-                                            onClick={() => handleSendWhatsApp(app)}
+                                            onClick={() => {
+                                                setSelectedAppForWhatsApp(app);
+                                                setIsWhatsAppModalOpen(true);
+                                            }}
                                             className="p-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-all cursor-pointer"
                                             title="Enviar recordatorio de turno por WhatsApp"
                                         >
@@ -684,6 +692,15 @@ export default function VitacoreTurnosPage() {
                 onSuccess={(result) => {
                     alert(`¡Factura de consulta médica autorizada por ARCA! CAE: ${result.cae}`);
                 }}
+            />
+
+            {/* Modal: NOTIFICACIONES DE WHATSAPP INSTITUCIONAL */}
+            <WhatsAppModal
+                isOpen={isWhatsAppModalOpen}
+                onClose={() => setIsWhatsAppModalOpen(false)}
+                patientName={selectedAppForWhatsApp?.patientName}
+                patientPhone={selectedAppForWhatsApp?.patientPhone}
+                appointmentData={selectedAppForWhatsApp}
             />
         </div>
     );
