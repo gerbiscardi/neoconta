@@ -128,7 +128,7 @@ export default function VitacoreDirectory() {
     return (
         <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in text-gray-900 dark:text-slate-100">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900/50 backdrop-blur-md p-6 rounded-3xl border border-gray-200/80 dark:border-zinc-800 shadow-sm">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 via-cyan-500 to-indigo-600 dark:from-teal-400 dark:to-cyan-300 bg-clip-text text-transparent">
                         Vitacore
@@ -137,13 +137,29 @@ export default function VitacoreDirectory() {
                         Fichero y registro de historias clínicas digitales para tus pacientes.
                     </p>
                 </div>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-teal-500/10 hover:shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                >
-                    <Plus className="h-5 w-5" />
-                    Nuevo Paciente
-                </button>
+
+                <div className="flex items-center gap-3">
+                    {/* Vitacore Sub-Navigation */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-900 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-800 text-xs font-bold">
+                        <Link href="/dashboard/vitacore" className="px-3.5 py-2 bg-teal-600 text-white rounded-xl shadow-md">
+                            👥 Pacientes
+                        </Link>
+                        <Link href="/dashboard/vitacore/turnos" className="px-3.5 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                            📅 Agenda de Turnos
+                        </Link>
+                        <Link href="/dashboard/vitacore/profesionales" className="px-3.5 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                            🩺 Profesionales
+                        </Link>
+                    </div>
+
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-teal-500/10 hover:shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all text-xs cursor-pointer"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Nuevo Paciente
+                    </button>
+                </div>
             </div>
 
             {/* Metrics cards */}
