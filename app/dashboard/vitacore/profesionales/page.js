@@ -14,7 +14,10 @@ import {
     CheckCircle2,
     X,
     UserCheck,
-    ClipboardList
+    ClipboardList,
+    HeartPulse,
+    Award,
+    ShieldAlert
 } from "lucide-react";
 import VitacoreHeader from "@/app/components/VitacoreHeader";
 
