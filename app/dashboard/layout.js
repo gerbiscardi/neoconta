@@ -57,6 +57,17 @@ export default function DashboardLayout({ children }) {
     };
 
     useEffect(() => {
+        const root = document.documentElement;
+        if (theme === 'claro') {
+            root.classList.remove('dark');
+            root.classList.add('light');
+        } else {
+            root.classList.remove('light');
+            root.classList.add('dark');
+        }
+    }, [theme]);
+
+    useEffect(() => {
         if (!loading && currentUser && (currentUser.role === 'cliente' || currentUser.role === 'vitacore-professional' || currentUser.role === 'vitacore-receptionist') && userConfig) {
             const features = userConfig.features || {};
             const path = pathname;
