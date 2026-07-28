@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import MedicalInvoiceModal from "@/app/components/MedicalInvoiceModal";
 import WhatsAppModal from "@/app/components/WhatsAppModal";
-import VitacoreHeader from "@/app/components/VitacoreHeader";
 
 export default function VitacoreTurnosPage() {
     const router = useRouter();
@@ -63,7 +62,7 @@ export default function VitacoreTurnosPage() {
         } else {
             const user = JSON.parse(userStr);
             setCurrentUser(user);
-            const targetUserId = user.role === 'vitacore-professional' ? user.parentId : user.id;
+            const targetUserId = (user.role === 'vitacore-professional' || user.role === 'vitacore-receptionist') ? user.parentId : user.id;
             fetchInitialData(targetUserId, selectedDate);
         }
     }, [router, selectedDate]);
@@ -91,7 +90,7 @@ export default function VitacoreTurnosPage() {
         }
     };
 
-    const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser.parentId : currentUser?.id;
+    const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser?.id;
 
     // Handle status change
     const handleStatusChange = async (appointmentId, newStatus) => {
@@ -224,18 +223,41 @@ export default function VitacoreTurnosPage() {
         <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 text-slate-900 dark:text-slate-100 font-sans">
             
             {/* Header & Vitacore Navigation Tabs */}
-            <VitacoreHeader
-                activeTab="turnos"
-                subTitle="Agenda Médica Diaria, Sala de Espera & Notificaciones WhatsApp"
-                actionButton={
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-extrabold px-4 py-2.5 rounded-xl shadow-lg shadow-teal-500/10 hover:shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all text-xs cursor-pointer"
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900/50 backdrop-blur-md p-6 rounded-3xl border border-slate-200/80 dark:border-zinc-800 shadow-sm">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-gradient-to-tr from-teal-600 to-cyan-600 text-white rounded-2xl shadow-md">
+                            <CalendarIcon className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Vitacore | Agenda Médica</h1>
+                            <p className="text-xs text-slate-400 font-medium">Gestión de turnos diarios, salaf de espera y recordatorios automatizados.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Vitacore Sub-Navigation */}
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-900 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-800">
+                    <Link
+                        href="/dashboard/vitacore"
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
                     >
-                        <span>+ Nuevo Turno Médico</span>
-                    </button>
-                }
-            />
+                        👥 Pacientes
+                    </Link>
+                    <Link
+                        href="/dashboard/vitacore/turnos"
+                        className="px-4 py-2 bg-teal-600 text-white rounded-xl text-xs font-bold shadow-md transition-all"
+                    >
+                        📅 Agenda de Turnos
+                    </Link>
+                    <Link
+                        href="/dashboard/vitacore/profesionales"
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
+                    >
+                        🩺 Profesionales
+                    </Link>
+                </div>
+            </div>
 
             {/* Date & Professional Bar + Metrics */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

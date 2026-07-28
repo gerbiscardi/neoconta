@@ -506,7 +506,7 @@ export default function Dashboard() {
         } else {
             const parsedUser = JSON.parse(userStr);
             setCurrentUser(parsedUser);
-            if (parsedUser.role === 'vitacore-professional') {
+            if (parsedUser.role === 'vitacore-professional' || parsedUser.role === 'vitacore-receptionist') {
                 router.push("/dashboard/vitacore");
                 return;
             }

@@ -32,7 +32,7 @@ export default function MedicalInvoiceModal({
         setError(null);
         setSubmitting(true);
 
-        const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser.parentId : currentUser?.id;
+        const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser?.id;
         const totalAmount = parseFloat(amount) || 0;
 
         if (totalAmount <= 0) {

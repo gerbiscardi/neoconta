@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Users, ClipboardList, ShieldAlert, Plus, Search, User, Filter, AlertCircle, RefreshCw, X } from "lucide-react";
-import VitacoreHeader from "@/app/components/VitacoreHeader";
 
 export default function VitacoreDirectory() {
     const [patients, setPatients] = useState([]);
@@ -67,7 +67,7 @@ export default function VitacoreDirectory() {
 
         try {
             setSubmitting(true);
-            const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser?.id;
+            const targetUserId = (currentUser.role === 'vitacore-professional' || currentUser.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser.id;
             const res = await fetch("/api/vitacore/patients", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -102,26 +102,25 @@ export default function VitacoreDirectory() {
         }
     };
 
-    // Calculate metrics safely
+    // Calculate metrics
     const totalPatients = patients.length;
-    const totalConsultations = patients.reduce((acc, p) => acc + (p?.consultations?.length || 0), 0);
-    const criticalPatientsCount = patients.filter(p => p?.importantDetails && String(p.importantDetails).trim().length > 0).length;
+    const totalConsultations = patients.reduce((acc, p) => acc + (p.consultations?.length || 0), 0);
+    const criticalPatientsCount = patients.filter(p => p.importantDetails && p.importantDetails.trim().length > 0).length;
 
     // Get unique Obras Sociales for filter dropdown
     const obrasSocialesList = Array.from(
-        new Set(patients.map(p => p?.obraSocial).filter(os => os && String(os).trim() !== ""))
+        new Set(patients.map(p => p.obraSocial).filter(os => os && os.trim() !== ""))
     ).sort();
 
-    // Filter patients list safely
+    // Filter patients list
     const filteredPatients = patients.filter(p => {
-        if (!p) return false;
-        const nameStr = String(p.name || "").toLowerCase();
-        const dniStr = String(p.dni || "");
-        const osStr = String(p.obraSocial || "").toLowerCase();
-        const q = searchQuery.toLowerCase();
-
-        const matchesSearch = nameStr.includes(q) || dniStr.includes(q) || osStr.includes(q);
-        const matchesObraSocial = !selectedObraSocial || p.obraSocial === selectedObraSocial;
+        const matchesSearch = 
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.dni.includes(searchQuery) ||
+            (p.obraSocial && p.obraSocial.toLowerCase().includes(searchQuery.toLowerCase()));
+        
+        const matchesObraSocial = 
+            !selectedObraSocial || p.obraSocial === selectedObraSocial;
 
         return matchesSearch && matchesObraSocial;
     });
@@ -129,18 +128,39 @@ export default function VitacoreDirectory() {
     return (
         <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in text-gray-900 dark:text-slate-100">
             {/* Header */}
-            <VitacoreHeader
-                activeTab="pacientes"
-                subTitle="Padrón de Pacientes & Historias Clínicas Digitales"
-                actionButton={
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900/50 backdrop-blur-md p-6 rounded-3xl border border-gray-200/80 dark:border-zinc-800 shadow-sm">
+                <div>
+                    <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 via-cyan-500 to-indigo-600 dark:from-teal-400 dark:to-cyan-300 bg-clip-text text-transparent">
+                        Vitacore
+                    </h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Fichero y registro de historias clínicas digitales para tus pacientes.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {/* Vitacore Sub-Navigation */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-900 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-800 text-xs font-bold">
+                        <Link href="/dashboard/vitacore" className="px-3.5 py-2 bg-teal-600 text-white rounded-xl shadow-md">
+                            👥 Pacientes
+                        </Link>
+                        <Link href="/dashboard/vitacore/turnos" className="px-3.5 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                            📅 Agenda de Turnos
+                        </Link>
+                        <Link href="/dashboard/vitacore/profesionales" className="px-3.5 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                            🩺 Profesionales
+                        </Link>
+                    </div>
+
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-extrabold px-4 py-2.5 rounded-xl shadow-lg shadow-teal-500/10 hover:shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all text-xs cursor-pointer"
+                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-teal-500/10 hover:shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all text-xs cursor-pointer"
                     >
-                        <span>+ Nuevo Paciente</span>
+                        <Plus className="h-4 w-4" />
+                        Nuevo Paciente
                     </button>
-                }
-            />
+                </div>
+            </div>
 
             {/* Metrics cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -208,7 +228,7 @@ export default function VitacoreDirectory() {
 
                     <button
                         onClick={() => {
-                            const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser?.parentId : currentUser?.id;
+                            const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser?.parentId : currentUser?.id;
                             fetchPatients(targetUserId);
                         }}
                         className="p-2 bg-white hover:bg-gray-150 dark:bg-zinc-900 dark:hover:bg-slate-800 border border-gray-200 dark:border-zinc-800 rounded-xl text-gray-500 hover:text-gray-800 transition-all"
