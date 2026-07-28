@@ -37,7 +37,7 @@ export default function VitacoreDirectory() {
         } else {
             const user = JSON.parse(userStr);
             setCurrentUser(user);
-            const targetUserId = user.role === 'vitacore-professional' ? user.parentId : user.id;
+            const targetUserId = (user.role === 'vitacore-professional' || user.role === 'vitacore-receptionist') ? user.parentId : user.id;
             fetchPatients(targetUserId);
         }
     }, [router]);
@@ -67,7 +67,7 @@ export default function VitacoreDirectory() {
 
         try {
             setSubmitting(true);
-            const targetUserId = currentUser.role === 'vitacore-professional' ? currentUser.parentId : currentUser.id;
+            const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser?.id;
             const res = await fetch("/api/vitacore/patients", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -102,25 +102,26 @@ export default function VitacoreDirectory() {
         }
     };
 
-    // Calculate metrics
+    // Calculate metrics safely
     const totalPatients = patients.length;
-    const totalConsultations = patients.reduce((acc, p) => acc + (p.consultations?.length || 0), 0);
-    const criticalPatientsCount = patients.filter(p => p.importantDetails && p.importantDetails.trim().length > 0).length;
+    const totalConsultations = patients.reduce((acc, p) => acc + (p?.consultations?.length || 0), 0);
+    const criticalPatientsCount = patients.filter(p => p?.importantDetails && String(p.importantDetails).trim().length > 0).length;
 
     // Get unique Obras Sociales for filter dropdown
     const obrasSocialesList = Array.from(
-        new Set(patients.map(p => p.obraSocial).filter(os => os && os.trim() !== ""))
+        new Set(patients.map(p => p?.obraSocial).filter(os => os && String(os).trim() !== ""))
     ).sort();
 
-    // Filter patients list
+    // Filter patients list safely
     const filteredPatients = patients.filter(p => {
-        const matchesSearch = 
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.dni.includes(searchQuery) ||
-            (p.obraSocial && p.obraSocial.toLowerCase().includes(searchQuery.toLowerCase()));
-        
-        const matchesObraSocial = 
-            !selectedObraSocial || p.obraSocial === selectedObraSocial;
+        if (!p) return false;
+        const nameStr = String(p.name || "").toLowerCase();
+        const dniStr = String(p.dni || "");
+        const osStr = String(p.obraSocial || "").toLowerCase();
+        const q = searchQuery.toLowerCase();
+
+        const matchesSearch = nameStr.includes(q) || dniStr.includes(q) || osStr.includes(q);
+        const matchesObraSocial = !selectedObraSocial || p.obraSocial === selectedObraSocial;
 
         return matchesSearch && matchesObraSocial;
     });

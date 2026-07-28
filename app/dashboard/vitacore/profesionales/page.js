@@ -175,12 +175,12 @@ export default function ProfessionalsPage() {
     };
 
     const filteredProfessionals = professionals.filter(p => {
+        if (!p) return false;
         const query = searchQuery.toLowerCase();
-        return (
-            p.nombre.toLowerCase().includes(query) ||
-            (p.specialty && p.specialty.toLowerCase().includes(query)) ||
-            p.email.toLowerCase().includes(query)
-        );
+        const nomStr = String(p.nombre || "").toLowerCase();
+        const specStr = String(p.specialty || "").toLowerCase();
+        const emailStr = String(p.email || "").toLowerCase();
+        return nomStr.includes(query) || specStr.includes(query) || emailStr.includes(query);
     });
 
     return (
