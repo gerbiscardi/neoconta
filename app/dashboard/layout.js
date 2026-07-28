@@ -95,10 +95,10 @@ export default function DashboardLayout({ children }) {
             }
         ];
 
-        if (!userConfig || !currentUser) return items;
+        if (!currentUser) return items;
 
         const role = currentUser.role;
-        const features = userConfig.features || {};
+        const features = userConfig?.features || {};
 
         if (role === 'vitacore-professional' || role === 'vitacore-receptionist') {
             return [
@@ -113,9 +113,9 @@ export default function DashboardLayout({ children }) {
             ];
         }
 
-        if (features.facturacionManual || features.facturacionMasiva) {
+        if (role === 'owner' || features.facturacionManual || features.facturacionMasiva) {
             items.push({ 
-                name: features.facturacionMasiva ? "Facturación Masiva" : "Facturación Manual", 
+                name: (features.facturacionMasiva || role === 'owner') ? "Facturación Masiva" : "Facturación Manual", 
                 icon: <FileText className="h-5 w-5" />, 
                 href: "/dashboard/facturacion",
                 gradient: "from-blue-500 to-indigo-500",
@@ -124,7 +124,7 @@ export default function DashboardLayout({ children }) {
             });
         }
 
-        if (features.biBasico || features.biAvanzado || features.biPremium) {
+        if (role === 'owner' || features.biBasico || features.biAvanzado || features.biPremium) {
             items.push({ 
                 name: "Commander BI", 
                 icon: <LineChart className="h-5 w-5" />, 
@@ -135,7 +135,7 @@ export default function DashboardLayout({ children }) {
             });
         }
 
-        if (features.moduloBanco) {
+        if (role === 'owner' || features.moduloBanco) {
             items.push({ 
                 name: "Banco", 
                 icon: <Wallet className="h-5 w-5" />, 
@@ -146,7 +146,7 @@ export default function DashboardLayout({ children }) {
             });
         }
 
-        if (features.moduloImagenWeb) {
+        if (role === 'owner' || features.moduloImagenWeb) {
             items.push({ 
                 name: "Commentor", 
                 icon: <MessageSquare className="h-5 w-5" />, 
@@ -157,7 +157,7 @@ export default function DashboardLayout({ children }) {
             });
         }
 
-        if (features.moduloVitacore || features.moduloVitacore === undefined) {
+        if (role === 'owner' || features.moduloVitacore || features.moduloVitacore === undefined) {
             items.push({ 
                 name: "Vitacore", 
                 icon: <HeartPulse className="h-5 w-5" />, 
