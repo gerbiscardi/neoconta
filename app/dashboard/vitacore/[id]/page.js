@@ -109,7 +109,7 @@ export default function PatientDetail({ params }) {
 
     const router = useRouter();
 
-    const targetUserId = currentUser?.role === 'vitacore-professional' ? currentUser.parentId : currentUser?.id;
+    const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser?.id;
 
     useEffect(() => {
         const userStr = localStorage.getItem("neoconta_user");
@@ -118,7 +118,7 @@ export default function PatientDetail({ params }) {
         } else {
             const user = JSON.parse(userStr);
             setCurrentUser(user);
-            const targetId = user.role === 'vitacore-professional' ? user.parentId : user.id;
+            const targetId = (user.role === 'vitacore-professional' || user.role === 'vitacore-receptionist') ? user.parentId : user.id;
             fetchPatientData(targetId);
             fetchProfessionals(targetId);
             fetchPrescriptions(targetId, patientId);
@@ -762,30 +762,34 @@ export default function PatientDetail({ params }) {
 
                 {/* Circular action buttons & AI button */}
                 <div className="flex items-center gap-2 shrink-0">
-                    <button
-                        onClick={handleFetchAiSummary}
-                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-indigo-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
-                        title="Generar Resumen de Historia Clínica con Gemini AI"
-                    >
-                        <Sparkles className="h-4 w-4 text-amber-300 animate-pulse" />
-                        <span>Resumen IA</span>
-                    </button>
-                    <button
-                        onClick={() => setIsPrescriptionModalOpen(true)}
-                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-teal-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
-                        title="Emitir nueva receta o prescripción médica"
-                    >
-                        <Pill className="h-4 w-4" />
-                        <span>Nueva Receta</span>
-                    </button>
-                    <button
-                        onClick={() => setIsOrderModalOpen(true)}
-                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-cyan-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
-                        title="Emitir orden de estudio o laboratorio (LOINC)"
-                    >
-                        <FlaskConical className="h-4 w-4" />
-                        <span>Nueva Orden</span>
-                    </button>
+                    {currentUser?.role !== 'vitacore-receptionist' && (
+                        <>
+                            <button
+                                onClick={handleFetchAiSummary}
+                                className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-indigo-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                                title="Generar Resumen de Historia Clínica con Gemini AI"
+                            >
+                                <Sparkles className="h-4 w-4 text-amber-300 animate-pulse" />
+                                <span>Resumen IA</span>
+                            </button>
+                            <button
+                                onClick={() => setIsPrescriptionModalOpen(true)}
+                                className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-teal-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                                title="Emitir nueva receta o prescripción médica"
+                            >
+                                <Pill className="h-4 w-4" />
+                                <span>Nueva Receta</span>
+                            </button>
+                            <button
+                                onClick={() => setIsOrderModalOpen(true)}
+                                className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-extrabold rounded-full text-xs shadow-md shadow-cyan-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                                title="Emitir orden de estudio o laboratorio (LOINC)"
+                            >
+                                <FlaskConical className="h-4 w-4" />
+                                <span>Nueva Orden</span>
+                            </button>
+                        </>
+                    )}
                     <button
                         onClick={() => {
                             setInvoiceReason("Atención y Consulta Médica");
@@ -797,13 +801,15 @@ export default function PatientDetail({ params }) {
                         <Receipt className="h-4 w-4" />
                         <span>Facturar ARCA</span>
                     </button>
-                    <button
-                        onClick={() => setIsSignatureModalOpen(true)}
-                        className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-cyan-600 dark:text-cyan-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
-                        title="Configurar mi Firma & Sello Digitalizado"
-                    >
-                        <FileSignature className="h-4 w-4" />
-                    </button>
+                    {currentUser?.role !== 'vitacore-receptionist' && (
+                        <button
+                            onClick={() => setIsSignatureModalOpen(true)}
+                            className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-cyan-600 dark:text-cyan-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
+                            title="Configurar mi Firma & Sello Digitalizado"
+                        >
+                            <FileSignature className="h-4 w-4" />
+                        </button>
+                    )}
                     <button
                         onClick={handlePrint}
                         className="p-2.5 bg-slate-50 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-gray-400 rounded-full transition-all border border-gray-200 dark:border-zinc-800"
@@ -944,7 +950,19 @@ export default function PatientDetail({ params }) {
 
                 {/* Right Column: Timeline / Consultation Records OR Recetario Digital */}
                 <div className="lg:col-span-2 space-y-6">
-                    {activeTab === 'recetario' ? (
+                    {currentUser?.role === 'vitacore-receptionist' ? (
+                        <div className="bg-blue-50 dark:bg-zinc-900 border border-blue-200 dark:border-zinc-800 rounded-3xl p-10 text-center space-y-4 shadow-sm">
+                            <div className="p-3 bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-full inline-block">
+                                <ShieldAlert className="h-8 w-8 mx-auto" />
+                            </div>
+                            <h4 className="font-extrabold text-base text-slate-900 dark:text-white uppercase tracking-wider">
+                                Acceso Recepción / Secretaría Delimitado
+                            </h4>
+                            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                                Por motivos de <strong>Secreto Médico y Confidencialidad Paciente-Profesional</strong>, los detalles clínicos de evoluciones, recetas y órdenes están reservados exclusivamente a los profesionales de la salud.
+                            </p>
+                        </div>
+                    ) : activeTab === 'recetario' ? (
                         /* Recetario Digital View */
                         <div className="space-y-6">
                             <div className="flex items-center justify-between print:hidden">

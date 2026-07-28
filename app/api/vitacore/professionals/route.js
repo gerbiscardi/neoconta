@@ -18,7 +18,7 @@ async function writeUsers(users) {
     await fs.writeFile(dbPath, JSON.stringify(users, null, 2), 'utf-8');
 }
 
-// GET: Retrieve all professionals for a client
+// GET: Retrieve all sub-users (professionals & receptionists) for a client
 export async function GET(request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -29,7 +29,7 @@ export async function GET(request) {
         }
 
         const users = await readUsers();
-        const professionals = users.filter(u => u.parentId === userId && u.role === 'vitacore-professional');
+        const professionals = users.filter(u => u.parentId === userId && (u.role === 'vitacore-professional' || u.role === 'vitacore-receptionist'));
 
         return NextResponse.json({ success: true, professionals });
     } catch (error) {
@@ -38,7 +38,7 @@ export async function GET(request) {
     }
 }
 
-// POST: Add a new professional
+// POST: Add a new professional or receptionist
 export async function POST(request) {
     try {
         const body = await request.json();
@@ -55,30 +55,32 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Ya existe un usuario registrado con ese correo electrónico' }, { status: 400 });
         }
 
-        const newProfessional = {
-            id: 'prof_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36),
+        const assignedRole = professional.role === 'vitacore-receptionist' ? 'vitacore-receptionist' : 'vitacore-professional';
+
+        const newSubUser = {
+            id: (assignedRole === 'vitacore-receptionist' ? 'recep_' : 'prof_') + Math.random().toString(36).substring(2, 10) + Date.now().toString(36),
             nombre: professional.nombre,
             email: professional.email.trim().toLowerCase(),
             password: professional.password,
             tipoUsuario: 'administrativo', // default
-            role: 'vitacore-professional',
+            role: assignedRole,
             parentId: userId,
-            specialty: professional.specialty || '',
+            specialty: assignedRole === 'vitacore-receptionist' ? 'Recepción / Secretaría' : (professional.specialty || ''),
             matricula: professional.matricula || '',
             createdAt: new Date().toISOString()
         };
 
-        users.push(newProfessional);
+        users.push(newSubUser);
         await writeUsers(users);
 
-        return NextResponse.json({ success: true, professional: newProfessional }, { status: 201 });
+        return NextResponse.json({ success: true, professional: newSubUser }, { status: 201 });
     } catch (error) {
         console.error('Error in /api/vitacore/professionals POST:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// PUT: Update professional details
+// PUT: Update professional or receptionist details
 export async function PUT(request) {
     try {
         const body = await request.json();
@@ -89,10 +91,10 @@ export async function PUT(request) {
         }
 
         const users = await readUsers();
-        const index = users.findIndex(u => u.id === professionalId && u.parentId === userId && u.role === 'vitacore-professional');
+        const index = users.findIndex(u => u.id === professionalId && u.parentId === userId && (u.role === 'vitacore-professional' || u.role === 'vitacore-receptionist'));
 
         if (index === -1) {
-            return NextResponse.json({ error: 'Profesional no encontrado' }, { status: 404 });
+            return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
         }
 
         // If email is changing, check if unique
@@ -108,6 +110,7 @@ export async function PUT(request) {
             ...users[index],
             nombre: updatedData.nombre ?? users[index].nombre,
             password: updatedData.password ?? users[index].password,
+            role: updatedData.role ?? users[index].role,
             specialty: updatedData.specialty ?? users[index].specialty,
             matricula: updatedData.matricula ?? users[index].matricula,
             cuit: updatedData.cuit ?? users[index].cuit,
@@ -122,7 +125,7 @@ export async function PUT(request) {
     }
 }
 
-// DELETE: Delete a professional
+// DELETE: Delete a professional or receptionist
 export async function DELETE(request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -134,16 +137,16 @@ export async function DELETE(request) {
         }
 
         const users = await readUsers();
-        const index = users.findIndex(u => u.id === professionalId && u.parentId === userId && u.role === 'vitacore-professional');
+        const index = users.findIndex(u => u.id === professionalId && u.parentId === userId && (u.role === 'vitacore-professional' || u.role === 'vitacore-receptionist'));
 
         if (index === -1) {
-            return NextResponse.json({ error: 'Profesional no encontrado' }, { status: 404 });
+            return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
         }
 
         users.splice(index, 1);
         await writeUsers(users);
 
-        return NextResponse.json({ success: true, message: 'Profesional eliminado de la base de datos' });
+        return NextResponse.json({ success: true, message: 'Usuario eliminado de la base de datos' });
     } catch (error) {
         console.error('Error in /api/vitacore/professionals DELETE:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

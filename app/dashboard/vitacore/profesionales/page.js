@@ -36,7 +36,8 @@ export default function ProfessionalsPage() {
         email: "",
         password: "",
         specialty: "",
-        matricula: ""
+        matricula: "",
+        role: "vitacore-professional"
     });
 
     useEffect(() => {
@@ -55,8 +56,8 @@ export default function ProfessionalsPage() {
     }, [router]);
 
     const fetchProfessionals = async (userId) => {
+        setLoading(true);
         try {
-            setLoading(true);
             const res = await fetch(`/api/vitacore/professionals?userId=${userId}`);
             const data = await res.json();
             if (data.success) {
@@ -75,7 +76,8 @@ export default function ProfessionalsPage() {
             email: "",
             password: "",
             specialty: "",
-            matricula: ""
+            matricula: "",
+            role: "vitacore-professional"
         });
         setErrorMsg("");
         setIsAddModalOpen(true);
@@ -88,7 +90,8 @@ export default function ProfessionalsPage() {
             email: prof.email,
             password: prof.password,
             specialty: prof.specialty || "",
-            matricula: prof.matricula || ""
+            matricula: prof.matricula || "",
+            role: prof.role || "vitacore-professional"
         });
         setErrorMsg("");
         setIsEditModalOpen(true);
@@ -264,9 +267,18 @@ export default function ProfessionalsPage() {
                                         <h4 className="font-black text-gray-900 dark:text-white text-base leading-tight">
                                             {prof.nombre}
                                         </h4>
-                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-black tracking-wider block">
-                                            {prof.specialty || "General"}
-                                        </span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-black tracking-wider block">
+                                                {prof.specialty || "General"}
+                                            </span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                prof.role === 'vitacore-receptionist' 
+                                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300' 
+                                                    : 'bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300'
+                                            }`}>
+                                                {prof.role === 'vitacore-receptionist' ? '📋 Recepción' : '🩺 Médico'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -325,6 +337,18 @@ export default function ProfessionalsPage() {
                             </div>
                         )}
                         <form onSubmit={handleCreate} className="space-y-4">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Rol / Tipo de Permisos *</label>
+                                <select
+                                    value={form.role}
+                                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+                                >
+                                    <option value="vitacore-professional">🩺 Médico / Profesional (Acceso a Historias Clínicas y Recetas)</option>
+                                    <option value="vitacore-receptionist">📋 Recepción / Secretaría (Gestión de Agenda y Sala de Espera)</option>
+                                </select>
+                            </div>
+
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Nombre Completo *</label>
                                 <div className="relative">
@@ -429,6 +453,18 @@ export default function ProfessionalsPage() {
                             </div>
                         )}
                         <form onSubmit={handleUpdate} className="space-y-4">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Rol / Tipo de Permisos *</label>
+                                <select
+                                    value={form.role}
+                                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+                                >
+                                    <option value="vitacore-professional">🩺 Médico / Profesional (Acceso a Historias Clínicas y Recetas)</option>
+                                    <option value="vitacore-receptionist">📋 Recepción / Secretaría (Gestión de Agenda y Sala de Espera)</option>
+                                </select>
+                            </div>
+
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Nombre Completo *</label>
                                 <div className="relative">
