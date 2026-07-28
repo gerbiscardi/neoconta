@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import VitacoreHeader from "@/app/components/VitacoreHeader";
 import { 
     Plus, 
     Search, 
@@ -181,38 +182,18 @@ export default function ProfessionalsPage() {
     return (
         <div className="space-y-6 pb-12">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900/50 backdrop-blur-md p-6 rounded-3xl border border-gray-200/80 dark:border-zinc-800 shadow-sm">
-                <div className="space-y-1">
-                    <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-teal-500 to-cyan-500 bg-clip-text text-transparent">
-                        Profesionales Vitacore
-                    </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Administre los profesionales médicos de su clínica y matrículas.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-900 p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-800 text-xs font-bold">
-                        <Link href="/dashboard/vitacore" className="px-3.5 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
-                            👥 Pacientes
-                        </Link>
-                        <Link href="/dashboard/vitacore/turnos" className="px-3.5 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
-                            📅 Agenda de Turnos
-                        </Link>
-                        <Link href="/dashboard/vitacore/profesionales" className="px-3.5 py-2 bg-teal-600 text-white rounded-xl shadow-md">
-                            🩺 Profesionales
-                        </Link>
-                    </div>
-
+            <VitacoreHeader
+                activeTab="profesionales"
+                actionButton={
                     <button
                         onClick={handleOpenAddModal}
                         className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-extrabold rounded-xl text-xs shadow-lg hover:shadow-teal-500/25 transition-all cursor-pointer"
                     >
                         <Plus className="h-4 w-4" />
-                        Nuevo Profesional
+                        <span>Nuevo Profesional</span>
                     </button>
-                </div>
-            </div>
+                }
+            />
 
             {/* Warning info banner */}
             <div className="p-4 bg-teal-50/40 dark:bg-teal-950/15 border border-teal-100/40 dark:border-teal-900/30 rounded-2xl flex gap-3">
