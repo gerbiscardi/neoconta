@@ -143,10 +143,26 @@ conn.on('ready', async () => {
 
     // 9. Configure Nginx
     const nginxConfig = `
+# Redirect HTTP to HTTPS
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name neoconta.com.ar www.neoconta.com.ar;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS server block
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name neoconta.com.ar www.neoconta.com.ar;
+
+    ssl_certificate /etc/ssl/certs/neoconta.crt;
+    ssl_certificate_key /etc/ssl/private/neoconta.key;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     location / {
         proxy_pass http://localhost:3000;

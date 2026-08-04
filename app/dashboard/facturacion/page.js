@@ -1915,6 +1915,7 @@ export default function FacturacionPage() {
                             <thead className="bg-slate-50 dark:bg-slate-800">
                                 <tr>
                                     <th className="w-[85px] px-2 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Emisión</th>
+                                    <th className="w-[110px] px-2 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Número</th>
                                     <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Cliente</th>
                                     <th className="w-[110px] px-2 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">CUIT</th>
                                     <th className="w-[95px] px-2 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
@@ -1931,7 +1932,7 @@ export default function FacturacionPage() {
                             <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-800">
                                 {filteredRows.length === 0 && (
                                     <tr>
-                                        <td colSpan={showAdjustment ? "12" : "11"} className="px-6 py-16 text-center text-slate-500 dark:text-slate-400">
+                                        <td colSpan={showAdjustment ? "13" : "12"} className="px-6 py-16 text-center text-slate-500 dark:text-slate-400">
                                             No hay registros para mostrar en el estado actual. Sube una planilla de Excel para previsualizar.
                                         </td>
                                     </tr>
@@ -1954,6 +1955,15 @@ export default function FacturacionPage() {
                                             {/* Fecha de Emisión */}
                                             <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400 font-mono">
                                                 {getEmissionDate(invoice)}
+                                            </td>
+
+                                            {/* Número de Comprobante */}
+                                            <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-900 dark:text-white font-mono font-semibold">
+                                                {isApproved ? (
+                                                    `${String(getPtoVta(invoice)).padStart(5, '0')}-${String(getCbteDesde(invoice)).padStart(8, '0')}`
+                                                ) : (
+                                                    <span className="text-slate-400 dark:text-slate-500 font-normal">-</span>
+                                                )}
                                             </td>
 
                                             {/* Razon Social */}
