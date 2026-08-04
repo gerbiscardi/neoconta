@@ -99,11 +99,20 @@ export async function GET(request) {
 
         const assignedPlan = config.plan || "base";
 
+        const getFallbackCondicion = (cuit) => {
+            const clean = String(cuit || "").replace(/[^0-9]/g, "");
+            if (clean.startsWith("30") || clean.startsWith("33") || clean.startsWith("34")) {
+                return "IVA Responsable Inscripto";
+            }
+            return "Responsable Monotributo";
+        };
+
         return NextResponse.json({
             success: true,
             razonSocial: config.razonSocial || "",
             cuit: config.cuit || "",
             production: config.production === true,
+            condicionIva: config.condicionIva || getFallbackCondicion(config.cuit),
             logo: config.logo || "",
             hasCert: existsSync(certPath),
             plan: assignedPlan,
@@ -123,6 +132,7 @@ export async function POST(request) {
         const razonSocial = data.get('razonSocial');
         const cuit = data.get('cuit');
         const production = data.get('production') === 'true';
+        const condicionIva = data.get('condicionIva') || '';
         const logo = data.get('logo') || '';
         const certFile = data.get('cert'); // File object
         const keyFile = data.get('key');   // File object
@@ -139,7 +149,15 @@ export async function POST(request) {
 
         // Save JSON Config
         const configPath = join(userDir, 'config.json');
-        let config = { razonSocial, cuit, production, logo };
+        let existingConfig = {};
+        if (existsSync(configPath)) {
+            try {
+                existingConfig = JSON.parse(await readFile(configPath, 'utf8'));
+            } catch (e) {
+                console.error("Error reading existing config:", e);
+            }
+        }
+        let config = { ...existingConfig, razonSocial, cuit, production, condicionIva, logo };
 
         // Save files if provided
         if (certFile instanceof Blob) {

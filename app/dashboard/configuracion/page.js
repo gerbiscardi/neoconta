@@ -32,6 +32,7 @@ export default function ConfigurationPage() {
         razonSocial: "",
         cuit: "",
         production: false,
+        condicionIva: "Responsable Monotributo",
         logo: "",
         certFile: null,
     });
@@ -53,6 +54,7 @@ export default function ConfigurationPage() {
                             razonSocial: data.razonSocial || "",
                             cuit: data.cuit || "",
                             production: data.production === true,
+                            condicionIva: data.condicionIva || "Responsable Monotributo",
                             logo: data.logo || ""
                         }));
                         setHasCert(data.hasCert);
@@ -64,7 +66,20 @@ export default function ConfigurationPage() {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => {
+            const updated = { ...prev, [name]: value };
+            if (name === "cuit") {
+                const clean = value.replace(/[^0-9]/g, "");
+                if (clean.length >= 2) {
+                    if (clean.startsWith("30") || clean.startsWith("33") || clean.startsWith("34")) {
+                        updated.condicionIva = "IVA Responsable Inscripto";
+                    } else {
+                        updated.condicionIva = "Responsable Monotributo";
+                    }
+                }
+            }
+            return updated;
+        });
     };
 
     const handleFileChange = (e) => {
@@ -152,6 +167,7 @@ export default function ConfigurationPage() {
             data.append('razonSocial', formData.razonSocial);
             data.append('cuit', formData.cuit);
             data.append('production', formData.production ? 'true' : 'false');
+            data.append('condicionIva', formData.condicionIva);
             data.append('logo', formData.logo || '');
             if (formData.certFile) data.append('cert', formData.certFile);
 
@@ -293,7 +309,7 @@ export default function ConfigurationPage() {
                             <Building className="h-5 w-5 text-slate-500" />
                             1. Datos de la Empresa
                         </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Razón Social</label>
                                 <input
@@ -315,6 +331,19 @@ export default function ConfigurationPage() {
                                     className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-slate-900 dark:text-white"
                                     placeholder="20-12345678-9"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Condición IVA</label>
+                                <select
+                                    name="condicionIva"
+                                    value={formData.condicionIva}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-slate-900 dark:text-white font-semibold cursor-pointer"
+                                >
+                                    <option value="Responsable Monotributo">Responsable Monotributo</option>
+                                    <option value="IVA Responsable Inscripto">IVA Responsable Inscripto</option>
+                                    <option value="IVA Sujeto Exento">IVA Sujeto Exento</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Entorno de Facturación</label>

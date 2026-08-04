@@ -34,7 +34,7 @@ export default function FacturacionPage() {
     const [results, setResults] = useState([]);
     const [totalRows, setTotalRows] = useState(0);
     const [historyLoaded, setHistoryLoaded] = useState(false);
-    const [issuerConfig, setIssuerConfig] = useState({ razonSocial: "", cuit: "", logo: "", hasCert: false, plan: "base", features: {} });
+    const [issuerConfig, setIssuerConfig] = useState({ razonSocial: "", cuit: "", logo: "", hasCert: false, plan: "base", features: {}, condicionIva: "Responsable Monotributo" });
     const [monthlyInvoiceCount, setMonthlyInvoiceCount] = useState(0);
 
     // Inflation Adjusted States
@@ -174,14 +174,21 @@ export default function FacturacionPage() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
+                    const cond = data.condicionIva || "Responsable Monotributo";
                     setIssuerConfig({
                         razonSocial: data.razonSocial || "",
                         cuit: data.cuit || "",
                         logo: data.logo || "",
                         hasCert: data.hasCert || false,
                         plan: data.plan || "base",
-                        features: data.features || {}
+                        features: data.features || {},
+                        condicionIva: cond
                     });
+                    if (cond === "IVA Responsable Inscripto") {
+                        setIndVoucher(prev => ({ ...prev, cbteTipo: 6 })); // Default to Factura B for Responsable Inscripto
+                    } else {
+                        setIndVoucher(prev => ({ ...prev, cbteTipo: 11 })); // Default to Factura C for Monotributista
+                    }
                 }
             }
         } catch (error) {
@@ -1080,7 +1087,7 @@ export default function FacturacionPage() {
                 doc.setFontSize(8.5);
                 doc.text(`CUIT: ${formatCuit(issuerConfig.cuit)}`, 14, 34);
                 doc.text(`Ingresos Brutos: Convenio Simplificado (${formatCuit(issuerConfig.cuit)})`, 14, 39);
-                doc.text("Condición IVA: Responsable Inscripto", 14, 44);
+                doc.text(`Condición IVA: ${issuerConfig.condicionIva || "Responsable Monotributo"}`, 14, 44);
                 doc.text("Inicio de Actividades: -", 14, 49);
             } else {
                 doc.setFont("helvetica", "bold");
@@ -1090,7 +1097,7 @@ export default function FacturacionPage() {
                 doc.setFontSize(9);
                 doc.text(`CUIT: ${formatCuit(issuerConfig.cuit)}`, 14, 25);
                 doc.text(`Ingresos Brutos: Convenio Simplificado (${formatCuit(issuerConfig.cuit)})`, 14, 31);
-                doc.text("Condición IVA: Responsable Inscripto", 14, 37);
+                doc.text(`Condición IVA: ${issuerConfig.condicionIva || "Responsable Monotributo"}`, 14, 37);
                 doc.text("Inicio de Actividades: -", 14, 43);
             }
 
@@ -1296,7 +1303,7 @@ export default function FacturacionPage() {
                 doc.setFontSize(8.5);
                 doc.text(`CUIT: ${formatCuit(issuerConfig.cuit)}`, 14, 34);
                 doc.text(`Ingresos Brutos: Convenio Simplificado (${formatCuit(issuerConfig.cuit)})`, 14, 39);
-                doc.text("Condición IVA: Responsable Inscripto", 14, 44);
+                doc.text(`Condición IVA: ${issuerConfig.condicionIva || "Responsable Monotributo"}`, 14, 44);
                 doc.text("Inicio de Actividades: -", 14, 49);
             } else {
                 doc.setFont("helvetica", "bold");
@@ -1306,7 +1313,7 @@ export default function FacturacionPage() {
                 doc.setFontSize(9);
                 doc.text(`CUIT: ${formatCuit(issuerConfig.cuit)}`, 14, 25);
                 doc.text(`Ingresos Brutos: Convenio Simplificado (${formatCuit(issuerConfig.cuit)})`, 14, 31);
-                doc.text("Condición IVA: Responsable Inscripto", 14, 37);
+                doc.text(`Condición IVA: ${issuerConfig.condicionIva || "Responsable Monotributo"}`, 14, 37);
                 doc.text("Inicio de Actividades: -", 14, 43);
             }
 
@@ -2712,24 +2719,33 @@ export default function FacturacionPage() {
                                         }}
                                         className="w-full px-3.5 py-2 text-sm border border-slate-350 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none transition-all cursor-pointer"
                                     >
-                                        <option value={11}>Factura C (Monotributo)</option>
-                                        <option value={12}>Nota de Débito C</option>
-                                        <option value={13}>Nota de Crédito C</option>
-                                        <option value={211}>FCE MiPyME C (Factura de Crédito)</option>
-                                        <option value={212}>Nota de Débito MiPyME C</option>
-                                        <option value={213}>Nota de Crédito MiPyME C</option>
-                                        <option value={1}>Factura A (Resp. Inscripto)</option>
-                                        <option value={2}>Nota de Débito A</option>
-                                        <option value={3}>Nota de Crédito A</option>
-                                        <option value={201}>FCE MiPyME A</option>
-                                        <option value={202}>Nota de Débito MiPyME A</option>
-                                        <option value={203}>Nota de Crédito MiPyME A</option>
-                                        <option value={6}>Factura B</option>
-                                        <option value={7}>Nota de Débito B</option>
-                                        <option value={8}>Nota de Crédito B</option>
-                                        <option value={206}>FCE MiPyME B</option>
-                                        <option value={207}>Nota de Débito MiPyME B</option>
-                                        <option value={208}>Nota de Crédito MiPyME B</option>
+                                        {(!issuerConfig.condicionIva || 
+                                          issuerConfig.condicionIva === "Responsable Monotributo" || 
+                                          issuerConfig.condicionIva === "IVA Sujeto Exento") ? (
+                                            <>
+                                                <option value={11}>Factura C (Monotributo)</option>
+                                                <option value={12}>Nota de Débito C</option>
+                                                <option value={13}>Nota de Crédito C</option>
+                                                <option value={211}>FCE MiPyME C (Factura de Crédito)</option>
+                                                <option value={212}>Nota de Débito MiPyME C</option>
+                                                <option value={213}>Nota de Crédito MiPyME C</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value={1}>Factura A (Resp. Inscripto)</option>
+                                                <option value={2}>Nota de Débito A</option>
+                                                <option value={3}>Nota de Crédito A</option>
+                                                <option value={201}>FCE MiPyME A</option>
+                                                <option value={202}>Nota de Débito MiPyME A</option>
+                                                <option value={203}>Nota de Crédito MiPyME A</option>
+                                                <option value={6}>Factura B</option>
+                                                <option value={7}>Nota de Débito B</option>
+                                                <option value={8}>Nota de Crédito B</option>
+                                                <option value={206}>FCE MiPyME B</option>
+                                                <option value={207}>Nota de Débito MiPyME B</option>
+                                                <option value={208}>Nota de Crédito MiPyME B</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
                                 <div className="space-y-1">
