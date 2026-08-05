@@ -264,6 +264,14 @@ export default function FacturacionPage() {
                     }));
                     setResults(normalizedHistory);
                     setTotalRows(historyData.total || 0);
+                    
+                    // Sync selectedInvoice modal copy if it is currently open
+                    if (selectedInvoice) {
+                        const updatedSelected = normalizedHistory.find(inv => inv.cae === selectedInvoice.cae);
+                        if (updatedSelected) {
+                            setSelectedInvoice(updatedSelected);
+                        }
+                    }
                 }
             } else {
                     setResults([]);
@@ -274,7 +282,7 @@ export default function FacturacionPage() {
         } finally {
             setHistoryLoaded(true);
         }
-    }, [currentPage, rowsPerPage, searchQuery, statusFilter]);
+    }, [currentPage, rowsPerPage, searchQuery, statusFilter, selectedInvoice]);
 
     useEffect(() => {
         const userStr = localStorage.getItem('neoconta_user');
@@ -524,6 +532,7 @@ export default function FacturacionPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(patchData)
             });
+            fetchHistory();
         } catch (error) {
             console.error(`Error updating invoice`, error);
             fetchHistory(); // Revert on fail
@@ -691,7 +700,9 @@ export default function FacturacionPage() {
         const parentPtoVta = Number(getPtoVta(parentInvoice));
         const parentNro = Number(getCbteDesde(parentInvoice));
         
-        return results.filter(item => {
+        const serverRelated = parentInvoice.relatedVouchers || [];
+        
+        const localRelated = results.filter(item => {
             if (item.status !== 'aprobado') return false;
             if (item.cae === parentInvoice.cae) return false;
             
@@ -699,6 +710,28 @@ export default function FacturacionPage() {
             const isNote = [2, 3, 7, 8, 12, 13, 202, 203, 207, 208, 212, 213].includes(itemType);
             if (!isNote) return false;
             
+            const assocList = item.CbtesAsoc || item.cbtesAsoc || [];
+            return assocList.some(assoc => {
+                const assocTipo = assoc.Tipo !== undefined ? assoc.Tipo : assoc.tipo;
+                const assocPtoVta = assoc.PtoVta !== undefined ? assoc.PtoVta : assoc.ptoVta;
+                const assocNro = assoc.Nro !== undefined ? assoc.Nro : assoc.nro;
+                
+                return Number(assocTipo) === parentType &&
+                       Number(assocPtoVta) === parentPtoVta &&
+                       Number(assocNro) === parentNro;
+            });
+        });
+
+        // Merge they without duplicates based on CAE
+        const merged = [...serverRelated];
+        localRelated.forEach(localItem => {
+            if (!merged.some(m => m.cae === localItem.cae)) {
+                merged.push(localItem);
+            }
+        });
+        
+        // Filter out any note that was unlinked (its CbtesAsoc doesn't point to parent anymore)
+        return merged.filter(item => {
             const assocList = item.CbtesAsoc || item.cbtesAsoc || [];
             return assocList.some(assoc => {
                 const assocTipo = assoc.Tipo !== undefined ? assoc.Tipo : assoc.tipo;
@@ -797,6 +830,38 @@ export default function FacturacionPage() {
                     normalized["Concepto"] = row[rawKey];
                 } else if (key === "importe" || key === "monto" || key === "total" || key === "neto" || key === "valor" || key === "precio") {
                     normalized["Importe"] = row[rawKey];
+                } else if (key === "tipo" || key === "tipo de comprobante" || key === "comprobante" || key === "cbtetipo" || key === "tipo_comprobante") {
+                    const val = String(row[rawKey]).toLowerCase().trim();
+                    let code = 11; // Default Factura C
+                    const isCredit = val.includes("credito") || val.includes("nc") || val.includes("crédito");
+                    const isDebit = val.includes("debito") || val.includes("nd") || val.includes("débito");
+                    const isInvoice = val.includes("factura") || val.includes("fc") || val.includes("f");
+
+                    const hasA = /\b(a)\b/.test(val) || val.endsWith(" a") || val.includes(" a ") || val.includes("-a");
+                    const hasB = /\b(b)\b/.test(val) || val.endsWith(" b") || val.includes(" b ") || val.includes("-b");
+                    const hasC = /\b(c)\b/.test(val) || val.endsWith(" c") || val.includes(" c ") || val.includes("-c");
+
+                    const defaultCond = (issuerConfig?.condicionIva || "Responsable Monotributo").includes("Inscripto") ? "Responsable Inscripto" : "Monotributo";
+
+                    if (isCredit) {
+                        if (hasA) code = 3;
+                        else if (hasB) code = 8;
+                        else if (hasC) code = 13;
+                        else code = defaultCond === "Responsable Inscripto" ? 3 : 13;
+                    } else if (isDebit) {
+                        if (hasA) code = 2;
+                        else if (hasB) code = 7;
+                        else if (hasC) code = 12;
+                        else code = defaultCond === "Responsable Inscripto" ? 2 : 12;
+                    } else if (isInvoice) {
+                        if (hasA) code = 1;
+                        else if (hasB) code = 6;
+                        else if (hasC) code = 11;
+                        else code = defaultCond === "Responsable Inscripto" ? 1 : 11;
+                    } else if (!isNaN(Number(val))) {
+                        code = Number(val);
+                    }
+                    normalized["CbteTipo"] = code;
                 } else {
                     normalized[rawKey.trim()] = row[rawKey];
                 }
@@ -808,6 +873,10 @@ export default function FacturacionPage() {
             if (!normalized["CondicionIVA"]) normalized["CondicionIVA"] = "Consumidor Final";
             if (!normalized["Concepto"]) normalized["Concepto"] = "Servicios";
             if (!normalized["Importe"]) normalized["Importe"] = 0;
+            if (normalized["CbteTipo"] === undefined) {
+                const defaultCond = (issuerConfig?.condicionIva || "Responsable Monotributo").includes("Inscripto") ? 6 : 11;
+                normalized["CbteTipo"] = defaultCond;
+            }
 
             return normalized;
         });
@@ -1591,7 +1660,7 @@ export default function FacturacionPage() {
                 title={hasError ? validationErrors[idx][field] : (isEditable ? "Doble clic para editar" : "")}
             >
                 <span className={field === 'CUIT' ? 'font-mono text-xs' : 'text-xs'}>
-                    {field === 'Importe' ? `$${formatAmount(val)}` : val}
+                    {field === 'Importe' ? `${[3, 8, 13, 203, 208, 213].includes(Number(getCbteTipo(invoice))) ? '-' : ''}$${formatAmount(val)}` : val}
                 </span>
                 {isEditable && (
                     <span className="opacity-0 group-hover:opacity-100 text-[8px] text-orange-500 font-semibold transition-opacity shrink-0 ml-1">
@@ -1942,6 +2011,8 @@ export default function FacturacionPage() {
                                     const isApproved = invoice.status === 'aprobado';
                                     const baseAmount = invoice.originalImporte || invoice.Importe;
                                     const { rate, additional } = calculateInflation(getEmissionDate(invoice), baseAmount);
+                                    const invoiceType = Number(getCbteTipo(invoice));
+                                    const isCreditNote = [3, 8, 13, 203, 208, 213].includes(invoiceType);
                                     
                                     return (
                                         <tr 
@@ -1992,8 +2063,8 @@ export default function FacturacionPage() {
                                             <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-900 dark:text-white font-medium">
                                                 {isApproved ? (
                                                     <div className="flex flex-col">
-                                                        <span className={invoice.inflationAdded ? "text-violet-600 dark:text-violet-400 font-bold" : ""}>
-                                                            ${formatAmount(invoice.inflationAdded ? (invoice.adjustedImporte || invoice.Importe) : invoice.Importe)}
+                                                        <span className={invoice.inflationAdded ? "text-violet-600 dark:text-violet-400 font-bold" : (isCreditNote ? "text-amber-600 dark:text-amber-400 font-semibold" : "")}>
+                                                            {isCreditNote ? '-' : ''}${formatAmount(invoice.inflationAdded ? (invoice.adjustedImporte || invoice.Importe) : invoice.Importe)}
                                                         </span>
                                                         {invoice.inflationAdded && (
                                                             <span className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.2 bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800 rounded font-semibold w-max mt-0.5 animate-fade-in-quick">

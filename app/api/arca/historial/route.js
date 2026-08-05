@@ -297,6 +297,39 @@ export async function GET(request) {
             }
         });
 
+        // Compute related vouchers for base invoices (Facturas)
+        normalized.forEach(inv => {
+            const invType = getCbteTipo(inv);
+            const isBaseInvoice = [1, 6, 11, 211].includes(invType);
+            if (isBaseInvoice) {
+                const parentType = invType;
+                const parentPtoVta = inv.PtoVta || inv.ptoVta || 1;
+                const parentNro = inv.CbteDesde || inv.cbteDesde || inv.id || 0;
+
+                inv.relatedVouchers = normalized.filter(item => {
+                    if (item.status !== 'aprobado') return false;
+                    if (item.cae === inv.cae) return false;
+
+                    const itemType = getCbteTipo(item);
+                    const isNote = [2, 3, 7, 8, 12, 13, 202, 203, 207, 208, 212, 213].includes(itemType);
+                    if (!isNote) return false;
+
+                    const assocList = item.CbtesAsoc || item.cbtesAsoc || [];
+                    return assocList.some(assoc => {
+                        const assocTipo = assoc.Tipo !== undefined ? assoc.Tipo : assoc.tipo;
+                        const assocPtoVta = assoc.PtoVta !== undefined ? assoc.PtoVta : assoc.ptoVta;
+                        const assocNro = assoc.Nro !== undefined ? assoc.Nro : assoc.nro;
+
+                        return Number(assocTipo) === Number(parentType) &&
+                               Number(assocPtoVta) === Number(parentPtoVta) &&
+                               Number(assocNro) === Number(parentNro);
+                    });
+                });
+            } else {
+                inv.relatedVouchers = [];
+            }
+        });
+
         // Non-summary query: Filter and paginate
         const cuit = searchParams.get('cuit');
         const search = searchParams.get('search');
