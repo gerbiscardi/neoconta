@@ -12,7 +12,7 @@ Write-Host "Copying NeoConta project using Robocopy (excluding heavy/dev folders
 # Robocopy exit codes: 0-7 are success/no-change/copy-successful. 8+ are errors.
 $exitCode = 0
 try {
-    robocopy $projectDir $stagingDir /XD node_modules .next .venv .git deploy_staging migracion_staging /XF *.zip /S /R:1 /W:1 /NDL /NFL /NJH /NJS
+    robocopy $projectDir $stagingDir /XD node_modules .next .venv .git deploy_staging migracion_staging historial_chats /XF *.zip /S /R:1 /W:1 /NDL /NFL /NJH /NJS
 } catch {
     # robocopy returns non-zero even on success, so we catch errors manually if needed
 }
