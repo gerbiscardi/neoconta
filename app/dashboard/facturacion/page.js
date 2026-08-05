@@ -264,14 +264,6 @@ export default function FacturacionPage() {
                     }));
                     setResults(normalizedHistory);
                     setTotalRows(historyData.total || 0);
-                    
-                    // Sync selectedInvoice modal copy if it is currently open
-                    if (selectedInvoice) {
-                        const updatedSelected = normalizedHistory.find(inv => inv.cae === selectedInvoice.cae);
-                        if (updatedSelected) {
-                            setSelectedInvoice(updatedSelected);
-                        }
-                    }
                 }
             } else {
                     setResults([]);
@@ -282,7 +274,20 @@ export default function FacturacionPage() {
         } finally {
             setHistoryLoaded(true);
         }
-    }, [currentPage, rowsPerPage, searchQuery, statusFilter, selectedInvoice]);
+    }, [currentPage, rowsPerPage, searchQuery, statusFilter]);
+
+    // Sync selectedInvoice when history results change (e.g. after linking/unlinking notes)
+    useEffect(() => {
+        if (selectedInvoice) {
+            const updated = results.find(inv => inv.cae === selectedInvoice.cae);
+            if (updated) {
+                const hasChanged = JSON.stringify(updated) !== JSON.stringify(selectedInvoice);
+                if (hasChanged) {
+                    setSelectedInvoice(updated);
+                }
+            }
+        }
+    }, [results, selectedInvoice]);
 
     useEffect(() => {
         const userStr = localStorage.getItem('neoconta_user');
