@@ -4,7 +4,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import Link from "next/link";
 import { User, Mail, Lock, Building, ArrowRight, CheckCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Registro() {
@@ -19,6 +19,10 @@ export default function Registro() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [successMsg, setSuccessMsg] = useState("");
+
+    useEffect(() => {
+        document.documentElement.classList.add('dark');
+    }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -72,7 +76,7 @@ export default function Registro() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-black font-sans text-slate-900 dark:text-slate-50">
+        <div className="flex min-h-screen flex-col bg-[#0b1329] font-sans text-slate-50">
             <Navbar />
 
             <main className="flex-grow flex items-center justify-center py-20 px-4 sm:px-6 lg:px-8">

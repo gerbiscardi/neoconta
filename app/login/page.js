@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Mail, Lock, ArrowRight, CheckCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Login() {
@@ -13,6 +13,10 @@ export default function Login() {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    useEffect(() => {
+        document.documentElement.classList.add('dark');
+    }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -55,7 +59,7 @@ export default function Login() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-black font-sans text-slate-900 dark:text-slate-50">
+        <div className="flex min-h-screen flex-col bg-[#0b1329] font-sans text-slate-50">
             {/* Simple Header with Logo */}
             <div className="absolute top-0 left-0 p-6">
                 <Link href="/">

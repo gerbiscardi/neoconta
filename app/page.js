@@ -3,13 +3,17 @@
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowRight, BarChart3, ShieldCheck, Zap, Globe, Users, Building2, Mic, Video, Mail, Phone, User, MessageSquare, Send, CheckCircle2, AlertCircle, RefreshCw, Lightbulb } from "lucide-react";
 
 export default function Home() {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", message: "" });
   const [status, setStatus] = useState("idle"); // idle, submitting, success, error
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -42,7 +46,7 @@ export default function Home() {
     }
   };
   return (
-    <div className="flex min-h-screen flex-col bg-white dark:bg-[#160b24] font-sans text-slate-900 dark:text-slate-50">
+    <div className="flex min-h-screen flex-col bg-[#160b24] font-sans text-slate-50">
       <Navbar hideUntilScroll={true} />
 
       <main className="flex-grow">
