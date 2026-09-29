@@ -2,14 +2,19 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Users, ClipboardList, ShieldAlert, Plus, Search, User, Filter, AlertCircle, RefreshCw, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, ClipboardList, ShieldAlert, Plus, Search, User, Filter, AlertCircle, RefreshCw, X, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import VitacoreHeader from "@/app/components/VitacoreHeader";
 import { CardSkeleton } from "@/app/components/Skeletons";
+import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 
 export default function VitacoreDirectory() {
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
+    
+    // Deletion Modal state
+    const [deletePatientTarget, setDeletePatientTarget] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     
     // Pagination state
     const [page, setPage] = useState(1);
@@ -120,6 +125,22 @@ export default function VitacoreDirectory() {
             setFormError("Error de conexión. Intente de nuevo.");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleDeletePatient = async () => {
+        if (!deletePatientTarget) return;
+        try {
+            const targetUserId = (currentUser.role === 'vitacore-professional' || currentUser.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser.id;
+            const res = await fetch(`/api/vitacore/patients?userId=${targetUserId}&patientId=${deletePatientTarget.id}`, {
+                method: "DELETE"
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                fetchPatients(targetUserId, page, searchQuery);
+            }
+        } catch (err) {
+            console.error("Error deleting patient:", err);
         }
     };
 
@@ -265,18 +286,30 @@ export default function VitacoreDirectory() {
                                 
                                 <div className="space-y-4">
                                     {/* Identity info */}
-                                    <div className="flex items-start gap-4">
-                                        <div className="p-3 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-xl">
-                                            <User className="h-6 w-6" />
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start gap-4">
+                                            <div className="p-3 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-xl">
+                                                <User className="h-6 w-6" />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <h4 className="font-extrabold text-lg line-clamp-1 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                                                    {patient.name}
+                                                </h4>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">
+                                                    DNI {patient.dni}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="space-y-0.5">
-                                            <h4 className="font-extrabold text-lg line-clamp-1 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                                                {patient.name}
-                                            </h4>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">
-                                                DNI {patient.dni}
-                                            </p>
-                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setDeletePatientTarget(patient);
+                                                setIsDeleteModalOpen(true);
+                                            }}
+                                            className="p-1.5 text-gray-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition-colors rounded-lg cursor-pointer"
+                                            title="Eliminar paciente"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
                                     </div>
 
                                     {/* Obra Social */}
@@ -502,6 +535,19 @@ export default function VitacoreDirectory() {
                     </div>
                 </div>
             )}
+
+            {/* Modal de Confirmación de Eliminación Segura */}
+            <ConfirmDeleteModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => {
+                    setIsDeleteModalOpen(false);
+                    setDeletePatientTarget(null);
+                }}
+                onConfirm={handleDeletePatient}
+                title="Eliminar Ficha de Paciente"
+                itemText={`al paciente "${deletePatientTarget?.name}" (DNI ${deletePatientTarget?.dni})`}
+                warningText="Esta acción eliminará permanentemente al paciente de la base de datos de Vitacore, incluyendo todas sus consultas e historial clínico."
+            />
         </div>
     );
 }

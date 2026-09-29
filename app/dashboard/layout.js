@@ -4,6 +4,9 @@ import Link from "next/link";
 import { LayoutDashboard, FileText, Wallet, Settings, Menu, X, Bell, User, LogOut, Users, MessageSquare, LineChart, HeartPulse, Sun, Moon, Palette } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import OnboardingWizard from "../components/OnboardingWizard";
+import SystemStatusBadge from "../components/SystemStatusBadge";
+import QuickSearchModal from "../components/QuickSearchModal";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 
 export default function DashboardLayout({ children }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -13,9 +16,16 @@ export default function DashboardLayout({ children }) {
     const [theme, setTheme] = useState('pizarra'); // 'pizarra' | 'claro' | 'oscuro'
     const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
     const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
     
     const router = useRouter();
     const pathname = usePathname();
+
+    useKeyboardShortcuts({
+        onSearch: () => setIsSearchOpen(true),
+        onNewPatient: () => router.push('/dashboard/vitacore'),
+        onNewAppointment: () => router.push('/dashboard/vitacore/turnos')
+    });
 
     useEffect(() => {
         // Load saved theme
@@ -307,6 +317,18 @@ export default function DashboardLayout({ children }) {
                     </button>
 
                     <div className="flex items-center gap-3 ml-auto">
+                        {/* Quick Search Spotlight Button */}
+                        <button
+                            onClick={() => setIsSearchOpen(true)}
+                            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-emerald-500/30 rounded-xl text-xs font-bold text-slate-500 transition-all cursor-pointer"
+                        >
+                            <span>🔍 Buscar...</span>
+                            <kbd className="px-1.5 py-0.5 text-[10px] font-bold text-slate-400 bg-slate-200 dark:bg-zinc-800 rounded border border-slate-300 dark:border-zinc-700">Ctrl K</kbd>
+                        </button>
+
+                        {/* Live Status LED Badge */}
+                        <SystemStatusBadge />
+
                         {/* Selector de Tema Personalizable */}
                         <div className="relative">
                             <button
@@ -410,6 +432,11 @@ export default function DashboardLayout({ children }) {
                     }}
                 />
             )}
+
+            <QuickSearchModal
+                isOpen={isSearchOpen}
+                onClose={() => setIsSearchOpen(false)}
+            />
         </div>
     );
 }
