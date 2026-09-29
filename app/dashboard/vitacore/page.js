@@ -2,14 +2,20 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Users, ClipboardList, ShieldAlert, Plus, Search, User, Filter, AlertCircle, RefreshCw, X } from "lucide-react";
+import { Users, ClipboardList, ShieldAlert, Plus, Search, User, Filter, AlertCircle, RefreshCw, X, ChevronLeft, ChevronRight } from "lucide-react";
 import VitacoreHeader from "@/app/components/VitacoreHeader";
+import { CardSkeleton } from "@/app/components/Skeletons";
 
 export default function VitacoreDirectory() {
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
     
+    // Pagination state
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalPatients, setTotalPatients] = useState(0);
+
     // Search and filters
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedObraSocial, setSelectedObraSocial] = useState("");
@@ -39,22 +45,36 @@ export default function VitacoreDirectory() {
             const user = JSON.parse(userStr);
             setCurrentUser(user);
             const targetUserId = (user.role === 'vitacore-professional' || user.role === 'vitacore-receptionist') ? user.parentId : user.id;
-            fetchPatients(targetUserId);
+            fetchPatients(targetUserId, 1, searchQuery);
         }
     }, [router]);
 
-    const fetchPatients = async (userId) => {
+    const fetchPatients = async (userId, pageNum = page, search = searchQuery) => {
         try {
             setLoading(true);
-            const res = await fetch(`/api/vitacore/patients?userId=${userId}`);
+            const targetId = userId || ((currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser?.parentId : currentUser?.id);
+            const res = await fetch(`/api/vitacore/patients?userId=${targetId}&page=${pageNum}&limit=9&search=${encodeURIComponent(search)}`);
             const data = await res.json();
             if (data.success) {
                 setPatients(data.patients || []);
+                setTotalPages(data.totalPages || 1);
+                setTotalPatients(data.total !== undefined ? data.total : (data.patients ? data.patients.length : 0));
+                setPage(data.page || 1);
             }
         } catch (error) {
             console.error("Error fetching patients:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSearchChange = (e) => {
+        const val = e.target.value;
+        setSearchQuery(val);
+        setPage(1);
+        if (currentUser) {
+            const targetUserId = (currentUser.role === 'vitacore-professional' || currentUser.role === 'vitacore-receptionist') ? currentUser.parentId : currentUser.id;
+            fetchPatients(targetUserId, 1, val);
         }
     };
 
@@ -104,7 +124,7 @@ export default function VitacoreDirectory() {
     };
 
     // Calculate metrics
-    const totalPatients = patients.length;
+    const displayedTotalPatients = totalPatients || patients.length;
     const totalConsultations = patients.reduce((acc, p) => acc + (p.consultations?.length || 0), 0);
     const criticalPatientsCount = patients.filter(p => p.importantDetails && p.importantDetails.trim().length > 0).length;
 
@@ -148,7 +168,7 @@ export default function VitacoreDirectory() {
                 <div className="bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 flex items-center justify-between shadow-sm">
                     <div className="space-y-1">
                         <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Pacientes</span>
-                        <h3 className="text-2xl font-black">{totalPatients}</h3>
+                        <h3 className="text-2xl font-black">{displayedTotalPatients}</h3>
                     </div>
                     <div className="p-3 bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 rounded-2xl">
                         <Users className="h-6 w-6" />
@@ -187,7 +207,7 @@ export default function VitacoreDirectory() {
                         type="text"
                         placeholder="Buscar por nombre, DNI o obra social..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={handleSearchChange}
                         className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:focus:ring-teal-500/30 focus:border-teal-500 transition-all text-gray-900 dark:text-slate-100"
                     />
                 </div>
@@ -209,7 +229,7 @@ export default function VitacoreDirectory() {
                     <button
                         onClick={() => {
                             const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser?.parentId : currentUser?.id;
-                            fetchPatients(targetUserId);
+                            fetchPatients(targetUserId, page, searchQuery);
                         }}
                         className="p-2 bg-white hover:bg-gray-150 dark:bg-zinc-900 dark:hover:bg-slate-800 border border-gray-200 dark:border-zinc-800 rounded-xl text-gray-500 hover:text-gray-800 transition-all"
                         title="Actualizar Fichero"
@@ -221,8 +241,8 @@ export default function VitacoreDirectory() {
 
             {/* Patients Grid */}
             {loading ? (
-                <div className="flex justify-center items-center py-20">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-teal-500"></div>
+                <div className="py-6">
+                    <CardSkeleton count={6} />
                 </div>
             ) : filteredPatients.length === 0 ? (
                 <div className="text-center py-20 bg-white dark:bg-slate-900/40 rounded-3xl border border-gray-200 dark:border-slate-800">
@@ -233,64 +253,103 @@ export default function VitacoreDirectory() {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredPatients.map(patient => (
-                        <div 
-                            key={patient.id}
-                            className="bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 flex flex-col justify-between hover:shadow-md hover:border-teal-500/35 transition-all duration-300 relative group overflow-hidden"
-                        >
-                            {/* Accent line on hover */}
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500 to-cyan-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out" />
-                            
-                            <div className="space-y-4">
-                                {/* Identity info */}
-                                <div className="flex items-start gap-4">
-                                    <div className="p-3 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-xl">
-                                        <User className="h-6 w-6" />
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredPatients.map(patient => (
+                            <div 
+                                key={patient.id}
+                                className="bg-white dark:bg-slate-900/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 flex flex-col justify-between hover:shadow-md hover:border-teal-500/35 transition-all duration-300 relative group overflow-hidden"
+                            >
+                                {/* Accent line on hover */}
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500 to-cyan-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out" />
+                                
+                                <div className="space-y-4">
+                                    {/* Identity info */}
+                                    <div className="flex items-start gap-4">
+                                        <div className="p-3 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-xl">
+                                            <User className="h-6 w-6" />
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <h4 className="font-extrabold text-lg line-clamp-1 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                                                {patient.name}
+                                            </h4>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">
+                                                DNI {patient.dni}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="space-y-0.5">
-                                        <h4 className="font-extrabold text-lg line-clamp-1 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                                            {patient.name}
-                                        </h4>
-                                        <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">
-                                            DNI {patient.dni}
-                                        </p>
+
+                                    {/* Obra Social */}
+                                    <div className="text-xs space-y-1">
+                                        <span className="text-gray-400 dark:text-gray-500 font-bold block">COBERTURA / OS</span>
+                                        <span className="font-semibold text-gray-700 dark:text-gray-300">
+                                            {patient.obraSocial ? `${patient.obraSocial} (N° ${patient.affiliateNumber || 'S/N'})` : 'Particular'}
+                                        </span>
                                     </div>
+
+                                    {/* Alertas Médicas (Crucial details) */}
+                                    {patient.importantDetails && (
+                                        <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 rounded-xl text-xs flex items-start gap-2">
+                                            <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
+                                            <span className="font-medium line-clamp-2">{patient.importantDetails}</span>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Obra Social */}
-                                <div className="text-xs space-y-1">
-                                    <span className="text-gray-400 dark:text-gray-500 font-bold block">COBERTURA / OS</span>
-                                    <span className="font-semibold text-gray-700 dark:text-gray-300">
-                                        {patient.obraSocial ? `${patient.obraSocial} (N° ${patient.affiliateNumber || 'S/N'})` : 'Particular'}
+                                {/* Divider */}
+                                <div className="my-5 border-t border-gray-100 dark:border-slate-800" />
+
+                                <div className="flex items-center justify-between gap-4">
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 font-bold">
+                                        {patient.consultations?.length || 0} consultas
                                     </span>
+                                    <Link
+                                        href={`/dashboard/vitacore/${patient.id}`}
+                                        className="px-4 py-2 bg-gray-50 hover:bg-teal-50 dark:bg-slate-800 dark:hover:bg-teal-950/20 text-gray-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 font-bold rounded-xl text-xs transition-colors border border-gray-200 dark:border-slate-700 hover:border-teal-500/20"
+                                    >
+                                        Ver Ficha Clínica
+                                    </Link>
                                 </div>
-
-                                {/* Alertas Médicas (Crucial details) */}
-                                {patient.importantDetails && (
-                                    <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 rounded-xl text-xs flex items-start gap-2">
-                                        <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
-                                        <span className="font-medium line-clamp-2">{patient.importantDetails}</span>
-                                    </div>
-                                )}
                             </div>
+                        ))}
+                    </div>
 
-                            {/* Divider */}
-                            <div className="my-5 border-t border-gray-100 dark:border-slate-800" />
+                    {/* Server Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900/50 backdrop-blur-md border border-gray-200/80 dark:border-slate-800 rounded-2xl">
+                            <button
+                                disabled={page <= 1}
+                                onClick={() => {
+                                    const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser?.parentId : currentUser?.id;
+                                    const newPage = page - 1;
+                                    setPage(newPage);
+                                    fetchPatients(targetUserId, newPage, searchQuery);
+                                }}
+                                className="flex items-center gap-1 px-4 py-2 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-all cursor-pointer"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                                <span>Anterior</span>
+                            </button>
 
-                            <div className="flex items-center justify-between gap-4">
-                                <span className="text-xs text-gray-400 dark:text-gray-500 font-bold">
-                                    {patient.consultations?.length || 0} consultas
-                                </span>
-                                <Link
-                                    href={`/dashboard/vitacore/${patient.id}`}
-                                    className="px-4 py-2 bg-gray-50 hover:bg-teal-50 dark:bg-slate-800 dark:hover:bg-teal-950/20 text-gray-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 font-bold rounded-xl text-xs transition-colors border border-gray-200 dark:border-slate-700 hover:border-teal-500/20"
-                                >
-                                    Ver Ficha Clínica
-                                </Link>
-                            </div>
+                            <span className="text-xs font-extrabold text-gray-500">
+                                Página {page} de {totalPages} (Total: {totalPatients} pacientes)
+                            </span>
+
+                            <button
+                                disabled={page >= totalPages}
+                                onClick={() => {
+                                    const targetUserId = (currentUser?.role === 'vitacore-professional' || currentUser?.role === 'vitacore-receptionist') ? currentUser?.parentId : currentUser?.id;
+                                    const newPage = page + 1;
+                                    setPage(newPage);
+                                    fetchPatients(targetUserId, newPage, searchQuery);
+                                }}
+                                className="flex items-center gap-1 px-4 py-2 border border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-all cursor-pointer"
+                            >
+                                <span>Siguiente</span>
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
                         </div>
-                    ))}
+                    )}
                 </div>
             )}
 

@@ -1,33 +1,7 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import prisma from '@/lib/db';
 
-function getAppointmentsFilePath(userId) {
-    return path.join(process.cwd(), 'data', 'users', userId, 'vitacore', 'appointments.json');
-}
-
-async function ensureDirectoryExists(filePath) {
-    const dir = path.dirname(filePath);
-    await fs.mkdir(dir, { recursive: true });
-}
-
-async function readAppointments(userId) {
-    const filePath = getAppointmentsFilePath(userId);
-    try {
-        const data = await fs.readFile(filePath, 'utf-8');
-        return JSON.parse(data);
-    } catch (err) {
-        return [];
-    }
-}
-
-async function writeAppointments(userId, appointments) {
-    const filePath = getAppointmentsFilePath(userId);
-    await ensureDirectoryExists(filePath);
-    await fs.writeFile(filePath, JSON.stringify(appointments, null, 2), 'utf-8');
-}
-
-// GET: Retrieve appointments for a client/professional
+// GET: Retrieve appointments for a client/professional (supports pagination, date filter, and search)
 export async function GET(request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -35,29 +9,76 @@ export async function GET(request) {
         const date = searchParams.get('date'); // YYYY-MM-DD
         const professionalId = searchParams.get('professionalId');
         const patientId = searchParams.get('patientId');
+        const search = searchParams.get('search') || '';
+        const pageParam = searchParams.get('page');
+        const limitParam = searchParams.get('limit');
 
         if (!userId) {
             return NextResponse.json({ error: 'userId es requerido' }, { status: 400 });
         }
 
-        let appointments = await readAppointments(userId);
+        const where = {
+            userId,
+            ...(date ? { date } : {}),
+            ...(professionalId ? { professionalId } : {}),
+            ...(patientId ? { patientId } : {}),
+            ...(search ? {
+                OR: [
+                    { patientName: { contains: search } },
+                    { patientPhone: { contains: search } },
+                    { reason: { contains: search } },
+                    { consultationType: { contains: search } }
+                ]
+            } : {})
+        };
 
-        if (date) {
-            appointments = appointments.filter(a => a.date === date);
+        if (pageParam || limitParam) {
+            const page = Math.max(1, parseInt(pageParam || '1', 10));
+            const limit = Math.max(1, parseInt(limitParam || '10', 10));
+            const skip = (page - 1) * limit;
+
+            const [total, appointments] = await Promise.all([
+                prisma.appointment.count({ where }),
+                prisma.appointment.findMany({
+                    where,
+                    orderBy: [
+                        { date: 'asc' },
+                        { time: 'asc' }
+                    ],
+                    skip,
+                    take: limit
+                })
+            ]);
+
+            const totalPages = Math.ceil(total / limit) || 1;
+
+            return NextResponse.json({
+                success: true,
+                appointments,
+                total,
+                totalPages,
+                page,
+                limit
+            });
         }
 
-        if (professionalId) {
-            appointments = appointments.filter(a => a.professionalId === professionalId);
-        }
+        const appointments = await prisma.appointment.findMany({
+            where,
+            orderBy: [
+                { date: 'asc' },
+                { time: 'asc' }
+            ]
+        });
 
-        if (patientId) {
-            appointments = appointments.filter(a => a.patientId === patientId);
-        }
+        return NextResponse.json({
+            success: true,
+            appointments,
+            total: appointments.length,
+            totalPages: 1,
+            page: 1,
+            limit: appointments.length
+        });
 
-        // Sort by time
-        appointments.sort((a, b) => a.time.localeCompare(b.time));
-
-        return NextResponse.json({ success: true, appointments });
     } catch (error) {
         console.error('Error in /api/vitacore/appointments GET:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -74,33 +95,23 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Faltan campos obligatorios (paciente, fecha, hora)' }, { status: 400 });
         }
 
-        const appointments = await readAppointments(userId);
-        const newId = 'trn_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-
-        const newAppointment = {
-            id: newId,
-            patientId: appointment.patientId || null,
-            patientName: appointment.patientName,
-            patientDni: appointment.patientDni || '',
-            patientPhone: appointment.patientPhone || '',
-            patientObraSocial: appointment.patientObraSocial || 'Particular',
-            
-            professionalId: appointment.professionalId || '',
-            professionalName: appointment.professionalName || 'Director Clínico',
-            professionalSpecialty: appointment.professionalSpecialty || '',
-            
-            date: appointment.date, // YYYY-MM-DD
-            time: appointment.time, // HH:MM
-            duration: appointment.duration || 30, // minutes
-            consultationType: appointment.consultationType || 'Consulta General',
-            reason: appointment.reason || '',
-            
-            status: appointment.status || 'reservado', // reservado | confirmado | en_espera | atendido | ausente | cancelado
-            createdAt: new Date().toISOString()
-        };
-
-        appointments.push(newAppointment);
-        await writeAppointments(userId, appointments);
+        const newAppointment = await prisma.appointment.create({
+            data: {
+                userId,
+                patientId: appointment.patientId || null,
+                patientName: appointment.patientName,
+                patientPhone: appointment.patientPhone || appointment.patientDni || '',
+                professionalId: appointment.professionalId || null,
+                professionalName: appointment.professionalName || 'Director Clínico',
+                professionalSpecialty: appointment.professionalSpecialty || '',
+                date: appointment.date,
+                time: appointment.time,
+                consultationType: appointment.consultationType || 'Consulta General',
+                reason: appointment.reason || '',
+                status: appointment.status || 'reservado',
+                notes: appointment.notes || null
+            }
+        });
 
         return NextResponse.json({ success: true, appointment: newAppointment }, { status: 201 });
     } catch (error) {
@@ -119,22 +130,21 @@ export async function PUT(request) {
             return NextResponse.json({ error: 'userId, appointmentId y updatedData son requeridos' }, { status: 400 });
         }
 
-        const appointments = await readAppointments(userId);
-        const index = appointments.findIndex(a => a.id === appointmentId);
+        const updated = await prisma.appointment.update({
+            where: { id: appointmentId },
+            data: {
+                ...(updatedData.patientName !== undefined && { patientName: updatedData.patientName }),
+                ...(updatedData.date !== undefined && { date: updatedData.date }),
+                ...(updatedData.time !== undefined && { time: updatedData.time }),
+                ...(updatedData.status !== undefined && { status: updatedData.status }),
+                ...(updatedData.consultationType !== undefined && { consultationType: updatedData.consultationType }),
+                ...(updatedData.reason !== undefined && { reason: updatedData.reason }),
+                ...(updatedData.notes !== undefined && { notes: updatedData.notes }),
+                ...(updatedData.professionalName !== undefined && { professionalName: updatedData.professionalName })
+            }
+        });
 
-        if (index === -1) {
-            return NextResponse.json({ error: 'Turno no encontrado' }, { status: 404 });
-        }
-
-        appointments[index] = {
-            ...appointments[index],
-            ...updatedData,
-            updatedAt: new Date().toISOString()
-        };
-
-        await writeAppointments(userId, appointments);
-
-        return NextResponse.json({ success: true, appointment: appointments[index] });
+        return NextResponse.json({ success: true, appointment: updated });
     } catch (error) {
         console.error('Error in /api/vitacore/appointments PUT:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -152,10 +162,9 @@ export async function DELETE(request) {
             return NextResponse.json({ error: 'userId y appointmentId son requeridos' }, { status: 400 });
         }
 
-        const appointments = await readAppointments(userId);
-        const filtered = appointments.filter(a => a.id !== appointmentId);
-
-        await writeAppointments(userId, filtered);
+        await prisma.appointment.delete({
+            where: { id: appointmentId }
+        });
 
         return NextResponse.json({ success: true, message: 'Turno eliminado exitosamente' });
     } catch (error) {

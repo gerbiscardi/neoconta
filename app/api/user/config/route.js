@@ -116,6 +116,7 @@ export async function GET(request) {
             logo: config.logo || "",
             hasCert: existsSync(certPath),
             plan: assignedPlan,
+            onboardingCompleted: config.onboardingCompleted === true || (Boolean(config.razonSocial) && Boolean(config.cuit)),
             features: config.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base
         });
 
@@ -127,15 +128,32 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
-        const data = await request.formData();
-        const userId = data.get('userId');
-        const razonSocial = data.get('razonSocial');
-        const cuit = data.get('cuit');
-        const production = data.get('production') === 'true';
-        const condicionIva = data.get('condicionIva') || '';
-        const logo = data.get('logo') || '';
-        const certFile = data.get('cert'); // File object
-        const keyFile = data.get('key');   // File object
+        const contentType = request.headers.get('content-type') || '';
+        let userId, razonSocial, cuit, production, condicionIva, logo, features, medicalDetails, direccion;
+        let certFile, keyFile;
+
+        if (contentType.includes('application/json')) {
+            const body = await request.json();
+            userId = body.userId;
+            razonSocial = body.razonSocial;
+            cuit = body.cuit;
+            production = body.production === true;
+            condicionIva = body.condicionIva || '';
+            logo = body.logo || '';
+            features = body.features;
+            medicalDetails = body.medicalDetails;
+            direccion = body.direccion;
+        } else {
+            const data = await request.formData();
+            userId = data.get('userId');
+            razonSocial = data.get('razonSocial');
+            cuit = data.get('cuit');
+            production = data.get('production') === 'true';
+            condicionIva = data.get('condicionIva') || '';
+            logo = data.get('logo') || '';
+            certFile = data.get('cert'); // File object
+            keyFile = data.get('key');   // File object
+        }
 
         if (!userId) {
             return NextResponse.json({ error: "User ID is required" }, { status: 400 });
@@ -157,7 +175,18 @@ export async function POST(request) {
                 console.error("Error reading existing config:", e);
             }
         }
-        let config = { ...existingConfig, razonSocial, cuit, production, condicionIva, logo };
+        let config = {
+            ...existingConfig,
+            ...(razonSocial !== undefined && { razonSocial }),
+            ...(cuit !== undefined && { cuit }),
+            ...(production !== undefined && { production }),
+            ...(condicionIva !== undefined && { condicionIva }),
+            ...(logo !== undefined && { logo }),
+            ...(direccion !== undefined && { direccion }),
+            ...(features !== undefined && { features }),
+            ...(medicalDetails !== undefined && { medicalDetails }),
+            onboardingCompleted: true
+        };
 
         // Save files if provided
         if (certFile instanceof Blob) {
@@ -173,7 +202,7 @@ export async function POST(request) {
         // Update config file
         await writeFile(configPath, JSON.stringify(config, null, 2));
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, config });
 
     } catch (error) {
         console.error("Error saving user config:", error);

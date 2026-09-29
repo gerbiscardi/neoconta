@@ -13,18 +13,65 @@ const PatientSchema = z.object({
     importantDetails: z.string().optional().nullable()
 });
 
-// GET: Retrieve all patients for a user
+// GET: Retrieve patients for a user (supports optional pagination and search)
 export async function GET(request) {
     try {
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
+        const search = searchParams.get('search') || '';
+        const pageParam = searchParams.get('page');
+        const limitParam = searchParams.get('limit');
 
         if (!userId) {
             return NextResponse.json({ error: 'userId is required' }, { status: 400 });
         }
 
+        const where = {
+            userId,
+            ...(search ? {
+                OR: [
+                    { name: { contains: search } },
+                    { dni: { contains: search } },
+                    { email: { contains: search } },
+                    { obraSocial: { contains: search } }
+                ]
+            } : {})
+        };
+
+        if (pageParam || limitParam) {
+            const page = Math.max(1, parseInt(pageParam || '1', 10));
+            const limit = Math.max(1, parseInt(limitParam || '10', 10));
+            const skip = (page - 1) * limit;
+
+            const [total, patients] = await Promise.all([
+                prisma.patient.count({ where }),
+                prisma.patient.findMany({
+                    where,
+                    include: {
+                        consultations: {
+                            orderBy: { createdAt: 'desc' }
+                        }
+                    },
+                    orderBy: { name: 'asc' },
+                    skip,
+                    take: limit
+                })
+            ]);
+
+            const totalPages = Math.ceil(total / limit) || 1;
+
+            return NextResponse.json({
+                success: true,
+                patients,
+                total,
+                totalPages,
+                page,
+                limit
+            });
+        }
+
         const patients = await prisma.patient.findMany({
-            where: { userId },
+            where,
             include: {
                 consultations: {
                     orderBy: { createdAt: 'desc' }
@@ -33,7 +80,7 @@ export async function GET(request) {
             orderBy: { name: 'asc' }
         });
 
-        return NextResponse.json({ success: true, patients });
+        return NextResponse.json({ success: true, patients, total: patients.length, totalPages: 1, page: 1, limit: patients.length });
     } catch (error) {
         console.error('Error in /api/vitacore/patients GET:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

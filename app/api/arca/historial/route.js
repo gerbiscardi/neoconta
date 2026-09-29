@@ -382,14 +382,19 @@ export async function GET(request) {
         const limitStr = searchParams.get('limit');
 
         if (pageStr || limitStr) {
-            const page = parseInt(pageStr || '1', 10);
-            const limit = parseInt(limitStr || '50', 10);
+            const page = Math.max(1, parseInt(pageStr || '1', 10));
+            const limit = Math.max(1, parseInt(limitStr || '10', 10));
             const startIndex = (page - 1) * limit;
             const paginated = filtered.slice(startIndex, startIndex + limit);
+            const totalPages = Math.ceil(filtered.length / limit) || 1;
 
             return NextResponse.json({
+                success: true,
                 history: paginated,
                 total: filtered.length,
+                totalPages,
+                page,
+                limit,
                 currentMonthInvoiceCount
             });
         }

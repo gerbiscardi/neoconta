@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { LayoutDashboard, FileText, Wallet, Settings, Menu, X, Bell, User, LogOut, Users, MessageSquare, LineChart, HeartPulse, Sun, Moon, Palette } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
+import OnboardingWizard from "../components/OnboardingWizard";
 
 export default function DashboardLayout({ children }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -11,6 +12,7 @@ export default function DashboardLayout({ children }) {
     const [loading, setLoading] = useState(true);
     const [theme, setTheme] = useState('pizarra'); // 'pizarra' | 'claro' | 'oscuro'
     const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+    const [showOnboardingModal, setShowOnboardingModal] = useState(false);
     
     const router = useRouter();
     const pathname = usePathname();
@@ -37,6 +39,9 @@ export default function DashboardLayout({ children }) {
                     .then(data => {
                         if (data.success) {
                             setUserConfig(data);
+                            if (user.role === 'cliente' && (!data.onboardingCompleted || !data.razonSocial)) {
+                                setShowOnboardingModal(true);
+                            }
                         }
                         setLoading(false);
                     })
@@ -395,6 +400,16 @@ export default function DashboardLayout({ children }) {
                     {children}
                 </main>
             </div>
+
+            {showOnboardingModal && (
+                <OnboardingWizard
+                    currentUser={currentUser}
+                    onComplete={(updatedConfig) => {
+                        setUserConfig(prev => ({ ...prev, ...(updatedConfig?.config || updatedConfig), onboardingCompleted: true }));
+                        setShowOnboardingModal(false);
+                    }}
+                />
+            )}
         </div>
     );
 }
