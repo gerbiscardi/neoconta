@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import prisma from '@/lib/db';
+import { z } from 'zod';
 
-// Helper to get patients file path
-function getFilePath(userId) {
-    return path.join(process.cwd(), 'data', 'users', userId, 'vitacore', 'patients.json');
-}
+const PatientSchema = z.object({
+    name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+    dni: z.string().min(4, 'El DNI debe tener al menos 4 caracteres'),
+    birthDate: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    email: z.string().optional().nullable(),
+    obraSocial: z.string().optional().nullable(),
+    affiliateNumber: z.string().optional().nullable(),
+    importantDetails: z.string().optional().nullable()
+});
 
 // GET: Retrieve all patients for a user
 export async function GET(request) {
@@ -17,17 +23,17 @@ export async function GET(request) {
             return NextResponse.json({ error: 'userId is required' }, { status: 400 });
         }
 
-        const filePath = getFilePath(userId);
-        try {
-            const data = await fs.readFile(filePath, 'utf-8');
-            const patients = JSON.parse(data);
-            return NextResponse.json({ success: true, patients });
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                return NextResponse.json({ success: true, patients: [] });
-            }
-            throw error;
-        }
+        const patients = await prisma.patient.findMany({
+            where: { userId },
+            include: {
+                consultations: {
+                    orderBy: { createdAt: 'desc' }
+                }
+            },
+            orderBy: { name: 'asc' }
+        });
+
+        return NextResponse.json({ success: true, patients });
     } catch (error) {
         console.error('Error in /api/vitacore/patients GET:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -40,99 +46,82 @@ export async function POST(request) {
         const body = await request.json();
         const { userId, patient } = body;
 
-        if (!userId || !patient || !patient.name || !patient.dni) {
-            return NextResponse.json({ error: 'userId, patient name, and dni are required' }, { status: 400 });
+        if (!userId || !patient) {
+            return NextResponse.json({ error: 'userId y patient son requeridos' }, { status: 400 });
         }
 
-        const filePath = getFilePath(userId);
-        const dirPath = path.dirname(filePath);
-        await fs.mkdir(dirPath, { recursive: true });
-
-        let patients = [];
-        try {
-            const data = await fs.readFile(filePath, 'utf-8');
-            patients = JSON.parse(data);
-        } catch (error) {
-            if (error.code !== 'ENOENT') throw error;
+        const validation = PatientSchema.safeParse(patient);
+        if (!validation.success) {
+            const firstErr = validation.error.issues[0]?.message || 'Datos de paciente inválidos';
+            return NextResponse.json({ error: firstErr }, { status: 400 });
         }
+
+        const validData = validation.data;
 
         // Check if DNI already exists for this user
-        if (patients.some(p => p.dni === patient.dni)) {
-            return NextResponse.json({ error: 'Ya existe un paciente registrado con ese DNI' }, { status: 400 });
+        const existing = await prisma.patient.findFirst({
+            where: { userId, dni: validData.dni }
+        });
+
+        if (existing) {
+            return NextResponse.json({ error: 'Ya existe un paciente registrado con este DNI.' }, { status: 400 });
         }
 
-        const newPatient = {
-            id: 'pat_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-            name: patient.name,
-            dni: patient.dni,
-            birthDate: patient.birthDate || '',
-            phone: patient.phone || '',
-            email: patient.email || '',
-            obraSocial: patient.obraSocial || '',
-            affiliateNumber: patient.affiliateNumber || '',
-            importantDetails: patient.importantDetails || '',
-            created_at: new Date().toISOString(),
-            consultations: []
-        };
+        const newPatient = await prisma.patient.create({
+            data: {
+                userId,
+                name: validData.name,
+                dni: validData.dni,
+                birthDate: validData.birthDate || null,
+                phone: validData.phone || null,
+                email: validData.email || null,
+                obraSocial: validData.obraSocial || null,
+                affiliateNumber: validData.affiliateNumber || null,
+                importantDetails: validData.importantDetails || null
+            },
+            include: { consultations: true }
+        });
 
-        patients.push(newPatient);
-        // Sort alphabetically by name
-        patients.sort((a, b) => a.name.localeCompare(b.name));
-
-        await fs.writeFile(filePath, JSON.stringify(patients, null, 2), 'utf-8');
-        return NextResponse.json({ success: true, patient: newPatient }, { status: 201 });
+        return NextResponse.json({ success: true, patient: newPatient });
     } catch (error) {
         console.error('Error in /api/vitacore/patients POST:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// PUT: Update patient details
+// PUT: Update an existing patient
 export async function PUT(request) {
     try {
         const body = await request.json();
-        const { userId, patientId, updatedData } = body;
+        const { userId, patient } = body;
 
-        if (!userId || !patientId || !updatedData) {
-            return NextResponse.json({ error: 'userId, patientId, and updatedData are required' }, { status: 400 });
+        if (!userId || !patient || !patient.id) {
+            return NextResponse.json({ error: 'userId and patient.id are required' }, { status: 400 });
         }
 
-        const filePath = getFilePath(userId);
-        let patients = [];
-        try {
-            const data = await fs.readFile(filePath, 'utf-8');
-            patients = JSON.parse(data);
-        } catch (error) {
-            return NextResponse.json({ error: 'Fichero no encontrado' }, { status: 404 });
-        }
+        const updated = await prisma.patient.update({
+            where: { id: patient.id },
+            data: {
+                name: patient.name,
+                dni: String(patient.dni),
+                birthDate: patient.birthDate || null,
+                phone: patient.phone || null,
+                email: patient.email || null,
+                obraSocial: patient.obraSocial || null,
+                affiliateNumber: patient.affiliateNumber || null,
+                importantDetails: patient.importantDetails || null
+            },
+            include: { consultations: true }
+        });
 
-        const index = patients.findIndex(p => p.id === patientId);
-        if (index === -1) {
-            return NextResponse.json({ error: 'Paciente no encontrado' }, { status: 404 });
-        }
-
-        // Merge updated fields (prevent overwriting consultations array or id)
-        patients[index] = {
-            ...patients[index],
-            name: updatedData.name ?? patients[index].name,
-            dni: updatedData.dni ?? patients[index].dni,
-            birthDate: updatedData.birthDate ?? patients[index].birthDate,
-            phone: updatedData.phone ?? patients[index].phone,
-            email: updatedData.email ?? patients[index].email,
-            obraSocial: updatedData.obraSocial ?? patients[index].obraSocial,
-            affiliateNumber: updatedData.affiliateNumber ?? patients[index].affiliateNumber,
-            importantDetails: updatedData.importantDetails ?? patients[index].importantDetails,
-        };
-
-        await fs.writeFile(filePath, JSON.stringify(patients, null, 2), 'utf-8');
-        return NextResponse.json({ success: true, patient: patients[index] });
+        return NextResponse.json({ success: true, patient: updated });
     } catch (error) {
         console.error('Error in /api/vitacore/patients PUT:', error);
-        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+        return NextResponse.json({ error: 'Error al actualizar el paciente' }, { status: 500 });
     }
 }
 
-// DELETE: Delete a patient
+// DELETE: Remove a patient
 export async function DELETE(request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -143,26 +132,13 @@ export async function DELETE(request) {
             return NextResponse.json({ error: 'userId and patientId are required' }, { status: 400 });
         }
 
-        const filePath = getFilePath(userId);
-        let patients = [];
-        try {
-            const data = await fs.readFile(filePath, 'utf-8');
-            patients = JSON.parse(data);
-        } catch (error) {
-            return NextResponse.json({ error: 'Fichero no encontrado' }, { status: 404 });
-        }
+        await prisma.patient.delete({
+            where: { id: patientId }
+        });
 
-        const index = patients.findIndex(p => p.id === patientId);
-        if (index === -1) {
-            return NextResponse.json({ error: 'Paciente no encontrado' }, { status: 404 });
-        }
-
-        patients.splice(index, 1);
-        await fs.writeFile(filePath, JSON.stringify(patients, null, 2), 'utf-8');
-
-        return NextResponse.json({ success: true, message: 'Paciente eliminado' });
+        return NextResponse.json({ success: true, message: 'Paciente eliminado correctamente' });
     } catch (error) {
         console.error('Error in /api/vitacore/patients DELETE:', error);
-        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+        return NextResponse.json({ error: 'Error al eliminar el paciente' }, { status: 500 });
     }
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import prisma from '@/lib/db';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'neoconta_super_secret_jwt_key_2026_pro';
 
 export async function POST(request) {
     try {
@@ -10,17 +12,13 @@ export async function POST(request) {
             return NextResponse.json({ error: "Faltan datos (email, contraseña)" }, { status: 400 });
         }
 
-        const dbPath = join(process.cwd(), 'data', 'users.json');
-        let users = [];
-        try {
-            const data = await readFile(dbPath, 'utf-8');
-            users = JSON.parse(data);
-        } catch (err) {
-            console.error("Error reading users db:", err);
-            return NextResponse.json({ error: "Error de base de datos" }, { status: 500 });
-        }
-
-        const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password);
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await prisma.user.findFirst({
+            where: {
+                email: normalizedEmail,
+                password: password
+            }
+        });
 
         if (!user) {
             return NextResponse.json({ error: "Correo electrónico o contraseña incorrectos." }, { status: 401 });
@@ -30,7 +28,25 @@ export async function POST(request) {
         const { password: _, ...userInfo } = user;
         userInfo.mustChangePassword = user.mustChangePassword === true;
 
-        return NextResponse.json({ success: true, user: userInfo });
+        // Generate JWT Token
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role, parentId: user.parentId },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        const response = NextResponse.json({ success: true, user: userInfo });
+
+        // Set HttpOnly Cookie
+        response.cookies.set('neoconta_session', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 60 * 60 * 24 * 7 // 7 days
+        });
+
+        return response;
 
     } catch (error) {
         console.error("Error in login API:", error);

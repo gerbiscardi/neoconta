@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Manual de Identidad Visual & Kit de Marketing — NeoConta</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            background-color: #0b1329;
+            color: #f8fafc;
+            line-height: 1.5;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .page {
+            width: 210mm;
+            height: 297mm;
+            padding: 20mm;
+            position: relative;
+            page-break-after: always;
+            background-color: #0b1329;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Cover Page */
+        .cover {
+            background: radial-gradient(circle at top right, #1a274c 0%, #0b1329 70%);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .cover-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 94, 0, 0.1);
+            border: 1px solid rgba(255, 94, 0, 0.3);
+            padding: 8px 16px;
+            border-radius: 999px;
+            color: #ff5e00;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .cover-hero {
+            margin-top: 40px;
+        }
+
+        .cover-title {
+            font-size: 44px;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .cover-subtitle {
+            font-size: 20px;
+            color: #ff5e00;
+            font-weight: 700;
+            margin-bottom: 24px;
+        }
+
+        .cover-description {
+            font-size: 15px;
+            color: #94a3b8;
+            max-width: 500px;
+            line-height: 1.6;
+        }
+
+        .cover-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        /* Generic Header */
+        .section-header {
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .section-tag {
+            font-size: 11px;
+            font-weight: 800;
+            color: #ff5e00;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .section-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        /* Palette Grid */
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .color-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .swatch {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .color-info h4 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .color-info p {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .color-code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #ff5e00;
+            margin-top: 4px;
+            font-weight: 700;
+        }
+
+        /* Typography Showcase */
+        .typo-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .typo-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 12px 0;
+        }
+
+        .typo-row:last-child {
+            border-bottom: none;
+        }
+
+        .typo-sample-h1 {
+            font-size: 28px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        .typo-sample-h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .typo-sample-body {
+            font-size: 14px;
+            font-weight: 400;
+            color: #94a3b8;
+        }
+
+        .typo-sample-mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: #ff5e00;
+        }
+
+        .typo-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        /* Guidelines & Tone of Voice */
+        .tone-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .tone-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 18px;
+        }
+
+        .tone-card.do {
+            border-left: 4px solid #10b981;
+        }
+
+        .tone-card.dont {
+            border-left: 4px solid #f43f5e;
+        }
+
+        .tone-card h4 {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .tone-card.do h4 { color: #10b981; }
+        .tone-card.dont h4 { color: #f43f5e; }
+
+        .tone-card ul {
+            list-style: none;
+            font-size: 12px;
+            color: #cbd5e1;
+        }
+
+        .tone-card ul li {
+            margin-bottom: 6px;
+            position: relative;
+            padding-left: 14px;
+        }
+
+        .tone-card.do ul li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .tone-card.dont ul li::before {
+            content: "✕";
+            position: absolute;
+            left: 0;
+            color: #f43f5e;
+            font-weight: bold;
+        }
+
+        /* Newsletter & Social Templates */
+        .template-preview {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .template-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .btn-cta {
+            background: linear-gradient(135deg, #ff5e00 0%, #ea580c 100%);
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 10px 20px;
+            border-radius: 12px;
+            display: inline-block;
+            text-decoration: none;
+            box-shadow: 0 4px 14px rgba(255, 94, 0, 0.3);
+        }
+
+        .footer-page {
+            font-size: 10px;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- PAGE 1: COVER -->
+    <div class="page cover">
+        <div class="cover-header">
+            <div class="logo-badge">
+                <span>❖</span> NeoConta Brand Guidelines
+            </div>
+            <span style="font-size: 12px; color: #64748b; font-weight: 600;">Edición 2026</span>
+        </div>
+
+        <div class="cover-hero">
+            <div class="cover-subtitle">SISTEMA DE IDENTIDAD VISUAL & MARKETING</div>
+            <h1 class="cover-title">Manual de Marca & Kit de Comunicación</h1>
+            <p class="cover-description">
+                Guía oficial de diseño, paleta de colores, jerarquía tipográfica, tono de comunicación y plantillas estructuradas para redes sociales y newsletters de la plataforma NeoConta.
+            </p>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+            <div>
+                <div style="font-size: 11px; color: #ff5e00; font-weight: 700; text-transform: uppercase;">Módulo Core</div>
+                <div style="font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 2px;">NeoConta ERP</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: #06b6d4; font-weight: 700; text-transform: uppercase;">Módulo Salud</div>
+                <div style="font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 2px;">Vitacore Medical</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; color: #8b5cf6; font-weight: 700; text-transform: uppercase;">Inteligencia</div>
+                <div style="font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 2px;">Gemini AI & BI</div>
+            </div>
+        </div>
+
+        <div class="cover-footer">
+            <span>© 2026 NeoConta Inc. Todos los derechos reservados.</span>
+            <span>Documento Oficial de Marca</span>
+        </div>
+    </div>
+
+    <!-- PAGE 2: PALETA DE COLORES -->
+    <div class="page">
+        <div>
+            <div class="section-header">
+                <div>
+                    <div class="section-tag">01. Identidad Cromática</div>
+                    <h2 class="section-title">Paleta Oficial de Colores</h2>
+                </div>
+                <span style="font-size: 12px; color: #64748b;">NeoConta Theme Palette</span>
+            </div>
+
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">
+                La paleta de NeoConta transmite dinamismo, sofisticación tecnológica y confianza clínica. Debe respetarse rigurosamente en piezas digitales, redes sociales y presentaciones.
+            </p>
+
+            <div class="palette-grid">
+                <!-- Color 1 -->
+                <div class="color-card">
+                    <div class="swatch" style="background: #ff5e00;"></div>
+                    <div class="color-info">
+                        <h4>Naranja Neo (Acción & CTA)</h4>
+                        <p>Acentos, botones primarios y llamadas a la acción.</p>
+                        <div class="color-code">#FF5E00 | RGB(255, 94, 0)</div>
+                    </div>
+                </div>
+
+                <!-- Color 2 -->
+                <div class="color-card">
+                    <div class="swatch" style="background: #160b24;"></div>
+                    <div class="color-info">
+                        <h4>Obsidiana Violeta (Portada / Web)</h4>
+                        <p>Fondo de marca institucional en páginas públicas.</p>
+                        <div class="color-code">#160B24 | RGB(22, 11, 36)</div>
+                    </div>
+                </div>
+
+                <!-- Color 3 -->
+                <div class="color-card">
+                    <div class="swatch" style="background: #0b1329;"></div>
+                    <div class="color-info">
+                        <h4>Pizarra Nocturna (App Dashboard)</h4>
+                        <p>Fondo descansado para el uso profesional diario.</p>
+                        <div class="color-code">#0B1329 | RGB(11, 19, 41)</div>
+                    </div>
+                </div>
+
+                <!-- Color 4 -->
+                <div class="color-card">
+                    <div class="swatch" style="background: #0d9488;"></div>
+                    <div class="color-info">
+                        <h4>Verde Teal Vitacore (Salud)</h4>
+                        <p>Color identitario para Historias Clínicas y Fichero.</p>
+                        <div class="color-code">#0D9488 | RGB(13, 148, 136)</div>
+                    </div>
+                </div>
+
+                <!-- Color 5 -->
+                <div class="color-card">
+                    <div class="swatch" style="background: #06b6d4;"></div>
+                    <div class="color-info">
+                        <h4>Cian Eléctrico (Agenda & Turnos)</h4>
+                        <p>Turnos médicos, recetas digitales e indicadores.</p>
+                        <div class="color-code">#06B6D4 | RGB(6, 182, 212)</div>
+                    </div>
+                </div>
+
+                <!-- Color 6 -->
+                <div class="color-card">
+                    <div class="swatch" style="background: #10b981;"></div>
+                    <div class="color-info">
+                        <h4>Esmeralda Éxito (AFIP & Estado)</h4>
+                        <p>Facturación validada, conexiones online y cobros.</p>
+                        <div class="color-code">#10B981 | RGB(16, 185, 129)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: rgba(255, 94, 0, 0.05); border: 1px solid rgba(255, 94, 0, 0.2); border-radius: 16px; padding: 18px;">
+                <h4 style="font-size: 14px; font-weight: 700; color: #ff5e00; margin-bottom: 6px;">💡 Regla de Uso de Fondos</h4>
+                <p style="font-size: 12px; color: #cbd5e1; leading-relaxed: 1.5;">
+                    En piezas de marketing institucional (folletos, posteos, portadas), priorizar siempre el fondo <strong>Obsidiana Violeta (#160B24)</strong> o <strong>Pizarra Nocturna (#0B1329)</strong> con acentos en <strong>Naranja Neo (#FF5E00)</strong> para mantener el reconocible *Look & Feel* de la marca.
+                </p>
+            </div>
+        </div>
+
+        <div class="footer-page">
+            <span>NeoConta Brand Guidelines — Página 2</span>
+            <span>Paleta Cromática Oficial</span>
+        </div>
+    </div>
+
+    <!-- PAGE 3: TIPOGRAFÍA Y ESTILO VISUAL -->
+    <div class="page">
+        <div>
+            <div class="section-header">
+                <div>
+                    <div class="section-tag">02. Tipografía & Look & Feel</div>
+                    <h2 class="section-title">Jerarquía Visual y Estilo</h2>
+                </div>
+                <span style="font-size: 12px; color: #64748b;">Typography System</span>
+            </div>
+
+            <div class="typo-box">
+                <div class="typo-row">
+                    <span class="typo-label">Título Principal (H1)</span>
+                    <span class="typo-sample-h1">Gestión Inteligente NeoConta</span>
+                </div>
+                <div class="typo-row">
+                    <span class="typo-label">Subtítulo Destacado (H2)</span>
+                    <span class="typo-sample-h2">Vitacore | Historias Clínicas Digitales</span>
+                </div>
+                <div class="typo-row">
+                    <span class="typo-label">Cuerpo de Texto (Body)</span>
+                    <span class="typo-sample-body">Optimiza facturación ARCA, agenda médica y reportes con IA.</span>
+                </div>
+                <div class="typo-row">
+                    <span class="typo-label">Cifras / Moneda (Mono)</span>
+                    <span class="typo-sample-mono">$ 4.750.000 (MRR) — 99.9% AFIP OK</span>
+                </div>
+            </div>
+
+            <div class="section-header" style="margin-top: 24px;">
+                <div>
+                    <div class="section-tag">03. Guía de Redacción</div>
+                    <h2 class="section-title">Tono de Voz & Comunicación</h2>
+                </div>
+            </div>
+
+            <div class="tone-grid">
+                <div class="tone-card do">
+                    <h4>✓ CÓMO COMUNICAR (Do's)</h4>
+                    <ul>
+                        <li>Usar tono profesional, cercano, directo y resolutivo.</li>
+                        <li>Destacar beneficios de tiempo ahorrado y simplicidad.</li>
+                        <li>Mencionar la potencia de la IA Gemini como aliada.</li>
+                        <li>Enfocarse en la tranquilidad normativa (ARCA/Vitacore).</li>
+                    </ul>
+                </div>
+
+                <div class="tone-card dont">
+                    <h4>✕ QUÉ EVITAR (Don'ts)</h4>
+                    <ul>
+                        <li>No usar lenguaje excesivamente burocrático o aburrido.</li>
+                        <li>Evitar tecnicismos oscuros sin explicar su beneficio.</li>
+                        <li>No mostrar pantallas abarrotadas de datos innecesarios.</li>
+                        <li>Evitar saturar con más de 2 colores de acento por pieza.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-page">
+            <span>NeoConta Brand Guidelines — Página 3</span>
+            <span>Sistema Tipográfico y Tono de Voz</span>
+        </div>
+    </div>
+
+    <!-- PAGE 4: KIT DE MARKETING & NEWSLETTERS -->
+    <div class="page">
+        <div>
+            <div class="section-header">
+                <div>
+                    <div class="section-tag">04. Plantillas de Marketing</div>
+                    <h2 class="section-title">Kit para Redes Sociales & Newsletters</h2>
+                </div>
+                <span style="font-size: 12px; color: #64748b;">Marketing Templates</span>
+            </div>
+
+            <!-- Redes Sociales Template -->
+            <div class="template-preview">
+                <div class="template-header">
+                    <span style="font-size: 11px; font-weight: 800; color: #ff5e00; text-transform: uppercase;">Post de Redes (Instagram / LinkedIn)</span>
+                    <span style="font-size: 11px; color: #64748b;">Formato 1:1 o 4:5</span>
+                </div>
+                <div style="background: #160b24; border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="display: inline-block; background: rgba(255,94,0,0.15); color: #ff5e00; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 99px; margin-bottom: 8px;">
+                        SIMPLICIDAD ADMINISTRATIVA
+                    </div>
+                    <h3 style="font-size: 18px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">
+                        ¿Perdés horas emitiendo facturas o buscando datos de pacientes?
+                    </h3>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">
+                        Con NeoConta automatizás tu facturación masiva ARCA y gestionás el fichero médico en 1 solo lugar.
+                    </p>
+                    <a href="#" class="btn-cta">Probar NeoConta Gratis →</a>
+                </div>
+            </div>
+
+            <!-- Email Newsletter Template -->
+            <div class="template-preview">
+                <div class="template-header">
+                    <span style="font-size: 11px; font-weight: 800; color: #06b6d4; text-transform: uppercase;">Estructura de Email Newsletter</span>
+                    <span style="font-size: 11px; color: #64748b;">Formato Email HTML</span>
+                </div>
+                <div style="background: #0b1329; border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; margin-bottom: 12px;">
+                        <span style="font-size: 16px; font-weight: 800; color: #ffffff;">NeoConta</span>
+                    </div>
+                    <h4 style="font-size: 15px; font-weight: 700; color: #ffffff; text-align: center; margin-bottom: 6px;">
+                        ¡Transformá la gestión de tu actividad hoy!
+                    </h4>
+                    <p style="font-size: 11px; color: #cbd5e1; text-align: center; margin-bottom: 12px;">
+                        Te presentamos la solución integral que reúne Facturación AFIP, Historia Clínica Vitacore y Pronóstico Financiero con IA.
+                    </p>
+                    <div style="text-align: center;">
+                        <a href="#" class="btn-cta">Agendar Demostración Personalizada</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-page">
+            <span>NeoConta Brand Guidelines — Página 4</span>
+            <span>Plantillas de Comunicación y Marketing</span>
+        </div>
+    </div>
+
+</body>
+</html>

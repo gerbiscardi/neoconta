@@ -1,0 +1,150 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String   @id
+  nombre             String
+  email              String   @unique
+  password           String
+  role               String
+  parentId           String?
+  mustChangePassword Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model UserConfig {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  razonSocial      String?
+  cuit             String?
+  condicionIva     String?
+  direccion        String?
+  localidad        String?
+  provincia        String?
+  afipEnvironment  String?  @default("testing")
+  hasCertificates  Boolean  @default(false)
+  featuresJson     String?
+  medicalDetails   String?
+  whatsappDetails  String?
+  updatedAt        DateTime @updatedAt
+}
+
+model Patient {
+  id               String         @id @default(uuid())
+  userId           String
+  name             String
+  dni              String
+  birthDate        String?
+  phone            String?
+  email            String?
+  obraSocial       String?
+  affiliateNumber  String?
+  importantDetails String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  consultations    Consultation[]
+}
+
+model Consultation {
+  id                    String   @id @default(uuid())
+  patientId             String
+  patient               Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  date                  String
+  reason                String?
+  observations          String?
+  prescription          String?
+  professionalId        String?
+  professionalName      String?
+  professionalSpecialty String?
+  isError               Boolean  @default(false)
+  createdAt             DateTime @default(now())
+}
+
+model Appointment {
+  id                    String   @id @default(uuid())
+  userId                String
+  patientId             String?
+  patientName           String
+  patientPhone          String
+  date                  String
+  time                  String
+  consultationType      String?
+  reason                String?
+  status                String   @default("pendiente")
+  professionalId        String?
+  professionalName      String?
+  professionalSpecialty String?
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Prescription {
+  id               String   @id @default(uuid())
+  userId           String
+  patientId        String
+  patientName      String?
+  date             String
+  prescriptionText String
+  professionalId   String?
+  professionalName String?
+  status           String   @default("valida")
+  createdAt        DateTime @default(now())
+}
+
+model MedicalOrder {
+  id               String   @id @default(uuid())
+  userId           String
+  patientId        String
+  patientName      String?
+  date             String
+  loincCode        String?
+  loincName        String?
+  notes            String?
+  professionalId   String?
+  professionalName String?
+  status           String   @default("solicitada")
+  createdAt        DateTime @default(now())
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  userId         String
+  cbteTipo       Int
+  cbteDesde      Int
+  cbteHasta      Int
+  impTotal       Float
+  docTipo        Int?
+  docNro         String?
+  afipResponse   String?
+  cae            String?
+  caeVto         String?
+  createdAt      DateTime @default(now())
+}
+
+model BankTransaction {
+  id          String   @id @default(uuid())
+  userId      String
+  date        String
+  description String
+  amount      Float
+  category    String?
+  source      String?  @default("manual")
+  createdAt   DateTime @default(now())
+}
+
+model WebAuditHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  url       String
+  score     Int?
+  auditData String?
+  createdAt DateTime @default(now())
+}
