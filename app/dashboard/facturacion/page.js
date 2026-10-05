@@ -175,13 +175,22 @@ export default function FacturacionPage() {
                 const data = await res.json();
                 if (data.success) {
                     const cond = data.condicionIva || "Responsable Monotributo";
+                    const isOwner = user.role === 'owner';
+                    const rawFeatures = data.features || {};
+                    const effectiveFeatures = isOwner ? {
+                        ...rawFeatures,
+                        facturacionManual: true,
+                        facturacionMasiva: true,
+                        limiteComprobantes: 999999
+                    } : rawFeatures;
+
                     setIssuerConfig({
                         razonSocial: data.razonSocial || "",
                         cuit: data.cuit || "",
                         logo: data.logo || "",
                         hasCert: data.hasCert || false,
-                        plan: data.plan || "base",
-                        features: data.features || {},
+                        plan: isOwner ? "full" : (data.plan || "base"),
+                        features: effectiveFeatures,
                         condicionIva: cond
                     });
                     if (cond === "IVA Responsable Inscripto") {

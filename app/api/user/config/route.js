@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { writeFile, readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import prisma from '@/lib/db';
 
 const PLAN_DEFAULTS = {
     base: {
@@ -55,7 +56,7 @@ const PLAN_DEFAULTS = {
     full: {
         facturacionManual: true,
         facturacionMasiva: true,
-        limiteComprobantes: 1000,
+        limiteComprobantes: 999999,
         moduloBanco: true,
         variasCuentas: true,
         limiteCuentas: 5,
@@ -97,7 +98,19 @@ export async function GET(request) {
             config = JSON.parse(fileData);
         }
 
-        const assignedPlan = config.plan || "base";
+        const userDb = await prisma.user.findUnique({ where: { id: userId } }).catch(() => null);
+        const isOwner = userDb?.role === 'owner';
+
+        const assignedPlan = isOwner ? "full" : (config.plan || "base");
+        const baseFeatures = config.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base;
+
+        const effectiveFeatures = isOwner ? {
+            ...PLAN_DEFAULTS.full,
+            ...baseFeatures,
+            facturacionManual: true,
+            facturacionMasiva: true,
+            limiteComprobantes: 999999
+        } : baseFeatures;
 
         const getFallbackCondicion = (cuit) => {
             const clean = String(cuit || "").replace(/[^0-9]/g, "");
@@ -117,7 +130,7 @@ export async function GET(request) {
             hasCert: existsSync(certPath),
             plan: assignedPlan,
             onboardingCompleted: config.onboardingCompleted === true || (Boolean(config.razonSocial) && Boolean(config.cuit)),
-            features: config.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base
+            features: effectiveFeatures
         });
 
     } catch (error) {
