@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import nodemailer from 'nodemailer';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 
 // Helper: Normalize date to YYYY-MM-DD
 function normalizeDateStr(d) {
@@ -444,6 +445,11 @@ function generatePdfBuffer(profile, fechaDesde, fechaHasta, invoices, bankTx, in
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado. Por favor inicia sesión." }, { status: 401 });
+        }
+
         const body = await request.json();
         const {
             userId,
@@ -457,13 +463,14 @@ export async function POST(request) {
             action = 'download'
         } = body;
 
-        if (!userId) {
-            return NextResponse.json({ error: "El parámetro userId es requerido" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "No tienes permiso para acceder o remitir la información de este usuario." }, { status: 403 });
         }
 
-        const profile = await getUserProfile(userId);
-        const invoices = includeInvoices ? await getInvoicesForUser(userId, fechaDesde, fechaHasta) : [];
-        const bankTx = includeBank ? await getBankTransactionsForUser(userId, fechaDesde, fechaHasta) : [];
+        const profile = await getUserProfile(targetUserId);
+        const invoices = includeInvoices ? await getInvoicesForUser(targetUserId, fechaDesde, fechaHasta) : [];
+        const bankTx = includeBank ? await getBankTransactionsForUser(targetUserId, fechaDesde, fechaHasta) : [];
 
         let fileBuffer;
         let mimeType;

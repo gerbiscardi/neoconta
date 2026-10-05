@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
+import { getServerSession } from '@/lib/auth';
+import prisma from '@/lib/db';
 
 const DB_PATH = join(process.cwd(), 'data', 'users.json');
 
@@ -96,10 +98,8 @@ async function saveUsers(users) {
 // GET: List all users with stats and config (For owner only)
 export async function GET(request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const callerRole = searchParams.get('callerRole');
-
-        if (callerRole !== 'owner') {
+        const session = await getServerSession(request);
+        if (!session || session.role !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
         }
 
@@ -221,11 +221,12 @@ export async function GET(request) {
 // POST: Create a new user (For owner only)
 export async function POST(request) {
     try {
-        const { callerRole, nombre, email, password, role, tipoUsuario, cuit, razonSocial, plan, features } = await request.json();
-
-        if (callerRole !== 'owner') {
+        const session = await getServerSession(request);
+        if (!session || session.role !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
         }
+
+        const { nombre, email, password, role, tipoUsuario, cuit, razonSocial, plan, features } = await request.json();
 
         if (!nombre || !email || !password || !role || !tipoUsuario) {
             return NextResponse.json({ error: "Faltan datos requeridos (nombre, email, contraseña, rol, tipo de usuario)" }, { status: 400 });
@@ -255,6 +256,30 @@ export async function POST(request) {
 
         users.push(newUser);
         await saveUsers(users);
+
+        // Synchronize with Prisma DB
+        try {
+            await prisma.user.upsert({
+                where: { id: userId },
+                update: {
+                    nombre: newUser.nombre,
+                    email: newUser.email,
+                    password: newUser.password,
+                    role: newUser.role,
+                    mustChangePassword: true
+                },
+                create: {
+                    id: userId,
+                    nombre: newUser.nombre,
+                    email: newUser.email,
+                    password: newUser.password,
+                    role: newUser.role,
+                    mustChangePassword: true
+                }
+            });
+        } catch (prismaErr) {
+            console.error("Error syncing new user to Prisma:", prismaErr);
+        }
 
         // Save config.json for clients
         if (role === 'cliente' || cuit || razonSocial) {
@@ -290,11 +315,12 @@ export async function POST(request) {
 // PUT: Edit user details (For owner only)
 export async function PUT(request) {
     try {
-        const { callerRole, userId, nombre, email, password, role, tipoUsuario, cuit, razonSocial, plan, features } = await request.json();
-
-        if (callerRole !== 'owner') {
+        const session = await getServerSession(request);
+        if (!session || session.role !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
         }
+
+        const { userId, nombre, email, password, role, tipoUsuario, cuit, razonSocial, plan, features } = await request.json();
 
         if (!userId || !nombre || !email || !role || !tipoUsuario) {
             return NextResponse.json({ error: "Faltan datos requeridos (userId, nombre, email, rol, tipo de usuario)" }, { status: 400 });
@@ -331,6 +357,21 @@ export async function PUT(request) {
 
         await saveUsers(users);
 
+        // Synchronize with Prisma DB
+        try {
+            await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    nombre: users[userIndex].nombre,
+                    email: users[userIndex].email,
+                    role: users[userIndex].role,
+                    ...(password && password.trim() !== "" ? { password, mustChangePassword: true } : {})
+                }
+            });
+        } catch (prismaErr) {
+            console.error("Error syncing user update to Prisma:", prismaErr);
+        }
+
         // Update config.json (CUIT/Razón Social/Plan/Features)
         if (role === 'cliente' || cuit || razonSocial) {
             const userDir = join(process.cwd(), 'data', 'users', userId);
@@ -365,13 +406,13 @@ export async function PUT(request) {
 // DELETE: Deactivate/Delete user (For owner only)
 export async function DELETE(request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const callerRole = searchParams.get('callerRole');
-
-        if (callerRole !== 'owner') {
+        const session = await getServerSession(request);
+        if (!session || session.role !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
         }
+
+        const { searchParams } = new URL(request.url);
+        const userId = searchParams.get('userId');
 
         if (!userId) {
             return NextResponse.json({ error: "Falta el ID del usuario (userId)" }, { status: 400 });
@@ -393,6 +434,15 @@ export async function DELETE(request) {
         const filteredUsers = users.filter(u => u.id !== userId);
         await saveUsers(filteredUsers);
 
+        // Synchronize with Prisma DB
+        try {
+            await prisma.user.delete({
+                where: { id: userId }
+            });
+        } catch (prismaErr) {
+            console.error("Error deleting user from Prisma:", prismaErr);
+        }
+
         return NextResponse.json({ success: true, message: "Usuario dado de baja exitosamente." });
 
     } catch (error) {
@@ -404,11 +454,12 @@ export async function DELETE(request) {
 // PATCH: Toggle role between 'cliente' and 'no-cliente' (Left for backwards compatibility if needed)
 export async function PATCH(request) {
     try {
-        const { userId, newRole, callerRole, callerId } = await request.json();
-
-        if (callerRole !== 'owner') {
+        const session = await getServerSession(request);
+        if (!session || session.role !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
         }
+
+        const { userId, newRole } = await request.json();
 
         if (!userId || !newRole) {
             return NextResponse.json({ error: "Faltan datos (userId, newRole)" }, { status: 400 });

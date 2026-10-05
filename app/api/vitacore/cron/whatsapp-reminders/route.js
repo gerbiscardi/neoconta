@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { getServerSession } from '@/lib/auth';
+
+const CRON_SECRET = process.env.CRON_SECRET || 'neoconta_cron_secret_internal_2026';
 
 export async function GET(request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const secretParam = searchParams.get('secret');
+        const authHeader = request.headers.get('authorization') || '';
+        const bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+
+        const isAuthorizedSecret = (secretParam && secretParam === CRON_SECRET) || (bearerSecret && bearerSecret === CRON_SECRET);
+        
+        if (!isAuthorizedSecret) {
+            const session = await getServerSession(request);
+            if (!session || session.role !== 'owner') {
+                return NextResponse.json({ error: 'Acceso no autorizado al servicio de recordatorios' }, { status: 401 });
+            }
+        }
+
         const usersDir = path.join(process.cwd(), 'data', 'users');
         let userFolders = [];
         try {

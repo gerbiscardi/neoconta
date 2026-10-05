@@ -1,18 +1,25 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 
 // GET: Retrieve a specific transaction and its details by ID
 export async function GET(request, { params }) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
         const { id } = await params;
 
-        if (!userId) {
-            return new Response(JSON.stringify({ error: 'userId is required' }), { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
         }
 
-        const userDir = path.join(process.cwd(), 'data', 'users', userId);
+        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
         const transactionsFilePath = path.join(userDir, 'banco', '_transactions.json');
 
         let transactions = [];
@@ -31,7 +38,7 @@ export async function GET(request, { params }) {
         // To mimic the Starbase behavior exactly, we also need to return the invoices that it's linked to.
         // We will read the history.json to map the linked_invoices array to actual invoice objects
         const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
-        const invoicesFilePath = path.join(invoicesDir, `${userId}_history.json`);
+        const invoicesFilePath = path.join(invoicesDir, `${targetUserId}_history.json`);
         let allInvoices = [];
         try {
             const historyData = await fs.readFile(invoicesFilePath, 'utf-8');
@@ -65,15 +72,25 @@ export async function GET(request, { params }) {
 // PUT: Update transaction details (e.g., is_transferred flag) or its linked invoices
 export async function PUT(request, { params }) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
+        }
+
         const data = await request.json();
         const { userId, updates } = data;
         const { id } = await params;
 
-        if (!userId || !updates) {
-            return new Response(JSON.stringify({ error: 'userId and updates object required' }), { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
         }
 
-        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', userId, 'banco', '_transactions.json');
+        if (!updates) {
+            return new Response(JSON.stringify({ error: 'updates object required' }), { status: 400 });
+        }
+
+        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', targetUserId, 'banco', '_transactions.json');
 
         let transactions = [];
         try {
@@ -108,15 +125,21 @@ export async function PUT(request, { params }) {
 // DELETE: Remove a transaction entirely
 export async function DELETE(request, { params }) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
         const { id } = await params;
 
-        if (!userId) {
-            return new Response(JSON.stringify({ error: 'userId is required' }), { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
         }
 
-        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', userId, 'banco', '_transactions.json');
+        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', targetUserId, 'banco', '_transactions.json');
 
         let transactions = [];
         try {

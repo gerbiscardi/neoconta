@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { z } from 'zod';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 
 const PatientSchema = z.object({
     name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
@@ -16,18 +17,24 @@ const PatientSchema = z.object({
 // GET: Retrieve patients for a user (supports optional pagination and search)
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
         const search = searchParams.get('search') || '';
         const pageParam = searchParams.get('page');
         const limitParam = searchParams.get('limit');
 
-        if (!userId) {
-            return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
         }
 
         const where = {
-            userId,
+            userId: targetUserId,
             ...(search ? {
                 OR: [
                     { name: { contains: search } },
@@ -90,11 +97,21 @@ export async function GET(request) {
 // POST: Add a new patient
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+        }
+
         const body = await request.json();
         const { userId, patient } = body;
 
-        if (!userId || !patient) {
-            return NextResponse.json({ error: 'userId y patient son requeridos' }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        }
+
+        if (!patient) {
+            return NextResponse.json({ error: 'Datos de paciente requeridos' }, { status: 400 });
         }
 
         const validation = PatientSchema.safeParse(patient);
@@ -107,7 +124,7 @@ export async function POST(request) {
 
         // Check if DNI already exists for this user
         const existing = await prisma.patient.findFirst({
-            where: { userId, dni: validData.dni }
+            where: { userId: targetUserId, dni: validData.dni }
         });
 
         if (existing) {
@@ -116,7 +133,7 @@ export async function POST(request) {
 
         const newPatient = await prisma.patient.create({
             data: {
-                userId,
+                userId: targetUserId,
                 name: validData.name,
                 dni: validData.dni,
                 birthDate: validData.birthDate || null,
@@ -139,11 +156,21 @@ export async function POST(request) {
 // PUT: Update an existing patient
 export async function PUT(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+        }
+
         const body = await request.json();
         const { userId, patient } = body;
 
-        if (!userId || !patient || !patient.id) {
-            return NextResponse.json({ error: 'userId and patient.id are required' }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        }
+
+        if (!patient || !patient.id) {
+            return NextResponse.json({ error: 'patient.id es requerido' }, { status: 400 });
         }
 
         const updated = await prisma.patient.update({
@@ -171,12 +198,22 @@ export async function PUT(request) {
 // DELETE: Remove a patient
 export async function DELETE(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
         const patientId = searchParams.get('patientId');
 
-        if (!userId || !patientId) {
-            return NextResponse.json({ error: 'userId and patientId are required' }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        }
+
+        if (!patientId) {
+            return NextResponse.json({ error: 'patientId es requerido' }, { status: 400 });
         }
 
         await prisma.patient.delete({

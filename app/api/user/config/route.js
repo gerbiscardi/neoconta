@@ -3,6 +3,7 @@ import { writeFile, readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import prisma from '@/lib/db';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 
 const PLAN_DEFAULTS = {
     base: {
@@ -81,14 +82,20 @@ const PLAN_DEFAULTS = {
 
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
-        if (!userId) {
-            return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "Acceso no autorizado a la configuración" }, { status: 403 });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', userId);
+        const userDir = join(process.cwd(), 'data', 'users', targetUserId);
         const configPath = join(userDir, 'config.json');
         const certPath = join(userDir, 'cert.crt');
 
@@ -98,7 +105,7 @@ export async function GET(request) {
             config = JSON.parse(fileData);
         }
 
-        const userDb = await prisma.user.findUnique({ where: { id: userId } }).catch(() => null);
+        const userDb = await prisma.user.findUnique({ where: { id: targetUserId } }).catch(() => null);
         const isOwner = userDb?.role === 'owner' || userId === 'admin' || userDb?.email === 'admin@neoconta.com' || userDb?.email === 'rmanuelguerrero@gmail.com';
 
         const assignedPlan = isOwner ? "full" : (config.plan || "base");
@@ -141,6 +148,11 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+        }
+
         const contentType = request.headers.get('content-type') || '';
         let userId, razonSocial, cuit, production, condicionIva, logo, features, medicalDetails, direccion;
         let certFile, keyFile;
@@ -168,12 +180,13 @@ export async function POST(request) {
             keyFile = data.get('key');   // File object
         }
 
-        if (!userId) {
-            return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "Acceso no autorizado para modificar esta configuración" }, { status: 403 });
         }
 
-        // Directory: data/users/{userId}
-        const userDir = join(process.cwd(), 'data', 'users', userId);
+        // Directory: data/users/{targetUserId}
+        const userDir = join(process.cwd(), 'data', 'users', targetUserId);
 
         // Ensure directory exists
         await mkdir(userDir, { recursive: true });

@@ -1,18 +1,30 @@
 import fs from 'fs/promises';
 import path from 'path';
 import * as xlsx from 'xlsx';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
+        }
+
         const formData = await request.formData();
         const file = formData.get('file');
         const userId = formData.get('userId');
 
-        if (!file || !userId) {
-            return new Response(JSON.stringify({ error: 'File and userId are required' }), { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
+        }
+
+        if (!file) {
+            return new Response(JSON.stringify({ error: 'El archivo es requerido' }), { status: 400 });
         }
 
         // Validate user folder
-        const userDir = path.join(process.cwd(), 'data', 'users', userId);
+        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
         const bancoDir = path.join(userDir, 'banco');
 
         try {

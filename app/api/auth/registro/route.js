@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
+import prisma from '@/lib/db';
 
 export async function POST(request) {
     try {
@@ -34,7 +35,7 @@ export async function POST(request) {
             id: userId,
             nombre: nombre.trim(),
             email: email.trim().toLowerCase(),
-            password: password, // For simplicity in mock db
+            password: password,
             tipoUsuario: tipoUsuario,
             role: "no-cliente", // Default category for self-registration from landing page
             createdAt: new Date().toISOString()
@@ -47,6 +48,27 @@ export async function POST(request) {
         } catch (err) {
             console.error("Error writing to users db:", err);
             return NextResponse.json({ error: "Error al guardar el registro" }, { status: 500 });
+        }
+
+        // Synchronize with Prisma DB
+        try {
+            await prisma.user.upsert({
+                where: { email: newUser.email },
+                update: {
+                    nombre: newUser.nombre,
+                    password: newUser.password,
+                    role: newUser.role
+                },
+                create: {
+                    id: userId,
+                    nombre: newUser.nombre,
+                    email: newUser.email,
+                    password: newUser.password,
+                    role: newUser.role
+                }
+            });
+        } catch (prismaErr) {
+            console.error("Error syncing self-registered user to Prisma:", prismaErr);
         }
 
         return NextResponse.json({ success: true, message: "Registro exitoso." });

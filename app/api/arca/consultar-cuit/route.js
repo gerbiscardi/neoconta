@@ -2,13 +2,24 @@ import { NextResponse } from 'next/server';
 import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+        }
+
         const { cuit, userId } = await request.json();
 
-        if (!userId || !cuit) {
-            return NextResponse.json({ error: "userId y cuit son requeridos" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 });
+        }
+
+        if (!cuit) {
+            return NextResponse.json({ error: "El parámetro cuit es requerido" }, { status: 400 });
         }
 
         const cuitClean = cuit.replace(/[^0-9]/g, '');
@@ -50,7 +61,7 @@ export async function POST(request) {
             return NextResponse.json({ error: "Documento inválido (debe tener 7, 8 o 11 dígitos)" }, { status: 400 });
         }
 
-        const userDir = path.join(process.cwd(), 'data', 'users', userId);
+        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
         const certPath = path.join(userDir, 'cert.crt');
         const keyPath = path.join(userDir, 'private.key');
         const configPath = path.join(userDir, 'config.json');

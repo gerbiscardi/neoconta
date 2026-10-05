@@ -18,7 +18,6 @@ export async function middleware(request) {
         try {
             const secret = new TextEncoder().encode(JWT_SECRET);
             await jwtVerify(sessionToken, secret);
-            return NextResponse.next();
         } catch (err) {
             console.warn('Invalid or expired session token:', err.message);
             const loginUrl = new URL('/login', request.url);
@@ -28,9 +27,30 @@ export async function middleware(request) {
         }
     }
 
-    return NextResponse.next();
+    const response = NextResponse.next();
+
+    // Security Headers (Hardening)
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+    if (process.env.NODE_ENV === 'production') {
+        response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+
+    return response;
 }
 
 export const config = {
-    matcher: ['/dashboard/:path*'],
+    matcher: [
+        /*
+         * Match all request paths except for the ones starting with:
+         * - _next/static (static files)
+         * - _next/image (image optimization files)
+         * - favicon.ico (favicon file)
+         * - assets (public assets)
+         */
+        '/((?!_next/static|_next/image|favicon.ico|assets).*)',
+    ],
 };

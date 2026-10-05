@@ -1,18 +1,29 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 
 export async function PATCH(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+        }
+
         const body = await request.json();
         const { userId, invoiceId } = body;
 
-        if (!userId || !invoiceId) {
-            return NextResponse.json({ error: 'Missing userId or invoiceId parameter' }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        }
+
+        if (!invoiceId) {
+            return NextResponse.json({ error: 'Missing invoiceId parameter' }, { status: 400 });
         }
 
         const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
-        const historyFile = path.join(invoicesDir, `${userId}_history.json`);
+        const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);
 
         let history = [];
         try {

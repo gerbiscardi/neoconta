@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import prisma from '@/lib/db';
 
 const DB_PATH = join(process.cwd(), 'data', 'users.json');
 
@@ -20,10 +22,20 @@ async function saveUsers(users) {
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado. Por favor inicia sesión." }, { status: 401 });
+        }
+
         const { userId, currentPassword, newPassword } = await request.json();
 
-        if (!userId || !currentPassword || !newPassword) {
-            return NextResponse.json({ error: "Faltan datos requeridos (userId, contraseña actual, nueva contraseña)" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "No tienes permiso para modificar esta cuenta." }, { status: 403 });
+        }
+
+        if (!currentPassword || !newPassword) {
+            return NextResponse.json({ error: "Faltan datos requeridos (contraseña actual, nueva contraseña)" }, { status: 400 });
         }
 
         if (newPassword.length < 4) {
@@ -31,7 +43,7 @@ export async function POST(request) {
         }
 
         const users = await getUsers();
-        const userIndex = users.findIndex(u => u.id === userId);
+        const userIndex = users.findIndex(u => u.id === targetUserId);
 
         if (userIndex === -1) {
             return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
@@ -47,11 +59,23 @@ export async function POST(request) {
             return NextResponse.json({ error: "La nueva contraseña debe ser diferente a la actual." }, { status: 400 });
         }
 
-        // Update password and clear the flag
+        // Update password and clear the flag in users.json
         users[userIndex].password = newPassword;
         users[userIndex].mustChangePassword = false;
-
         await saveUsers(users);
+
+        // Synchronize with Prisma DB
+        try {
+            await prisma.user.update({
+                where: { id: targetUserId },
+                data: {
+                    password: newPassword,
+                    mustChangePassword: false
+                }
+            });
+        } catch (prismaErr) {
+            console.error("Error syncing password change to Prisma:", prismaErr);
+        }
 
         return NextResponse.json({ success: true, message: "Contraseña cambiada con éxito." });
 

@@ -2,17 +2,24 @@ import { NextResponse } from 'next/server';
 import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado. Por favor inicia sesión." }, { status: 401 });
+        }
+
         const { invoices, userId, production = false } = await request.json();
 
-        if (!userId) {
-            return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "Acceso no autorizado para facturar con esta cuenta." }, { status: 403 });
         }
 
         // Path to user specific certificates and config
-        const userDir = path.join(process.cwd(), 'data', 'users', userId);
+        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
         const certPath = path.join(userDir, 'cert.crt');
         const keyPath = path.join(userDir, 'private.key');
         const configPath = path.join(userDir, 'config.json');
@@ -254,7 +261,7 @@ export async function POST(request) {
                 // Ensure directory exists
                 await fs.promises.mkdir(invoicesDir, { recursive: true });
 
-                const historyFile = path.join(invoicesDir, `${userId}_history.json`);
+                const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);
                 let history = [];
 
                 try {

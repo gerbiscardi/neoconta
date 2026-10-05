@@ -27,13 +27,25 @@ export async function POST(request) {
       );
     }
 
+    // Sanitize string against CRLF header injection
+    const cleanName = name.replace(/[\r\n\t"]/g, ' ').trim().slice(0, 100);
+    const cleanEmail = email.replace(/[\r\n\t]/g, '').trim().slice(0, 150);
+    const cleanPhone = (phone || '').replace(/[\r\n\t]/g, '').trim().slice(0, 50);
+
+    const escapeHtml = (str) => String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
     // 2. Prepare contact data
     const contactData = {
       timestamp: new Date().toISOString(),
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone ? phone.trim() : "No especificado",
-      message: message.trim(),
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone || "No especificado",
+      message: message.trim().slice(0, 5000),
     };
 
     // 3. Check for SMTP environment variables
@@ -52,7 +64,7 @@ export async function POST(request) {
       const transporter = nodemailer.createTransport({
         host: SMTP_HOST,
         port: parseInt(SMTP_PORT, 10),
-        secure: parseInt(SMTP_PORT, 10) === 465, // true for 465, false for other ports
+        secure: parseInt(SMTP_PORT, 10) === 465,
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASSWORD,
@@ -61,20 +73,20 @@ export async function POST(request) {
 
       // Send email
       await transporter.sendMail({
-        from: `"${name}" <${SMTP_USER}>`, // Sender address
-        to: CONTACT_EMAIL, // Institutional inbox
-        replyTo: email, // Reply-to visitor's email
-        subject: `Nuevo mensaje de contacto de ${name} (NeoConta)`,
-        text: `Nombre: ${name}\nEmail: ${email}\nCelular: ${phone || "No especificado"}\n\nMensaje:\n${message}`,
+        from: `"${cleanName}" <${SMTP_USER}>`,
+        to: CONTACT_EMAIL,
+        replyTo: cleanEmail,
+        subject: `Nuevo mensaje de contacto de ${cleanName} (NeoConta)`,
+        text: `Nombre: ${cleanName}\nEmail: ${cleanEmail}\nCelular: ${cleanPhone || "No especificado"}\n\nMensaje:\n${message}`,
         html: `
           <h3>Nuevo mensaje de contacto de NeoConta</h3>
-          <p><strong>Nombre:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Celular:</strong> ${phone || "No especificado"}</p>
+          <p><strong>Nombre:</strong> ${escapeHtml(cleanName)}</p>
+          <p><strong>Email:</strong> ${escapeHtml(cleanEmail)}</p>
+          <p><strong>Celular:</strong> ${escapeHtml(cleanPhone || "No especificado")}</p>
           <br/>
           <p><strong>Mensaje:</strong></p>
           <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap;">
-            ${message}
+            ${escapeHtml(message)}
           </div>
         `,
       });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { getServerSession } from '@/lib/auth';
 
 const CONFIG_PATH = join(process.cwd(), 'data', 'platform_config.json');
 
@@ -20,10 +21,8 @@ async function getPlatformConfig() {
 // GET: Retrieve platform config
 export async function GET(request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const callerRole = searchParams.get('callerRole');
-
-        if (callerRole !== 'owner') {
+        const session = await getServerSession(request);
+        if (!session || session.role !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
         }
 
@@ -38,11 +37,12 @@ export async function GET(request) {
 // POST: Save platform config
 export async function POST(request) {
     try {
-        const { baseSubscription, costPerClient, callerRole } = await request.json();
-
-        if (callerRole !== 'owner') {
+        const session = await getServerSession(request);
+        if (!session || session.role !== 'owner') {
             return NextResponse.json({ error: "No autorizado. Solo el dueño de NeoConta puede realizar esta acción." }, { status: 403 });
         }
+
+        const { baseSubscription, costPerClient } = await request.json();
 
         const config = {
             baseSubscription: Number(baseSubscription) || 4500000,
