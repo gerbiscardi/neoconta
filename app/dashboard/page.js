@@ -35,8 +35,10 @@ import {
     Cpu,
     Settings,
     Lock,
-    Landmark
+    Landmark,
+    Send
 } from "lucide-react";
+import RemitAccountingModal from "./components/RemitAccountingModal";
 
 
 export default function Dashboard() {
@@ -99,6 +101,7 @@ export default function Dashboard() {
     const [dolarData, setDolarData] = useState(null);
     const [weatherData, setWeatherData] = useState(null);
     const [newsData, setNewsData] = useState([]);
+    const [isRemitModalOpen, setIsRemitModalOpen] = useState(false);
 
     // Force password change overlay states
     const [showChangePasswordOverlay, setShowChangePasswordOverlay] = useState(false);
@@ -1674,9 +1677,20 @@ export default function Dashboard() {
                     <p className="text-slate-500 dark:text-slate-400">Bienvenido al panel de control integral de NeoConta.</p>
                 </div>
                 
-                <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
-                    <Building className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Empresa: {companyConfig.razonSocial} {companyConfig.cuit ? `(${companyConfig.cuit})` : ""}</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+                        <Building className="h-5 w-5 text-slate-400" />
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Empresa: {companyConfig.razonSocial} {companyConfig.cuit ? `(${companyConfig.cuit})` : ""}</span>
+                    </div>
+
+                    <button
+                        onClick={() => setIsRemitModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] text-sm"
+                        title="Remitir información contable y financiera al contador"
+                    >
+                        <Send className="h-4 w-4" />
+                        <span>Remitir Información</span>
+                    </button>
                 </div>
             </div>
 
@@ -1906,6 +1920,13 @@ export default function Dashboard() {
                     </button>
                 </div>
             </div>
+
+            <RemitAccountingModal
+                isOpen={isRemitModalOpen}
+                onClose={() => setIsRemitModalOpen(false)}
+                currentUser={currentUser}
+                companyConfig={companyConfig}
+            />
         </div>
     );
 }
