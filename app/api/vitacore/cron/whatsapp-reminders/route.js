@@ -5,8 +5,15 @@ import { getServerSession } from '@/lib/auth';
 
 const CRON_SECRET = process.env.CRON_SECRET || 'neoconta_cron_secret_internal_2026';
 
+let isCronRunning = false;
+
 export async function GET(request) {
+    if (isCronRunning) {
+        return NextResponse.json({ success: false, message: 'El cron de recordatorios ya se encuentra en ejecución en segundo plano.' }, { status: 429 });
+    }
+
     try {
+        isCronRunning = true;
         const { searchParams } = new URL(request.url);
         const secretParam = searchParams.get('secret');
         const authHeader = request.headers.get('authorization') || '';
@@ -17,6 +24,7 @@ export async function GET(request) {
         if (!isAuthorizedSecret) {
             const session = await getServerSession(request);
             if (!session || session.role !== 'owner') {
+                isCronRunning = false;
                 return NextResponse.json({ error: 'Acceso no autorizado al servicio de recordatorios' }, { status: 401 });
             }
         }
@@ -86,5 +94,7 @@ export async function GET(request) {
     } catch (error) {
         console.error("Error in /api/vitacore/cron/whatsapp-reminders:", error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+    } finally {
+        isCronRunning = false;
     }
 }

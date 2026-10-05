@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
+import { getClientIp, contactLimiter, rateLimitResponse } from "@/lib/rateLimit";
 
 export async function POST(request) {
   try {
+    const ip = getClientIp(request);
+    const limitCheck = contactLimiter.check(ip);
+    if (!limitCheck.allowed) {
+      return rateLimitResponse(limitCheck, "Ha enviado demasiados mensajes en poco tiempo. Por favor espere unos minutos antes de enviar otra consulta.");
+    }
+
     const { name, email, phone, message } = await request.json();
 
     // 1. Basic validation

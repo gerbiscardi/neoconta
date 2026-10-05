@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import jwt from 'jsonwebtoken';
 import { verifyPassword, hashPassword, JWT_SECRET } from '@/lib/auth';
+import { getClientIp, loginLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(request) {
     try {
@@ -12,6 +13,15 @@ export async function POST(request) {
         }
 
         const normalizedEmail = email.trim().toLowerCase();
+        const ip = getClientIp(request);
+        const rateLimitKey = `${ip}:${normalizedEmail}`;
+
+        // Verify Rate Limit (Brute Force Protection)
+        const limitCheck = loginLimiter.check(rateLimitKey);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, "Demasiados intentos fallidos de inicio de sesión. Por motivos de seguridad, espere unos minutos antes de intentar nuevamente.");
+        }
+
         const user = await prisma.user.findFirst({
             where: { email: normalizedEmail }
         });
@@ -24,6 +34,9 @@ export async function POST(request) {
         if (!isMatch) {
             return NextResponse.json({ error: "Correo electrónico o contraseña incorrectos." }, { status: 401 });
         }
+
+        // Reset rate limit counter upon successful authentication
+        loginLimiter.reset(rateLimitKey);
 
         // Automatic transparent migration: upgrade legacy plaintext password to salted bcrypt hash
         if (!user.password.startsWith('$2')) {

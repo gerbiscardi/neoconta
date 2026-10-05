@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { getClientIp, prescriptionsValidateLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function GET(request) {
     try {
+        const ip = getClientIp(request);
+        const limitCheck = prescriptionsValidateLimiter.check(ip);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, "Ha alcanzado el límite de validaciones de recetas permitidas en este intervalo.");
+        }
+
         const { searchParams } = new URL(request.url);
         const prescriptionId = searchParams.get('id');
 

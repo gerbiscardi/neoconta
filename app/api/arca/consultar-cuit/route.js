@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
 import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
+import { getClientIp, arcaQueryLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(request) {
     try {
@@ -17,6 +18,13 @@ export async function POST(request) {
         const targetUserId = sanitizeUserId(userId || session.id);
         if (!targetUserId || !canAccessUserData(session, targetUserId)) {
             return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 });
+        }
+
+        const ip = getClientIp(request);
+        const rateLimitKey = `${ip}:${targetUserId}`;
+        const limitCheck = arcaQueryLimiter.check(rateLimitKey);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, "Ha alcanzado el límite de consultas automáticas a ARCA por minuto. Por favor espere unos momentos para evitar saturación.");
         }
 
         if (!cuit) {

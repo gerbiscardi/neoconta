@@ -3,9 +3,16 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import prisma from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { getClientIp, registerLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(request) {
     try {
+        const ip = getClientIp(request);
+        const limitCheck = registerLimiter.check(ip);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, "Ha alcanzado el límite máximo de registros de cuenta por hora desde esta dirección IP.");
+        }
+
         const { nombre, email, password, tipoUsuario } = await request.json();
 
         if (!nombre || !email || !password || !tipoUsuario) {

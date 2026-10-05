@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { getClientIp, appointmentsConfirmLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function GET(request) {
     try {
+        const ip = getClientIp(request);
+        const limitCheck = appointmentsConfirmLimiter.check(ip);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, "Ha realizado demasiadas consultas de turnos en poco tiempo.");
+        }
+
         const { searchParams } = new URL(request.url);
         const appointmentId = searchParams.get('id');
         const userId = searchParams.get('userId');
@@ -47,6 +54,12 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
+        const ip = getClientIp(request);
+        const limitCheck = appointmentsConfirmLimiter.check(ip);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, "Ha realizado demasiadas operaciones de turnos en poco tiempo.");
+        }
+
         const { appointmentId, userId, action } = await request.json(); // action = 'confirm' | 'cancel'
 
         if (!appointmentId || !action) {
