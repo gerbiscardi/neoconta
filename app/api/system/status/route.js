@@ -19,9 +19,15 @@ export async function GET() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
         
-        const dsRes = await fetch('http://127.0.0.1:8000/health', {
+        let dsRes = await fetch('http://127.0.0.1:8000/health', {
             signal: controller.signal
         }).catch(() => null);
+
+        if (!dsRes || !dsRes.ok) {
+            dsRes = await fetch('http://127.0.0.1:8000/', {
+                signal: controller.signal
+            }).catch(() => null);
+        }
 
         clearTimeout(timeoutId);
 

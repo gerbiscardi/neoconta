@@ -59,6 +59,10 @@ def read_root():
         "engines": ["Facebook Prophet", "XGBoost Scorer"]
     }
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "NeoConta Data Science"}
+
 @app.post("/api/predict/cashflow")
 def predict_cashflow(request: CashFlowRequest):
     """
