@@ -99,7 +99,7 @@ export async function GET(request) {
         }
 
         const userDb = await prisma.user.findUnique({ where: { id: userId } }).catch(() => null);
-        const isOwner = userDb?.role === 'owner';
+        const isOwner = userDb?.role === 'owner' || userId === 'admin' || userDb?.email === 'admin@neoconta.com' || userDb?.email === 'rmanuelguerrero@gmail.com';
 
         const assignedPlan = isOwner ? "full" : (config.plan || "base");
         const baseFeatures = config.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base;

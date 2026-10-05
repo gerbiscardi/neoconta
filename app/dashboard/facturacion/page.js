@@ -36,6 +36,7 @@ export default function FacturacionPage() {
     const [historyLoaded, setHistoryLoaded] = useState(false);
     const [issuerConfig, setIssuerConfig] = useState({ razonSocial: "", cuit: "", logo: "", hasCert: false, plan: "base", features: {}, condicionIva: "Responsable Monotributo" });
     const [monthlyInvoiceCount, setMonthlyInvoiceCount] = useState(0);
+    const [currentUser, setCurrentUser] = useState(null);
 
     // Inflation Adjusted States
     const [inflationRates, setInflationRates] = useState([]);
@@ -167,15 +168,21 @@ export default function FacturacionPage() {
     }, []);
 
     const fetchIssuerConfig = useCallback(async () => {
-        const user = JSON.parse(localStorage.getItem('neoconta_user'));
-        if (!user) return;
+        const userStr = localStorage.getItem('neoconta_user');
+        if (!userStr) return;
+        const user = JSON.parse(userStr);
         try {
             const res = await fetch(`/api/user/config?userId=${user.id}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
                     const cond = data.condicionIva || "Responsable Monotributo";
-                    const isOwner = user.role === 'owner';
+                    const isOwner = user.role === 'owner' || user.id === 'admin' || user.email === 'admin@neoconta.com' || user.email === 'rmanuelguerrero@gmail.com' || data.plan === 'full';
+                    if (isOwner && user.role !== 'owner') {
+                        user.role = 'owner';
+                        localStorage.setItem('neoconta_user', JSON.stringify(user));
+                        setCurrentUser({ ...user });
+                    }
                     const rawFeatures = data.features || {};
                     const effectiveFeatures = isOwner ? {
                         ...rawFeatures,
@@ -305,6 +312,7 @@ export default function FacturacionPage() {
             return;
         }
         const user = JSON.parse(userStr);
+        setCurrentUser(user);
         if (user.role === 'no-cliente') {
             router.push("/dashboard");
             return;
@@ -1755,6 +1763,9 @@ export default function FacturacionPage() {
         ? filteredRows 
         : filteredRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
+    const isOwner = currentUser?.role === 'owner' || currentUser?.id === 'admin' || currentUser?.email === 'admin@neoconta.com' || currentUser?.email === 'rmanuelguerrero@gmail.com' || issuerConfig.plan === 'full';
+    const canUseFacturacionMasiva = isOwner || Boolean(issuerConfig.features?.facturacionMasiva);
+
     return (
         <div className="max-w-[95vw] mx-auto space-y-6 animate-fade-in-up pb-10">
             {/* Header section with title and upload button */}
@@ -1782,33 +1793,40 @@ export default function FacturacionPage() {
                     </button>
 
                     {/* Monthly Limit Info / Warning */}
-                    {issuerConfig.features.limiteComprobantes !== undefined && (
-                        <div className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold border ${
-                            issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes
-                                ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' 
-                                : (monthlyInvoiceCount / issuerConfig.features.limiteComprobantes) >= 0.8
-                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                                    : 'bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-slate-800'
-                        }`}>
+                    {isOwner ? (
+                        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
                             <TrendingUp className="h-4 w-4" />
-                            <span>
-                                Comprobantes del mes: {monthlyInvoiceCount} / {issuerConfig.features.limiteComprobantes}
-                                {issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes && " (Límite alcanzado)"}
-                            </span>
+                            <span>Comprobantes del mes: {monthlyInvoiceCount} (Plan Owner • Sin límite)</span>
                         </div>
+                    ) : (
+                        issuerConfig.features?.limiteComprobantes !== undefined && (
+                            <div className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold border ${
+                                issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes
+                                    ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' 
+                                    : (monthlyInvoiceCount / issuerConfig.features.limiteComprobantes) >= 0.8
+                                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                        : 'bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-slate-800'
+                            }`}>
+                                <TrendingUp className="h-4 w-4" />
+                                <span>
+                                    Comprobantes del mes: {monthlyInvoiceCount} / {issuerConfig.features.limiteComprobantes}
+                                    {issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes && " (Límite alcanzado)"}
+                                </span>
+                            </div>
+                        )
                     )}
 
-                    {issuerConfig.features.facturacionMasiva ? (
+                    {canUseFacturacionMasiva ? (
                         <label className="cursor-pointer">
                             <input
                                 type="file"
                                 accept=".xlsx, .xls"
                                 onChange={handleFileUpload}
-                                disabled={processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)}
+                                disabled={processing || (!isOwner && issuerConfig.features?.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)}
                                 className="sr-only"
                             />
                             <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all ${
-                                processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)
+                                processing || (!isOwner && issuerConfig.features?.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)
                                     ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                                     : "bg-white text-slate-700 border border-slate-300 shadow-sm hover:bg-slate-50 hover:shadow dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800"
                             }`}>
@@ -1826,19 +1844,19 @@ export default function FacturacionPage() {
                     {/* Emitir Comprobante Individual button */}
                     <button
                         onClick={() => {
-                            if (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes) {
+                            if (!isOwner && issuerConfig.features?.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes) {
                                 alert("Has alcanzado el límite de comprobantes mensuales para tu plan. Contacta al administrador para subir de plan.");
                             } else {
                                 setIsIndividualModalOpen(true);
                             }
                         }}
-                        disabled={processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)}
+                        disabled={processing || (!isOwner && issuerConfig.features?.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)}
                         className={`flex items-center gap-2 px-4 py-2.5 font-medium rounded-xl transition-all shadow-sm border ${
-                            processing || (issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)
+                            processing || (!isOwner && issuerConfig.features?.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes)
                                 ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                                 : "bg-orange-600 hover:bg-orange-700 text-white border-orange-700 hover:shadow cursor-pointer shadow-orange-600/10"
                         }`}
-                        title={issuerConfig.features.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes ? "Límite mensual alcanzado" : "Emitir un comprobante individual (Factura, Nota de Crédito/Débito, etc.)"}
+                        title={!isOwner && issuerConfig.features?.limiteComprobantes && monthlyInvoiceCount >= issuerConfig.features.limiteComprobantes ? "Límite mensual alcanzado" : "Emitir un comprobante individual (Factura, Nota de Crédito/Débito, etc.)"}
                     >
                         <PlusCircle className="h-4.5 w-4.5" />
                         Comprobante Individual
