@@ -202,6 +202,7 @@ async function getUserProfile(userId) {
             profile.razonSocial = data.razonSocial || profile.nombre || profile.razonSocial;
             profile.cuit = data.cuit || "";
             profile.condicionIva = data.condicionIva || profile.condicionIva;
+            profile.logo = data.logo || "";
         } catch (e) {}
     }
 
@@ -501,35 +502,106 @@ export async function POST(request) {
                     auth: { user: SMTP_USER, pass: SMTP_PASSWORD }
                 });
 
-                const htmlContent = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                    <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 24px; color: white;">
-                        <h1 style="margin: 0; font-size: 20px;">NeoConta • Información Contable y Financiera</h1>
-                        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Remisión periódica de comprobantes y movimientos bancarios</p>
+                const logoPath = path.join(process.cwd(), 'public', 'assets', 'navbar_logo.png');
+                const emailAttachments = [
+                    {
+                        filename,
+                        content: fileBuffer,
+                        contentType: mimeType
+                    }
+                ];
+
+                if (existsSync(logoPath)) {
+                    emailAttachments.push({
+                        filename: 'neoconta_logo.png',
+                        path: logoPath,
+                        cid: 'neoconta_footer_logo'
+                    });
+                }
+
+                let companyLogoSrc = profile.logo;
+                if (profile.logo && profile.logo.startsWith('data:')) {
+                    const matches = profile.logo.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                    if (matches && matches.length === 3) {
+                        const mime = matches[1];
+                        const base64Data = matches[2];
+                        emailAttachments.push({
+                            filename: 'company_logo',
+                            content: Buffer.from(base64Data, 'base64'),
+                            contentType: mime,
+                            cid: 'company_logo'
+                        });
+                        companyLogoSrc = 'cid:company_logo';
+                    }
+                }
+
+                const companyLogoHtml = companyLogoSrc ? `
+                    <img src="${companyLogoSrc}" alt="${profile.razonSocial}" style="max-height: 48px; max-width: 180px; object-fit: contain; display: block;" />
+                ` : `
+                    <div style="font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.3px;">
+                        ${profile.razonSocial}
                     </div>
-                    <div style="padding: 24px;">
-                        <p style="font-size: 15px; margin-top: 0;">Estimado/a,</p>
-                        <p style="font-size: 14px; line-height: 1.6;">
-                            La empresa <strong>${profile.razonSocial}</strong> (CUIT: <strong>${profile.cuit || 'S/D'}</strong>) te ha remitido su información contable correspondiente al período <strong>${fechaDesde || 'Inicio'} al ${fechaHasta || 'Actualidad'}</strong>.
+                `;
+
+                const htmlContent = `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+                    
+                    <!-- Company Logo / Header Top Bar -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-bottom: 2px solid #f97316;">
+                        <tr>
+                            <td align="left" style="padding: 18px 24px;">
+                                ${companyLogoHtml}
+                            </td>
+                            <td align="right" style="padding: 18px 24px; vertical-align: middle;">
+                                <div style="font-size: 11px; font-weight: 700; color: #ea580c; text-transform: uppercase; letter-spacing: 0.5px; background-color: #fff7ed; padding: 4px 10px; border-radius: 20px; border: 1px solid #fed7aa; display: inline-block;">
+                                    Remisión Contable
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Header Gradient Banner -->
+                    <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 22px 24px; color: white;">
+                        <h1 style="margin: 0; font-size: 19px; font-weight: 700; color: #ffffff;">Información Contable y Financiera</h1>
+                        <p style="margin: 5px 0 0; font-size: 13px; color: #ffedd5; opacity: 0.95;">
+                            Empresa: <strong>${profile.razonSocial}</strong> (CUIT: ${profile.cuit || 'S/D'}) • Período: <strong>${fechaDesde || 'Inicio'} al ${fechaHasta || 'Actualidad'}</strong>
                         </p>
+                    </div>
+
+                    <!-- Content Body -->
+                    <div style="padding: 24px;">
+                        <p style="font-size: 15px; margin-top: 0; color: #334155;">Estimado/a,</p>
+                        <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+                            Adjuntamos la información contable y financiera consolidada de <strong>${profile.razonSocial}</strong> correspondiente al período <strong>${fechaDesde || 'Inicio'} al ${fechaHasta || 'Actualidad'}</strong> para su análisis y liquidación impositiva.
+                        </p>
+                        
                         ${message ? `
-                        <div style="background-color: #f8fafc; border-left: 4px solid #f97316; padding: 12px 16px; margin: 20px 0; font-style: italic; font-size: 14px;">
+                        <div style="background-color: #f8fafc; border-left: 4px solid #f97316; padding: 14px 18px; margin: 20px 0; font-style: italic; font-size: 14px; color: #475569; border-radius: 0 8px 8px 0;">
                             "${message}"
                         </div>` : ''}
-                        <div style="background-color: #f1f5f9; border-radius: 8px; padding: 14px 18px; margin: 20px 0;">
-                            <h4 style="margin: 0 0 8px; font-size: 13px; text-transform: uppercase; color: #64748b;">Detalle de lo adjunto:</h4>
-                            <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
-                                ${includeInvoices ? `<li><strong>${invoices.length}</strong> Comprobantes emitidos en ARCA</li>` : ''}
+
+                        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin: 22px 0;">
+                            <h4 style="margin: 0 0 10px; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Resumen de Archivos Adjuntos:</h4>
+                            <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #334155; line-height: 1.8;">
+                                ${includeInvoices ? `<li><strong>${invoices.length}</strong> Comprobantes de facturación emitidos (ARCA)</li>` : ''}
                                 ${includeBank ? `<li><strong>${bankTx.length}</strong> Movimientos bancarios registrados</li>` : ''}
-                                <li>Formato: <strong>.${extension.toUpperCase()}</strong></li>
+                                <li>Formato del archivo: <strong>.${extension.toUpperCase()}</strong></li>
                             </ul>
                         </div>
+                        
                         <p style="font-size: 13px; color: #64748b; margin-bottom: 0;">
-                            Encontrarás el archivo <strong>${filename}</strong> adjunto a este mensaje.
+                            El informe <strong>${filename}</strong> se encuentra adjunto a este mensaje.
                         </p>
                     </div>
-                    <div style="background-color: #f8fafc; padding: 16px 24px; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; text-align: center;">
-                        Enviado automáticamente a través de la plataforma NeoConta.
+
+                    <!-- Footer with small NeoConta logo -->
+                    <div style="background-color: #f8fafc; padding: 20px 24px; border-top: 1px solid #e2e8f0; text-align: center;">
+                        <div style="margin-bottom: 8px;">
+                            <img src="cid:neoconta_footer_logo" alt="NeoConta" style="height: 20px; width: auto; display: inline-block; vertical-align: middle; opacity: 0.9;" />
+                        </div>
+                        <p style="margin: 0; font-size: 11px; color: #64748b;">
+                            Enviado de forma segura y automatizada a través de la plataforma <strong>NeoConta</strong>.
+                        </p>
                     </div>
                 </div>
                 `;
@@ -539,13 +611,7 @@ export async function POST(request) {
                     to: recipientEmail,
                     subject: `[NeoConta] Información Contable (${fechaDesde} a ${fechaHasta}) - ${profile.razonSocial}`,
                     html: htmlContent,
-                    attachments: [
-                        {
-                            filename,
-                            content: fileBuffer,
-                            contentType: mimeType
-                        }
-                    ]
+                    attachments: emailAttachments
                 });
 
                 return NextResponse.json({

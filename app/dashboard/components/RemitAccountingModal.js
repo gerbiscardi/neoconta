@@ -342,19 +342,21 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                                     key={fmt.id}
                                     type="button"
                                     onClick={() => setFormat(fmt.id)}
-                                    className={`relative p-3 rounded-2xl border text-left flex flex-col justify-between transition-all ${
+                                    className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all ${
                                         format === fmt.id
                                             ? 'bg-orange-500/5 dark:bg-orange-500/10 border-orange-500 shadow-sm'
                                             : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                                     }`}
                                 >
-                                    {fmt.badge && (
-                                        <span className="absolute top-2 right-2 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-full">
-                                            {fmt.badge}
-                                        </span>
-                                    )}
-                                    <div>{fmt.icon}</div>
-                                    <div className="mt-2">
+                                    <div className="flex items-center justify-between w-full gap-2">
+                                        <div>{fmt.icon}</div>
+                                        {fmt.badge && (
+                                            <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-500/15 dark:bg-orange-500/25 px-2 py-0.5 rounded-full border border-orange-500/30 ml-auto shrink-0 shadow-sm">
+                                                {fmt.badge}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="mt-2.5">
                                         <p className="font-bold text-xs text-slate-800 dark:text-slate-200">{fmt.label}</p>
                                         <p className="text-[10px] text-slate-400">{fmt.desc}</p>
                                     </div>
