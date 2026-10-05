@@ -150,17 +150,6 @@ export default function DashboardLayout({ children }) {
             });
         }
 
-        if (role === 'owner' || features.biBasico || features.biAvanzado || features.biPremium) {
-            items.push({ 
-                name: "Commander BI", 
-                icon: <LineChart className="h-5 w-5" />, 
-                href: "/dashboard/commander",
-                gradient: "from-rose-500 to-pink-500",
-                activeStyle: "border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-sm",
-                inactiveHoverStyle: "hover:border-rose-500/20 hover:bg-rose-500/5 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
-            });
-        }
-
         if (role === 'owner' || features.moduloBanco) {
             items.push({ 
                 name: "Banco", 
@@ -172,17 +161,6 @@ export default function DashboardLayout({ children }) {
             });
         }
 
-        if (role === 'owner' || features.moduloImagenWeb) {
-            items.push({ 
-                name: "Commentor", 
-                icon: <MessageSquare className="h-5 w-5" />, 
-                href: "/dashboard/commentor",
-                gradient: "from-orange-500 to-amber-500",
-                activeStyle: "border-orange-500/30 bg-orange-500/5 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 shadow-sm",
-                inactiveHoverStyle: "hover:border-orange-500/20 hover:bg-orange-500/5 dark:hover:bg-emerald-500/10 hover:text-orange-600 dark:hover:text-orange-400"
-            });
-        }
-
         if (role === 'owner' || features.moduloVitacore || features.moduloVitacore === undefined) {
             items.push({ 
                 name: "Vitacore", 
@@ -191,6 +169,28 @@ export default function DashboardLayout({ children }) {
                 gradient: "from-emerald-500 to-teal-500",
                 activeStyle: "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm",
                 inactiveHoverStyle: "hover:border-emerald-500/20 hover:bg-emerald-500/5 dark:hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400"
+            });
+        }
+
+        if (role === 'owner' || features.biBasico || features.biAvanzado || features.biPremium) {
+            items.push({ 
+                name: "Commander", 
+                icon: <LineChart className="h-5 w-5" />, 
+                href: "/dashboard/commander",
+                gradient: "from-rose-500 to-pink-500",
+                activeStyle: "border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-sm",
+                inactiveHoverStyle: "hover:border-rose-500/20 hover:bg-rose-500/5 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
+            });
+        }
+
+        if (role === 'owner' || features.moduloImagenWeb) {
+            items.push({ 
+                name: "Commentor", 
+                icon: <MessageSquare className="h-5 w-5" />, 
+                href: "/dashboard/commentor",
+                gradient: "from-orange-500 to-amber-500",
+                activeStyle: "border-orange-500/30 bg-orange-500/5 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 shadow-sm",
+                inactiveHoverStyle: "hover:border-orange-500/20 hover:bg-orange-500/5 dark:hover:bg-emerald-500/10 hover:text-orange-600 dark:hover:text-orange-400"
             });
         }
 
