@@ -3,6 +3,7 @@ import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
 import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
 
 export async function POST(request) {
     try {
@@ -20,12 +21,10 @@ export async function POST(request) {
 
         // Path to user specific certificates and config
         const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
-        const certPath = path.join(userDir, 'cert.crt');
-        const keyPath = path.join(userDir, 'private.key');
         const configPath = path.join(userDir, 'config.json');
 
-        // Check if configuration exists
-        if (!fs.existsSync(certPath) || !fs.existsSync(keyPath) || !fs.existsSync(configPath)) {
+        const credentials = loadDecryptedUserCredentialsSync(targetUserId);
+        if (!credentials || !fs.existsSync(configPath)) {
             return NextResponse.json({
                 error: "Faltan certificados o configuración para este usuario.",
                 details: "Por favor ve a la sección Configuración y sube tus certificados."
@@ -37,9 +36,8 @@ export async function POST(request) {
         const cuit = parseInt(userConfig.cuit.replace(/[^0-9]/g, ''));
         const isProduction = userConfig.production === true || production === true;
 
-        // Read Cert and Key contents (afip-ws-node requires string content)
-        const certContent = fs.readFileSync(certPath, 'utf8');
-        const keyContent = fs.readFileSync(keyPath, 'utf8');
+        // Decrypted in-memory Cert and Key contents (AES-256-GCM)
+        const { certContent, keyContent } = credentials;
 
         // Initialize AFIP SDK
         let afip;

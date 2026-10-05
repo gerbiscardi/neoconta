@@ -2,13 +2,25 @@ import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import forge from 'node-forge';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { saveEncryptedUserFile } from '@/lib/crypto';
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+        }
+
         const { userId, cuit, companyName } = await request.json();
 
-        if (!userId || !cuit || !companyName) {
-            return NextResponse.json({ error: "Faltan datos (User ID, CUIT, Razón Social)" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 });
+        }
+
+        if (!cuit || !companyName) {
+            return NextResponse.json({ error: "Faltan datos (CUIT, Razón Social)" }, { status: 400 });
         }
 
         const cleanCuit = cuit.replace(/[^0-9]/g, '');
@@ -17,15 +29,15 @@ export async function POST(request) {
         }
 
         // Directory: data/users/{userId}
-        const userDir = join(process.cwd(), 'data', 'users', userId);
+        const userDir = join(process.cwd(), 'data', 'users', targetUserId);
         await mkdir(userDir, { recursive: true });
 
         // 1. Generate Private Key
         const keys = forge.pki.rsa.generateKeyPair(2048);
         const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
 
-        // Save Private Key LOCALLY (Server-side only)
-        await writeFile(join(userDir, 'private.key'), privateKeyPem);
+        // Save Private Key LOCALLY encrypted with AES-256-GCM (Server-side only)
+        await saveEncryptedUserFile(targetUserId, 'private.key', privateKeyPem);
 
         // 2. Generate CSR
         const csr = forge.pki.createCertificationRequest();

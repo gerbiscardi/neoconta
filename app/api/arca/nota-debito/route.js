@@ -2,13 +2,25 @@ import { NextResponse } from 'next/server';
 import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+        }
+
         const { userId, invoiceId, amount } = await request.json();
 
-        if (!userId || !invoiceId || !amount) {
-            return NextResponse.json({ error: "Faltan parámetros requeridos (userId, invoiceId, amount)" }, { status: 400 });
+        const targetUserId = sanitizeUserId(userId || session.id);
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 });
+        }
+
+        if (!invoiceId || !amount) {
+            return NextResponse.json({ error: "Faltan parámetros requeridos (invoiceId, amount)" }, { status: 400 });
         }
 
         const debitAmount = Math.round(Number(amount) * 100) / 100;
@@ -17,7 +29,7 @@ export async function POST(request) {
         }
 
         const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
-        const historyFile = path.join(invoicesDir, `${userId}_history.json`);
+        const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);
 
         // 1. Load History and find original invoice
         let history = [];
@@ -38,20 +50,18 @@ export async function POST(request) {
         }
 
         // 2. Load User Configuration and Certificates
-        const userDir = path.join(process.cwd(), 'data', 'users', userId);
-        const certPath = path.join(userDir, 'cert.crt');
-        const keyPath = path.join(userDir, 'private.key');
+        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
         const configPath = path.join(userDir, 'config.json');
 
-        if (!fs.existsSync(certPath) || !fs.existsSync(keyPath) || !fs.existsSync(configPath)) {
+        const credentials = loadDecryptedUserCredentialsSync(targetUserId);
+        if (!credentials || !fs.existsSync(configPath)) {
             return NextResponse.json({ error: "Faltan certificados o configuración para el usuario." }, { status: 400 });
         }
 
         const userConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         const cuit = parseInt(userConfig.cuit.replace(/[^0-9]/g, ''));
         const isProduction = userConfig.production === true;
-        const certContent = fs.readFileSync(certPath, 'utf8');
-        const keyContent = fs.readFileSync(keyPath, 'utf8');
+        const { certContent, keyContent } = credentials;
 
         // 3. Initialize AFIP SDK
         let afip;

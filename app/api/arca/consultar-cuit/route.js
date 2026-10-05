@@ -3,6 +3,7 @@ import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
 import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
 
 export async function POST(request) {
     try {
@@ -62,11 +63,10 @@ export async function POST(request) {
         }
 
         const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
-        const certPath = path.join(userDir, 'cert.crt');
-        const keyPath = path.join(userDir, 'private.key');
         const configPath = path.join(userDir, 'config.json');
 
-        if (!fs.existsSync(certPath) || !fs.existsSync(keyPath) || !fs.existsSync(configPath)) {
+        const credentials = loadDecryptedUserCredentialsSync(targetUserId);
+        if (!credentials || !fs.existsSync(configPath)) {
             return NextResponse.json({
                 error: "Faltan certificados o configuración para este usuario.",
                 details: "Por favor ve a la sección Configuración y sube tus certificados."
@@ -77,8 +77,7 @@ export async function POST(request) {
         const userCuit = parseInt(userConfig.cuit.replace(/[^0-9]/g, ''));
         const isProduction = userConfig.production === true;
 
-        const certContent = fs.readFileSync(certPath, 'utf8');
-        const keyContent = fs.readFileSync(keyPath, 'utf8');
+        const { certContent, keyContent } = credentials;
 
         // Initialize AFIP SDK
         let afip;

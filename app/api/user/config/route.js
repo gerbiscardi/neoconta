@@ -4,6 +4,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import prisma from '@/lib/db';
 import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { saveEncryptedUserFile, userHasCert } from '@/lib/crypto';
 
 const PLAN_DEFAULTS = {
     base: {
@@ -214,15 +215,15 @@ export async function POST(request) {
             onboardingCompleted: true
         };
 
-        // Save files if provided
+        // Save files encrypted at rest (AES-256-GCM) if provided
         if (certFile instanceof Blob) {
             const buffer = Buffer.from(await certFile.arrayBuffer());
-            await writeFile(join(userDir, 'cert.crt'), buffer);
+            await saveEncryptedUserFile(targetUserId, 'cert.crt', buffer);
         }
 
         if (keyFile instanceof Blob && keyFile.size > 0) {
             const buffer = Buffer.from(await keyFile.arrayBuffer());
-            await writeFile(join(userDir, 'private.key'), buffer);
+            await saveEncryptedUserFile(targetUserId, 'private.key', buffer);
         }
 
         // Update config file
