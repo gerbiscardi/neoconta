@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, canAccessUserData, sanitizeUserId, verifyPassword, hashPassword } from '@/lib/auth';
 import prisma from '@/lib/db';
 
 const DB_PATH = join(process.cwd(), 'data', 'users.json');
@@ -51,7 +51,8 @@ export async function POST(request) {
 
         const user = users[userIndex];
 
-        if (user.password !== currentPassword) {
+        const isCurrentMatch = await verifyPassword(currentPassword, user.password);
+        if (!isCurrentMatch) {
             return NextResponse.json({ error: "La contraseña actual es incorrecta." }, { status: 400 });
         }
 
@@ -59,8 +60,10 @@ export async function POST(request) {
             return NextResponse.json({ error: "La nueva contraseña debe ser diferente a la actual." }, { status: 400 });
         }
 
+        const hashedPassword = await hashPassword(newPassword);
+
         // Update password and clear the flag in users.json
-        users[userIndex].password = newPassword;
+        users[userIndex].password = hashedPassword;
         users[userIndex].mustChangePassword = false;
         await saveUsers(users);
 
@@ -69,7 +72,7 @@ export async function POST(request) {
             await prisma.user.update({
                 where: { id: targetUserId },
                 data: {
-                    password: newPassword,
+                    password: hashedPassword,
                     mustChangePassword: false
                 }
             });

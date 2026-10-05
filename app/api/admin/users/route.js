@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { getServerSession } from '@/lib/auth';
+import { getServerSession, hashPassword } from '@/lib/auth';
 import prisma from '@/lib/db';
 
 const DB_PATH = join(process.cwd(), 'data', 'users.json');
@@ -243,11 +243,13 @@ export async function POST(request) {
         const randomSuffix = Math.random().toString(36).substring(2, 6);
         const userId = `${cleanName}_${randomSuffix}`;
 
+        const hashedPassword = await hashPassword(password);
+
         const newUser = {
             id: userId,
             nombre: nombre.trim(),
             email: email.trim().toLowerCase(),
-            password: password,
+            password: hashedPassword,
             tipoUsuario: tipoUsuario,
             role: role,
             mustChangePassword: true, // Force password change on first login
@@ -350,8 +352,10 @@ export async function PUT(request) {
         users[userIndex].role = role;
         users[userIndex].tipoUsuario = tipoUsuario;
 
+        let hashedPassword = null;
         if (password && password.trim() !== "") {
-            users[userIndex].password = password;
+            hashedPassword = await hashPassword(password);
+            users[userIndex].password = hashedPassword;
             users[userIndex].mustChangePassword = true; // Force password change if reset by admin
         }
 
@@ -365,7 +369,7 @@ export async function PUT(request) {
                     nombre: users[userIndex].nombre,
                     email: users[userIndex].email,
                     role: users[userIndex].role,
-                    ...(password && password.trim() !== "" ? { password, mustChangePassword: true } : {})
+                    ...(hashedPassword ? { password: hashedPassword, mustChangePassword: true } : {})
                 }
             });
         } catch (prismaErr) {

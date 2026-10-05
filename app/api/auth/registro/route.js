@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import prisma from '@/lib/db';
+import { hashPassword } from '@/lib/auth';
 
 export async function POST(request) {
     try {
@@ -31,11 +32,13 @@ export async function POST(request) {
         const randomSuffix = Math.random().toString(36).substring(2, 6);
         const userId = `${cleanName}_${randomSuffix}`;
 
+        const hashedPassword = await hashPassword(password);
+
         const newUser = {
             id: userId,
             nombre: nombre.trim(),
             email: email.trim().toLowerCase(),
-            password: password,
+            password: hashedPassword,
             tipoUsuario: tipoUsuario,
             role: "no-cliente", // Default category for self-registration from landing page
             createdAt: new Date().toISOString()

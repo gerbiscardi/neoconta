@@ -13,6 +13,7 @@
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.19.3",
     "afip.ts": "^3.2.2",
+    "bcryptjs": "^3.0.3",
     "framer-motion": "^12.34.0",
     "jose": "^6.2.12",
     "jsonwebtoken": "^9.0.3",

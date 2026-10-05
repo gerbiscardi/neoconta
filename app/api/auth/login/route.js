@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'neoconta_super_secret_jwt_key_2026_pro';
+import { verifyPassword, hashPassword, JWT_SECRET } from '@/lib/auth';
 
 export async function POST(request) {
     try {
@@ -14,14 +13,29 @@ export async function POST(request) {
 
         const normalizedEmail = email.trim().toLowerCase();
         const user = await prisma.user.findFirst({
-            where: {
-                email: normalizedEmail,
-                password: password
-            }
+            where: { email: normalizedEmail }
         });
 
         if (!user) {
             return NextResponse.json({ error: "Correo electrónico o contraseña incorrectos." }, { status: 401 });
+        }
+
+        const isMatch = await verifyPassword(password, user.password);
+        if (!isMatch) {
+            return NextResponse.json({ error: "Correo electrónico o contraseña incorrectos." }, { status: 401 });
+        }
+
+        // Automatic transparent migration: upgrade legacy plaintext password to salted bcrypt hash
+        if (!user.password.startsWith('$2')) {
+            try {
+                const newHash = await hashPassword(password);
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { password: newHash }
+                });
+            } catch (hashErr) {
+                console.error("Error auto-upgrading user password to bcrypt:", hashErr);
+            }
         }
 
         // Return user info excluding password
