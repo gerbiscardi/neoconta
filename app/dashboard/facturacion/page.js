@@ -177,12 +177,7 @@ export default function FacturacionPage() {
                 const data = await res.json();
                 if (data.success) {
                     const cond = data.condicionIva || "Responsable Monotributo";
-                    const isOwner = user.role === 'owner' || user.id === 'admin' || user.email === 'admin@neoconta.com' || user.email === 'rmanuelguerrero@gmail.com' || data.plan === 'full';
-                    if (isOwner && user.role !== 'owner') {
-                        user.role = 'owner';
-                        localStorage.setItem('neoconta_user', JSON.stringify(user));
-                        setCurrentUser({ ...user });
-                    }
+                    const isOwner = user.role === 'owner' || user.id === 'admin' || user.email === 'admin@neoconta.com';
                     const rawFeatures = data.features || {};
                     const effectiveFeatures = isOwner ? {
                         ...rawFeatures,
@@ -1763,7 +1758,7 @@ export default function FacturacionPage() {
         ? filteredRows 
         : filteredRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
-    const isOwner = currentUser?.role === 'owner' || currentUser?.id === 'admin' || currentUser?.email === 'admin@neoconta.com' || currentUser?.email === 'rmanuelguerrero@gmail.com' || issuerConfig.plan === 'full';
+    const isOwner = currentUser?.role === 'owner' || currentUser?.id === 'admin' || currentUser?.email === 'admin@neoconta.com';
     const canUseFacturacionMasiva = isOwner || Boolean(issuerConfig.features?.facturacionMasiva);
 
     return (

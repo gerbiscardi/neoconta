@@ -84,7 +84,12 @@ export default function Dashboard() {
     // Client specific states
     const [clientStats, setClientStats] = useState({
         totalInvoiced: 0,
+        invoicedThisMonth: 0,
+        invoicedPrevMonth: 0,
+        invoiceCountThisMonth: 0,
+        invoicedMonthChange: "Mes en curso",
         invoiceCount: 0,
+        totalBankBalance: 0,
         bankIncomeMonth: 0,
         bankIncomeChange: "Sin cambios",
         reconciliationRate: 0.0
@@ -295,6 +300,11 @@ export default function Dashboard() {
                     razonSocialVal = dataConfig.razonSocial || "Empresa No Configurada";
                     cuitVal = dataConfig.cuit || "";
                     setCompanyConfig({ razonSocial: razonSocialVal, cuit: cuitVal });
+                    if (dataConfig.userRole && dataConfig.userRole !== user.role && user.id !== 'admin' && user.email !== 'admin@neoconta.com') {
+                        user.role = dataConfig.userRole;
+                        localStorage.setItem('neoconta_user', JSON.stringify(user));
+                        setCurrentUser({ ...user });
+                    }
                 }
             } catch (e) {
                 console.error("Error fetching client config:", e);
@@ -339,17 +349,22 @@ export default function Dashboard() {
 
             let bankIncomeMonth = 0;
             let bankIncomePrevMonth = 0;
+            let totalBankBalance = 0;
 
             transactions.forEach(tx => {
-                if (tx.transaction_date && parseFloat(tx.amount) > 0) {
+                const amount = parseFloat(tx.amount) || 0;
+                totalBankBalance += amount;
+                if (tx.transaction_date && amount > 0) {
                     const txDate = new Date(tx.transaction_date);
-                    const txYear = txDate.getFullYear();
-                    const txMonth = txDate.getMonth();
+                    if (!isNaN(txDate.getTime())) {
+                        const txYear = txDate.getFullYear();
+                        const txMonth = txDate.getMonth();
 
-                    if (txYear === currentYear && txMonth === currentMonth) {
-                        bankIncomeMonth += parseFloat(tx.amount);
-                    } else if (txYear === prevYear && txMonth === prevMonth) {
-                        bankIncomePrevMonth += parseFloat(tx.amount);
+                        if (txYear === currentYear && txMonth === currentMonth) {
+                            bankIncomeMonth += amount;
+                        } else if (txYear === prevYear && txMonth === prevMonth) {
+                            bankIncomePrevMonth += amount;
+                        }
                     }
                 }
             });
@@ -374,8 +389,13 @@ export default function Dashboard() {
             }
 
             setClientStats({
-                totalInvoiced: summary.totalInvoiced,
-                invoiceCount: summary.invoiceCount,
+                totalInvoiced: summary.totalInvoiced || 0,
+                invoicedThisMonth: summary.invoicedThisMonth || 0,
+                invoicedPrevMonth: summary.invoicedPrevMonth || 0,
+                invoiceCountThisMonth: summary.invoiceCountThisMonth || 0,
+                invoicedMonthChange: summary.invoicedMonthChange || "Mes en curso",
+                invoiceCount: summary.invoiceCount || 0,
+                totalBankBalance,
                 bankIncomeMonth,
                 bankIncomeChange,
                 reconciliationRate
@@ -516,9 +536,9 @@ export default function Dashboard() {
             if (parsedUser.mustChangePassword === true) {
                 setShowChangePasswordOverlay(true);
             } else {
-                if (parsedUser.role === 'owner') {
+                if (parsedUser.role === 'owner' && (parsedUser.id === 'admin' || parsedUser.email === 'admin@neoconta.com')) {
                     fetchUsers(parsedUser);
-                } else if (parsedUser.role === 'cliente') {
+                } else {
                     fetchClientForecast(parsedUser);
                     fetchClientDashboardData(parsedUser);
                 }
@@ -1606,7 +1626,7 @@ export default function Dashboard() {
         );
     }
 
-    if (currentUser.role === 'owner') {
+    if (currentUser.role === 'owner' && (currentUser.id === 'admin' || currentUser.email === 'admin@neoconta.com')) {
         return RenderOwnerDashboard();
     }
 
@@ -1728,28 +1748,36 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
                     { 
-                        label: "Ingresos Totales (ARS)", 
+                        label: "Facturación Total Acumulada", 
                         value: formatCurrency(clientStats.totalInvoiced), 
-                        change: "Total Facturado", 
+                        change: "Total Histórico ARCA", 
                         trend: "up", 
                         icon: <DollarSign className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />, 
                         bg: "bg-emerald-50 dark:bg-emerald-950/20" 
                     },
                     { 
-                        label: "Comprobantes Emitidos", 
-                        value: clientStats.invoiceCount, 
-                        change: "Comprobantes afip", 
-                        trend: "up", 
-                        icon: <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />, 
+                        label: "Facturado Este Mes", 
+                        value: formatCurrency(clientStats.invoicedThisMonth), 
+                        change: clientStats.invoicedMonthChange, 
+                        trend: String(clientStats.invoicedMonthChange).startsWith("-") ? "down" : "up", 
+                        icon: <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />, 
                         bg: "bg-blue-50 dark:bg-blue-950/20" 
                     },
                     { 
-                        label: "Ingresos Bancarios del mes", 
-                        value: formatCurrency(clientStats.bankIncomeMonth), 
-                        change: clientStats.bankIncomeChange, 
-                        trend: clientStats.bankIncomeChange.startsWith("-") ? "down" : "up", 
+                        label: "Saldo Disponible en Banco", 
+                        value: formatCurrency(clientStats.totalBankBalance !== undefined ? clientStats.totalBankBalance : totalBankBalance), 
+                        change: bankSummaryList.length > 0 ? `${bankSummaryList.length} ${bankSummaryList.length === 1 ? 'cuenta activa' : 'cuentas activas'}` : "Saldo disponible", 
+                        trend: (clientStats.totalBankBalance !== undefined ? clientStats.totalBankBalance : totalBankBalance) >= 0 ? "up" : "down", 
                         icon: <Wallet className="h-6 w-6 text-orange-600 dark:text-orange-400" />, 
                         bg: "bg-orange-50 dark:bg-orange-950/20" 
+                    },
+                    { 
+                        label: "Comprobantes Emitidos", 
+                        value: clientStats.invoiceCount, 
+                        change: `${clientStats.invoiceCountThisMonth || 0} este mes`, 
+                        trend: "up", 
+                        icon: <FileText className="h-6 w-6 text-purple-600 dark:text-purple-400" />, 
+                        bg: "bg-purple-50 dark:bg-purple-950/20" 
                     },
                 ].map((stat, idx) => (
                     <div key={idx} className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
@@ -1766,45 +1794,6 @@ export default function Dashboard() {
                         <p className="text-sm text-slate-500 dark:text-slate-400">{stat.label}</p>
                     </div>
                 ))}
-
-                {/* 4th card: Compact Recent Activity */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between min-h-[140px]">
-                    <div className="flex justify-between items-center mb-2.5">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2.5 bg-purple-50 dark:bg-purple-950/20 rounded-xl text-purple-600 dark:text-purple-400">
-                                <Activity className="h-5 w-5" />
-                            </div>
-                            <span className="text-sm font-bold text-slate-900 dark:text-white">Actividad Reciente</span>
-                        </div>
-                        <button 
-                            onClick={() => router.push('/dashboard/facturacion')}
-                            className="text-xs text-orange-600 dark:text-orange-400 font-semibold hover:underline cursor-pointer"
-                        >
-                            Ver más
-                        </button>
-                    </div>
-                    <div className="space-y-3 overflow-y-auto pr-1 flex-1 max-h-[80px]">
-                        {clientActivities.length === 0 ? (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 italic py-1">Sin actividad reciente.</p>
-                        ) : (
-                            clientActivities.slice(0, 3).map((item, i) => (
-                                <div key={i} className="flex items-start gap-2 text-xs">
-                                    <div className={`w-2.5 h-2.5 mt-1.5 rounded-full flex-shrink-0 ${
-                                        item.type === 'success' ? 'bg-emerald-500' :
-                                        item.type === 'warning' ? 'bg-amber-500' :
-                                        item.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-                                    }`}></div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-semibold text-slate-850 dark:text-slate-200 truncate leading-snug" title={item.title}>
-                                            {item.title}
-                                        </p>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{item.time}</p>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
             </div>
 
             {/* Recent Activity & Charts Placeholder */}
@@ -1919,6 +1908,43 @@ export default function Dashboard() {
                         Ver movimientos bancarios
                     </button>
                 </div>
+            </div>
+
+            {/* Actividad Reciente del Negocio */}
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        Actividad Reciente del Negocio
+                    </h2>
+                    <button 
+                        onClick={() => router.push('/dashboard/facturacion')}
+                        className="text-xs text-orange-600 dark:text-orange-400 font-semibold hover:underline cursor-pointer"
+                    >
+                        Ver historial de facturación
+                    </button>
+                </div>
+                {clientActivities.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 italic py-2">Sin actividad reciente registrada.</p>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {clientActivities.slice(0, 6).map((item, i) => (
+                            <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 flex items-start gap-3">
+                                <div className={`w-2.5 h-2.5 mt-1.5 rounded-full flex-shrink-0 ${
+                                    item.type === 'success' ? 'bg-emerald-500' :
+                                    item.type === 'warning' ? 'bg-amber-500' :
+                                    item.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+                                }`}></div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-slate-850 dark:text-slate-200 truncate text-xs leading-snug" title={item.title}>
+                                        {item.title}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{item.time}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <RemitAccountingModal

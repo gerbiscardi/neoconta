@@ -196,6 +196,10 @@ export async function GET(request) {
             // 1. Calculate summary stats (O(N) single loop)
             let totalInvoiced = 0;
             let invoiceCount = 0;
+            let invoicedThisMonth = 0;
+            let invoicedPrevMonth = 0;
+            let invoiceCountThisMonth = 0;
+
             const approved = normalized.filter(inv => inv.status === 'aprobado');
             
             const monthlyInvoiced = {};
@@ -203,6 +207,12 @@ export async function GET(request) {
             // Initialize last 12 months (up to the current month)
             const defaultMonths = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
             const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth();
+            const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+            const prevYear = prevMonthDate.getFullYear();
+            const prevMonth = prevMonthDate.getMonth();
+
             const last12Months = [];
             for (let i = 11; i >= 0; i--) {
                 const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -240,12 +250,19 @@ export async function GET(request) {
                         const day = parseInt(String(dateStr).substring(6, 8), 10);
                         invDate = new Date(year, month, day);
                     }
-                    if (invDate) {
+                    if (invDate && !isNaN(invDate.getTime())) {
                         const invYear = invDate.getFullYear();
                         const invMonth = invDate.getMonth();
                         const match = last12Months.find(m => m.year === invYear && m.month === invMonth);
                         if (match) {
                             match.value += diff;
+                        }
+
+                        if (invYear === currentYear && invMonth === currentMonth) {
+                            invoicedThisMonth += diff;
+                            invoiceCountThisMonth++;
+                        } else if (invYear === prevYear && invMonth === prevMonth) {
+                            invoicedPrevMonth += diff;
                         }
                     }
                 }
@@ -259,6 +276,14 @@ export async function GET(request) {
             last12Months.forEach(m => {
                 if (m.value < 0) m.value = 0;
             });
+
+            let invoicedMonthChange = "Mes en curso";
+            if (invoicedPrevMonth > 0) {
+                const diffPct = ((invoicedThisMonth - invoicedPrevMonth) / invoicedPrevMonth) * 100;
+                invoicedMonthChange = (diffPct >= 0 ? "+" : "") + diffPct.toFixed(1) + "% vs mes ant.";
+            } else if (invoicedThisMonth > 0) {
+                invoicedMonthChange = "+100% vs mes ant.";
+            }
 
             // Convert to Prophet format ds & y
             const forecastHistory = Object.keys(monthlyInvoiced).map(k => ({
@@ -286,6 +311,10 @@ export async function GET(request) {
                 summary: {
                     totalInvoiced,
                     invoiceCount,
+                    invoicedThisMonth: Math.max(0, invoicedThisMonth),
+                    invoicedPrevMonth: Math.max(0, invoicedPrevMonth),
+                    invoiceCountThisMonth,
+                    invoicedMonthChange,
                     recentActivities,
                     forecastHistory,
                     clientChartPoints: last12Months

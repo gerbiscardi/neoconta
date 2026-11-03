@@ -43,25 +43,26 @@ export default function DashboardLayout({ children }) {
             setCurrentUser(user);
             
             const targetUserId = (user.role === 'vitacore-professional' || user.role === 'vitacore-receptionist') ? user.parentId : user.id;
-            if (user.role === 'cliente' || user.role === 'vitacore-professional' || user.role === 'vitacore-receptionist') {
-                fetch(`/api/user/config?userId=${targetUserId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            setUserConfig(data);
-                            if (user.role === 'cliente' && (!data.onboardingCompleted || !data.razonSocial)) {
-                                setShowOnboardingModal(true);
-                            }
+            fetch(`/api/user/config?userId=${targetUserId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        setUserConfig(data);
+                        if (data.userRole && data.userRole !== user.role && user.id !== 'admin' && user.email !== 'admin@neoconta.com') {
+                            user.role = data.userRole;
+                            localStorage.setItem('neoconta_user', JSON.stringify(user));
+                            setCurrentUser({ ...user });
                         }
-                        setLoading(false);
-                    })
-                    .catch(err => {
-                        console.error("Error loading config:", err);
-                        setLoading(false);
-                    });
-            } else {
-                setLoading(false);
-            }
+                        if (user.role === 'cliente' && (!data.onboardingCompleted || !data.razonSocial)) {
+                            setShowOnboardingModal(true);
+                        }
+                    }
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error("Error loading config:", err);
+                    setLoading(false);
+                });
         }
     }, [router]);
 
