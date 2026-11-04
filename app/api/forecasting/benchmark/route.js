@@ -12,6 +12,7 @@ import {
     runTemporalBacktest, 
     selectAdaptiveModel 
 } from '@/lib/forecasting/engine';
+import { recordShadowForecasts, getShadowLedger } from '@/lib/forecasting/shadowLedger';
 
 // Helper to resolve AFIP voucher type
 const getCbteTipo = (invoice) => {
@@ -165,8 +166,19 @@ export async function GET(request) {
         const m5_gated = runHoltDampedTrend(seriesValues, { enforceGate: true, minHistoryForTrend: 6 });
         const m5_ungated = runHoltDampedTrend(seriesValues, { enforceGate: false });
 
-        const backtest = runTemporalBacktest(seriesValues, 2);
+        const backtest = runTemporalBacktest(seriesValues, 2, completedMonths.map(m => m.label));
         const adaptiveSelection = selectAdaptiveModel(seriesValues);
+
+        // Registrar en el Shadow Ledger para el mes en curso (Noviembre 2026)
+        const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+        await recordShadowForecasts({
+            userId: targetUserId,
+            seriesValues,
+            targetMonthKey: currentMonthKey
+        });
+
+        // Si se solicita específicamente el historial de auditoría del ledger
+        const ledgerHistory = await getShadowLedger(targetUserId);
 
         return NextResponse.json({
             success: true,
@@ -177,13 +189,18 @@ export async function GET(request) {
                 periodStart: completedMonths[0]?.label || 'N/A',
                 periodEnd: completedMonths[completedMonths.length - 1]?.label || 'N/A',
                 currency: 'ARS',
-                accountingCriteria: 'Facturación devengada mensual con deducción de Notas de Crédito por fecha fiscal (cbteFch). Excluye mes en curso.',
+                accountingCriteria: 'Facturación neta devengada mensual (Facturas - Notas de Crédito por cbteFch). Excluye mes en curso.',
                 auditTimestamp: new Date().toISOString()
             },
             series: completedMonths,
             models: [m0, m1, m2, m3, m4_fixed, m4_adaptive, m5_gated, m5_ungated],
             backtest,
-            adaptiveSelection
+            adaptiveSelection,
+            shadowLedger: {
+                targetMonth: currentMonthKey,
+                totalRecorded: ledgerHistory.length,
+                entries: ledgerHistory
+            }
         });
 
     } catch (error) {
