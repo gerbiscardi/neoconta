@@ -31,7 +31,8 @@ class CashFlowPoint(BaseModel):
 
 class CashFlowRequest(BaseModel):
     history: List[CashFlowPoint]
-    periods: int = 90 # Días a predecir a futuro
+    periods: int = 2 # Períodos a predecir a futuro
+    freq: Optional[str] = None # 'MS' para mensual, 'D' para diario (auto-detectado si no se envía)
 
 class InvoiceItem(BaseModel):
     id: str
@@ -82,33 +83,51 @@ def predict_cashflow(request: CashFlowRequest):
         
         # Convertir columna ds a datetime
         df['ds'] = pd.to_datetime(df['ds'])
+        df = df.sort_values('ds').reset_index(drop=True)
         
-        # Inicializar y entrenar Prophet
-        # Desactivamos estacionalidad anual si hay pocos datos (menos de un año completo) para evitar overfitting
-        has_full_year = len(df) >= 12
+        # Detección inteligente de frecuencia mensual vs diaria
+        is_monthly = False
+        if request.freq == 'MS':
+            is_monthly = True
+        elif request.freq == 'D':
+            is_monthly = False
+        elif len(df) > 1:
+            diff_days = (df['ds'].iloc[1] - df['ds'].iloc[0]).days
+            if diff_days >= 25:
+                is_monthly = True
+
+        target_freq = 'MS' if is_monthly else 'D'
+
+        # Configuración estadísticamente rigurosa para evitar oscilaciones de Fourier espurias
+        # Desactivamos estacionalidades semanal y diaria en datos agregados mensuales
         model = Prophet(
-            yearly_seasonality=has_full_year,
-            weekly_seasonality=True,
-            daily_seasonality=False
+            yearly_seasonality=len(df) >= 24, # Requiere al menos 2 ciclos anuales completos
+            weekly_seasonality=False if is_monthly else (len(df) >= 14),
+            daily_seasonality=False,
+            interval_width=0.80 # Intervalo creíble del 80%
         )
         
         model.fit(df)
         
         # Crear dataframe para el futuro
-        future = model.make_future_dataframe(periods=request.periods, freq='D')
+        future = model.make_future_dataframe(periods=request.periods, freq=target_freq)
         forecast = model.predict(future)
         
         # Formatear la respuesta
         result = []
         for index, row in forecast.iterrows():
-            # Determinar si es un punto histórico o una predicción futura
             is_forecast = row['ds'] > df['ds'].max()
             
+            # Garantizar que los importes de facturación no sean negativos
+            yhat = max(0.0, float(row['yhat']))
+            yhat_lower = max(0.0, float(row['yhat_lower']))
+            yhat_upper = max(0.0, float(row['yhat_upper']))
+
             result.append({
                 "date": row['ds'].strftime('%Y-%m-%d'),
-                "yhat": float(row['yhat']),
-                "yhat_lower": float(row['yhat_lower']),
-                "yhat_upper": float(row['yhat_upper']),
+                "yhat": round(yhat, 2),
+                "yhat_lower": round(yhat_lower, 2),
+                "yhat_upper": round(yhat_upper, 2),
                 "is_prediction": is_forecast
             })
             
@@ -117,7 +136,8 @@ def predict_cashflow(request: CashFlowRequest):
             "forecast": result,
             "metrics": {
                 "historical_points": len(df),
-                "predicted_days": request.periods
+                "predicted_periods": request.periods,
+                "frequency": target_freq
             }
         }
         

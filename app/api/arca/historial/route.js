@@ -69,9 +69,8 @@ const getEmissionDate = (invoice) => {
     return `${dd}/${mm}/${yyyy}`;
 };
 
-// Helper to get sorting timestamp
+// Helper to get sorting timestamp (prioritizing official emission date cbteFch)
 const getSortDate = (inv) => {
-    if (inv.created_at) return new Date(inv.created_at).getTime();
     const dateStr = inv.cbteFch || inv.CbteFch;
     if (dateStr && String(dateStr).length === 8) {
         const year = parseInt(String(dateStr).substring(0, 4), 10);
@@ -79,6 +78,7 @@ const getSortDate = (inv) => {
         const day = parseInt(String(dateStr).substring(6, 8), 10);
         return new Date(year, month, day).getTime();
     }
+    if (inv.created_at) return new Date(inv.created_at).getTime();
     return 0;
 };
 
@@ -193,39 +193,48 @@ export async function GET(request) {
         const isSummary = searchParams.get('summary') === 'true';
 
         if (isSummary) {
-            // 1. Calculate summary stats (O(N) single loop)
+            // 1. Calculate summary stats
             let totalInvoiced = 0;
             let invoiceCount = 0;
-            let invoicedThisMonth = 0;
-            let invoicedPrevMonth = 0;
-            let invoiceCountThisMonth = 0;
-
             const approved = normalized.filter(inv => inv.status === 'aprobado');
-            
-            const monthlyInvoiced = {};
-            
-            // Initialize last 12 months (up to the current month)
-            const defaultMonths = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+            const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+            const fullMonthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
             const now = new Date();
             const currentYear = now.getFullYear();
             const currentMonth = now.getMonth();
-            const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
-            const prevYear = prevMonthDate.getFullYear();
-            const prevMonth = prevMonthDate.getMonth();
 
-            const last12Months = [];
-            for (let i = 11; i >= 0; i--) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                last12Months.push({
-                    year: d.getFullYear(),
-                    month: d.getMonth(),
-                    label: defaultMonths[d.getMonth()],
-                    value: 0,
-                    isPrediction: false
-                });
-            }
+            // Helper to parse official emission date (cbteFch prioritized over created_at)
+            const parseInvoiceEmissionDate = (inv) => {
+                const raw = inv.cbteFch || inv.CbteFch || inv.created_at;
+                if (!raw) return null;
+                const str = String(raw).trim();
+                if (str.length === 8 && /^\d{8}$/.test(str)) {
+                    const y = parseInt(str.substring(0, 4), 10);
+                    const m = parseInt(str.substring(4, 6), 10) - 1;
+                    const d = parseInt(str.substring(6, 8), 10);
+                    return new Date(y, m, d);
+                }
+                const parsed = new Date(str);
+                return isNaN(parsed.getTime()) ? null : parsed;
+            };
+
+            const buckets = {};
+            let earliestDate = null;
 
             approved.forEach(inv => {
+                const emissionDate = parseInvoiceEmissionDate(inv);
+                if (!emissionDate) return;
+
+                if (!earliestDate || emissionDate < earliestDate) {
+                    earliestDate = emissionDate;
+                }
+
+                const y = emissionDate.getFullYear();
+                const m = emissionDate.getMonth();
+                const key = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+
                 const type = getCbteTipo(inv);
                 const isCredit = [3, 8, 13, 203, 208, 213].includes(type);
                 const amount = parseFloat(inv.Importe || 0);
@@ -234,75 +243,180 @@ export async function GET(request) {
                 totalInvoiced += diff;
                 invoiceCount++;
 
-                // Aggregate by month for cash flow forecast
-                const dateStr = inv.created_at || inv.cbteFch;
-                if (dateStr) {
-                    const monthKey = dateStr.substring(0, 7) + "-01"; // e.g. "2026-05-01"
-                    monthlyInvoiced[monthKey] = (monthlyInvoiced[monthKey] || 0) + diff;
+                if (!buckets[key]) {
+                    buckets[key] = {
+                        year: y,
+                        month: m,
+                        key,
+                        facturasCount: 0,
+                        facturasTotal: 0,
+                        ncCount: 0,
+                        ncTotal: 0,
+                        netTotal: 0
+                    };
+                }
 
-                    // Also aggregate into the last 12 months chart data
-                    let invDate;
-                    if (String(dateStr).includes('-') || String(dateStr).includes('/')) {
-                        invDate = new Date(dateStr);
-                    } else if (String(dateStr).length === 8) {
-                        const year = parseInt(String(dateStr).substring(0, 4), 10);
-                        const month = parseInt(String(dateStr).substring(4, 6), 10) - 1;
-                        const day = parseInt(String(dateStr).substring(6, 8), 10);
-                        invDate = new Date(year, month, day);
-                    }
-                    if (invDate && !isNaN(invDate.getTime())) {
-                        const invYear = invDate.getFullYear();
-                        const invMonth = invDate.getMonth();
-                        const match = last12Months.find(m => m.year === invYear && m.month === invMonth);
-                        if (match) {
-                            match.value += diff;
-                        }
-
-                        if (invYear === currentYear && invMonth === currentMonth) {
-                            invoicedThisMonth += diff;
-                            invoiceCountThisMonth++;
-                        } else if (invYear === prevYear && invMonth === prevMonth) {
-                            invoicedPrevMonth += diff;
-                        }
-                    }
+                if (isCredit) {
+                    buckets[key].ncCount++;
+                    buckets[key].ncTotal += amount;
+                    buckets[key].netTotal -= amount;
+                } else {
+                    buckets[key].facturasCount++;
+                    buckets[key].facturasTotal += amount;
+                    buckets[key].netTotal += amount;
                 }
             });
 
-            // Ensure monthly sums are not negative
-            Object.keys(monthlyInvoiced).forEach(k => {
-                if (monthlyInvoiced[k] < 0) monthlyInvoiced[k] = 0;
-            });
+            // 2. Build continuous monthly series from earliestDate up to last completed month (month - 1)
+            const completedMonthsSeries = [];
+            let totalNetCompleted = 0;
 
-            last12Months.forEach(m => {
-                if (m.value < 0) m.value = 0;
-            });
+            if (earliestDate) {
+                let cursorYear = earliestDate.getFullYear();
+                let cursorMonth = earliestDate.getMonth();
+
+                const lastCompleteDate = new Date(currentYear, currentMonth - 1, 1);
+                let cur = new Date(cursorYear, cursorMonth, 1);
+                while (cur <= lastCompleteDate) {
+                    const y = cur.getFullYear();
+                    const m = cur.getMonth();
+                    const key = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+
+                    const b = buckets[key] || {
+                        year: y,
+                        month: m,
+                        key,
+                        facturasCount: 0,
+                        facturasTotal: 0,
+                        ncCount: 0,
+                        ncTotal: 0,
+                        netTotal: 0
+                    };
+
+                    const net = Math.max(0, b.netTotal);
+                    totalNetCompleted += net;
+
+                    completedMonthsSeries.push({
+                        key,
+                        year: y,
+                        month: m,
+                        label: `${monthNames[m]} ${y}`,
+                        shortMonth: monthNames[m],
+                        fullLabel: `${fullMonthNames[m]} ${y}`,
+                        facturasCount: b.facturasCount,
+                        facturasTotal: b.facturasTotal,
+                        ncCount: b.ncCount,
+                        ncTotal: b.ncTotal,
+                        netTotal: net,
+                        isComplete: true,
+                        isZeroActivity: b.facturasCount === 0 && b.ncCount === 0
+                    });
+
+                    cur.setMonth(cur.getMonth() + 1);
+                }
+            }
+
+            // Current Month (in progress / incomplete)
+            const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+            const currentBucket = buckets[currentMonthKey] || { facturasCount: 0, facturasTotal: 0, ncCount: 0, ncTotal: 0, netTotal: 0 };
+            const currentMonthInvoiced = Math.max(0, currentBucket.netTotal);
+
+            // Previous Month (last closed month)
+            const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+            const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
+            const prevBucket = buckets[prevMonthKey] || { netTotal: 0 };
+            const prevMonthInvoiced = Math.max(0, prevBucket.netTotal);
 
             let invoicedMonthChange = "Mes en curso";
-            if (invoicedPrevMonth > 0) {
-                const diffPct = ((invoicedThisMonth - invoicedPrevMonth) / invoicedPrevMonth) * 100;
+            if (prevMonthInvoiced > 0) {
+                const diffPct = ((currentMonthInvoiced - prevMonthInvoiced) / prevMonthInvoiced) * 100;
                 invoicedMonthChange = (diffPct >= 0 ? "+" : "") + diffPct.toFixed(1) + "% vs mes ant.";
-            } else if (invoicedThisMonth > 0) {
+            } else if (currentMonthInvoiced > 0) {
                 invoicedMonthChange = "+100% vs mes ant.";
             }
 
-            // Convert to Prophet format ds & y
-            const forecastHistory = Object.keys(monthlyInvoiced).map(k => ({
-                ds: k,
-                y: monthlyInvoiced[k]
-            })).sort((a, b) => new Date(a.ds) - new Date(b.ds));
+            // 3. Continuous timeline sent to Prophet (only complete months + zero months in between)
+            const forecastHistory = completedMonthsSeries.map(m => ({
+                ds: m.key,
+                y: m.netTotal
+            }));
+
+            // 4. Baseline Financial Projections (Auditable Reference Model)
+            const completedCount = completedMonthsSeries.length;
+            const simpleAverage = completedCount > 0 ? (totalNetCompleted / completedCount) : 0;
+
+            const sortedNets = [...completedMonthsSeries.map(m => m.netTotal)].sort((a, b) => a - b);
+            const median = sortedNets.length > 0 ? (
+                sortedNets.length % 2 === 1
+                    ? sortedNets[Math.floor(sortedNets.length / 2)]
+                    : (sortedNets[sortedNets.length / 2 - 1] + sortedNets[sortedNets.length / 2]) / 2
+            ) : 0;
+
+            let wSum = 0;
+            let sumWeights = 0;
+            completedMonthsSeries.forEach((m, idx) => {
+                const w = idx + 1;
+                wSum += m.netTotal * w;
+                sumWeights += w;
+            });
+            const weightedAverage = sumWeights > 0 ? (wSum / sumWeights) : 0;
+
+            // Generate future projected periods (current month in progress & next month)
+            const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
+            const projectedPeriods = [
+                {
+                    key: currentMonthKey,
+                    year: currentYear,
+                    month: currentMonth,
+                    label: `${fullMonthNames[currentMonth]} ${currentYear}`,
+                    shortLabel: `${monthNames[currentMonth]} ${currentYear}`,
+                    isCurrentMonth: true,
+                    projectedCentral: Math.round(simpleAverage),
+                    currentActualInvoiced: currentMonthInvoiced,
+                    methodologyName: "Promedio Mensual Continuo (Modelo de Referencia)"
+                },
+                {
+                    key: `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-01`,
+                    year: nextMonthDate.getFullYear(),
+                    month: nextMonthDate.getMonth(),
+                    label: `${fullMonthNames[nextMonthDate.getMonth()]} ${nextMonthDate.getFullYear()}`,
+                    shortLabel: `${monthNames[nextMonthDate.getMonth()]} ${nextMonthDate.getFullYear()}`,
+                    isCurrentMonth: false,
+                    projectedCentral: Math.round(simpleAverage),
+                    currentActualInvoiced: 0,
+                    methodologyName: "Promedio Mensual Continuo (Modelo de Referencia)"
+                }
+            ];
+
+            const forecastMethodology = {
+                methodName: "Promedio Mensual Continuo (Modelo de Referencia)",
+                modelType: "baseline_simple_average",
+                monthsCount: completedCount,
+                periodStart: completedMonthsSeries[0]?.fullLabel || "N/A",
+                periodEnd: completedMonthsSeries[completedMonthsSeries.length - 1]?.fullLabel || "N/A",
+                totalNetInvoiced: totalNetCompleted,
+                simpleAverage: Math.round(simpleAverage),
+                median: Math.round(median),
+                weightedAverage: Math.round(weightedAverage),
+                confidenceStatus: completedCount < 12 ? `Historial limitado (${completedCount} meses)` : "Estadísticamente validado",
+                confidenceReason: completedCount < 12 
+                    ? `El historial disponible es de ${completedCount} meses completos (< 12 meses requeridos para estimar estacionalidad). Se presenta la estimación central auditable sin intervalos de confianza artificiales.`
+                    : "Muestra suficiente para evaluación de varianza.",
+                explanation: `La estimación se calculó mediante el promedio mensual continuo de los ${completedCount} meses cerrados (${completedMonthsSeries[0]?.fullLabel || ""} – ${completedMonthsSeries[completedMonthsSeries.length - 1]?.fullLabel || ""}), integrando Septiembre 2026 con $ 0 (sin emisión). Noviembre no se computa como mes cerrado por encontrarse en curso.`
+            };
 
             // Format recent activities (last 5 items)
             const sortedApproved = [...approved].sort((a, b) => getSortDate(b) - getSortDate(a));
             const recentActivities = sortedApproved.slice(0, 5).map(inv => {
-                const dateStr = inv.created_at || inv.cbteFch;
+                const dateStr = inv.cbteFch || inv.created_at;
                 const buyerName = inv.RazonSocial || "Consumidor Final";
                 const type = getCbteTipo(inv);
                 const voucherName = getVoucherName(type);
                 return {
                     title: `${voucherName} emitida a ${buyerName}`,
-                    time: dateStr ? new Date(dateStr).toLocaleDateString('es-AR') : 'Reciente',
+                    time: dateStr ? getEmissionDate(inv) : 'Reciente',
                     type: [3, 8, 13, 203, 208, 213].includes(type) ? 'warning' : 'success',
-                    date: dateStr ? new Date(dateStr).toISOString() : new Date(0).toISOString()
+                    date: dateStr ? new Date(getSortDate(inv)).toISOString() : new Date(0).toISOString()
                 };
             });
 
@@ -311,13 +425,15 @@ export async function GET(request) {
                 summary: {
                     totalInvoiced,
                     invoiceCount,
-                    invoicedThisMonth: Math.max(0, invoicedThisMonth),
-                    invoicedPrevMonth: Math.max(0, invoicedPrevMonth),
-                    invoiceCountThisMonth,
+                    invoicedThisMonth: currentMonthInvoiced,
+                    invoicedPrevMonth: prevMonthInvoiced,
+                    invoiceCountThisMonth: currentBucket.facturasCount + currentBucket.ncCount,
                     invoicedMonthChange,
                     recentActivities,
                     forecastHistory,
-                    clientChartPoints: last12Months
+                    completedMonthsSeries,
+                    projectedPeriods,
+                    forecastMethodology
                 }
             });
         }

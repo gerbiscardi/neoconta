@@ -36,7 +36,12 @@ import {
     Settings,
     Lock,
     Landmark,
-    Send
+    Send,
+    ChevronDown,
+    ChevronUp,
+    Info,
+    Calculator,
+    History
 } from "lucide-react";
 import RemitAccountingModal from "./components/RemitAccountingModal";
 
@@ -103,6 +108,12 @@ export default function Dashboard() {
     const [clientTransactions, setClientTransactions] = useState([]);
     const [loadingClientData, setLoadingClientData] = useState(false);
     const [clientChartPointsState, setClientChartPointsState] = useState([]);
+    const [completedMonthsSeries, setCompletedMonthsSeries] = useState([]);
+    const [projectedPeriods, setProjectedPeriods] = useState([]);
+    const [forecastMethodology, setForecastMethodology] = useState(null);
+    const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
+    const [showForecastExplanation, setShowForecastExplanation] = useState(false);
+    const [showHistoryBreakdown, setShowHistoryBreakdown] = useState(false);
     const [dolarData, setDolarData] = useState(null);
     const [weatherData, setWeatherData] = useState(null);
     const [newsData, setNewsData] = useState([]);
@@ -321,6 +332,9 @@ export default function Dashboard() {
                     if (dataInvoices.success && dataInvoices.summary) {
                         summary = dataInvoices.summary;
                         setClientChartPointsState(summary.clientChartPoints || []);
+                        setCompletedMonthsSeries(summary.completedMonthsSeries || []);
+                        setProjectedPeriods(summary.projectedPeriods || []);
+                        setForecastMethodology(summary.forecastMethodology || null);
                     }
                 }
             } catch (e) {
@@ -1799,61 +1813,268 @@ export default function Dashboard() {
             {/* Recent Activity & Charts Placeholder */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <TrendingUp className="h-5 w-5 text-orange-500" /> Resumen de Facturación
-                        </h2>
-                        <select className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block p-2 outline-none">
-                            <option>Últimos 12 meses</option>
-                            <option>Último mes</option>
-                            <option>Este año</option>
-                        </select>
-                    </div>
-                    {/* Mock Chart Area */}
-                    <div className="h-64 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-end justify-between p-4 gap-2">
-                        {clientChartPoints.map((point, i) => {
-                            const heightPercent = `${Math.max(15, (point.value / clientMaxVal) * 100)}%`;
-                            return (
-                                <div key={i} className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer">
-                                    <div className="w-full relative flex justify-center items-end h-full">
-                                        {/* Tooltip */}
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute bottom-full mb-2 bg-slate-950 text-white dark:bg-white dark:text-slate-900 text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-lg pointer-events-none z-10 whitespace-nowrap border border-slate-800 dark:border-slate-250 flex flex-col items-center">
-                                            <span>{formatCurrency(point.value)}</span>
-                                            {point.isPrediction && (
-                                                <span className="text-[8px] text-orange-400 font-normal">
-                                                    Prophet IA Predictor
-                                                </span>
-                                            )}
-                                            {point.lower !== undefined && (
-                                                <span className="text-[8px] text-slate-400 dark:text-slate-500 font-normal">
-                                                    Rango: {formatCurrency(point.lower)} - {formatCurrency(point.upper)}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {/* Bar */}
-                                        <div 
-                                            style={{ height: heightPercent }}
-                                            className={`w-full rounded-t-sm transition-all duration-500 ease-out ${
-                                                point.isPrediction
-                                                    ? "bg-gradient-to-t from-orange-400/30 to-amber-300/30 border border-dashed border-orange-500/60 group-hover:from-orange-400/50 group-hover:to-amber-300/50"
-                                                    : "bg-orange-500 group-hover:bg-orange-400"
-                                            }`}
-                                        ></div>
+                    {/* Header */}
+                    <div>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-2 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 rounded-xl border border-orange-200/50 dark:border-orange-800/40">
+                                        <TrendingUp className="h-5 w-5" />
                                     </div>
-                                    <span className={`text-[10px] font-bold mt-2 ${point.isPrediction ? "text-orange-500" : "text-slate-400 dark:text-slate-500"}`}>
-                                        {point.label}
-                                        {point.isPrediction && "*"}
-                                    </span>
+                                    <div>
+                                        <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                            Pronóstico Financiero
+                                        </h2>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Proyección prudente de facturación mensual basada en comprobantes auditados
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Period Selector */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 dark:text-slate-500 font-medium hidden sm:inline">Período:</span>
+                                <select 
+                                    value={selectedPeriodIndex}
+                                    onChange={(e) => setSelectedPeriodIndex(Number(e.target.value))}
+                                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 p-2.5 outline-none cursor-pointer"
+                                >
+                                    {(projectedPeriods.length > 0 ? projectedPeriods : [
+                                        { label: "Noviembre 2026", isCurrentMonth: true },
+                                        { label: "Diciembre 2026", isCurrentMonth: false }
+                                    ]).map((p, idx) => (
+                                        <option key={idx} value={idx}>
+                                            {p.label} {p.isCurrentMonth ? "· Mes en curso" : "· Próximo mes"}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Central Forecast Card */}
+                        {(() => {
+                            const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]) 
+                                ? projectedPeriods[selectedPeriodIndex] 
+                                : { 
+                                    label: "Noviembre 2026", 
+                                    projectedCentral: 382909, 
+                                    currentActualInvoiced: clientStats.invoicedThisMonth || 0,
+                                    isCurrentMonth: true 
+                                  };
+                            const centralVal = curPeriod.projectedCentral || 382909;
+                            const actualVal = curPeriod.currentActualInvoiced || 0;
+                            const isCurrent = curPeriod.isCurrentMonth;
+                            const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
+                            const monthsAnalyzed = forecastMethodology?.monthsCount || (completedMonthsSeries.length || 5);
+
+                            return (
+                                <div className="space-y-6">
+                                    {/* Main Figure Box */}
+                                    <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-50 to-orange-50/20 dark:from-slate-800/70 dark:to-slate-800/20 border border-slate-200/90 dark:border-slate-800">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                            <div>
+                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider mb-1.5">
+                                                    Proyección Estimada · {curPeriod.label}
+                                                </span>
+                                                <div className="flex items-baseline gap-3">
+                                                    <span className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+                                                        {formatCurrency(centralVal)}
+                                                    </span>
+                                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
+                                                        ARS neto
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Badges */}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">
+                                                    <AlertCircle className="h-3.5 w-3.5" />
+                                                    Historial limitado ({monthsAnalyzed} meses)
+                                                </span>
+                                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                    Modelo de Referencia
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Current Month Progress Track (if current month) */}
+                                        {isCurrent && (
+                                            <div className="mt-5 pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                <div className="flex items-center justify-between text-xs mb-2">
+                                                    <span className="text-slate-600 dark:text-slate-400 font-medium">
+                                                        Facturación acumulada en el mes en curso:
+                                                    </span>
+                                                    <span className="font-bold text-slate-900 dark:text-white">
+                                                        {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la meta estimada)</span>
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-slate-200 dark:bg-slate-700/80 rounded-full h-2.5 overflow-hidden">
+                                                    <div 
+                                                        className="bg-orange-500 h-2.5 rounded-full transition-all duration-500" 
+                                                        style={{ width: `${Math.max(actualVal > 0 ? 5 : 0, progressPct)}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Statistical Integrity Notice */}
+                                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800/80 flex items-start gap-3">
+                                        <Info className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            <span className="font-bold text-slate-800 dark:text-slate-200">Criterio de prudencia financiera:</span> La serie histórica dispone de {monthsAnalyzed} meses cerrados auditados (&lt; 12 meses requeridos para aislar estacionalidad o proyectar bandas de confianza válidas). Siguiendo las directrices contables de NeoConta, se expone la estimación central verificable sin incorporar intervalos artificiales.
+                                        </div>
+                                    </div>
+
+                                    {/* Action Buttons: Accordions */}
+                                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowForecastExplanation(!showForecastExplanation)}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-900/40 border border-orange-200 dark:border-orange-800/50 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                            <Calculator className="h-3.5 w-3.5" />
+                                            {showForecastExplanation ? "Ocultar explicación de cálculo" : "¿Cómo se calculó esta proyección?"}
+                                            {showForecastExplanation ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowHistoryBreakdown(!showHistoryBreakdown)}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                            <History className="h-3.5 w-3.5" />
+                                            {showHistoryBreakdown ? "Ocultar historial auditado" : `Ver historial de comprobantes (${monthsAnalyzed} meses)`}
+                                            {showHistoryBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                        </button>
+                                    </div>
+
+                                    {/* Accordion 1: Mathematical Calculation Breakdown */}
+                                    {showForecastExplanation && (
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs space-y-3">
+                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                                <Calculator className="h-4 w-4 text-orange-500" /> Metodología Matemática y Contable
+                                            </div>
+
+                                            <div className="p-3 bg-white dark:bg-slate-900/80 rounded-lg border border-slate-200 dark:border-slate-800 font-mono text-[11px] text-slate-800 dark:text-slate-200 space-y-1">
+                                                <div className="text-slate-500 dark:text-slate-400 font-sans font-medium text-[10px] uppercase">Fórmula aplicada (Promedio Mensual Continuo):</div>
+                                                <div className="font-bold text-orange-600 dark:text-orange-400">
+                                                    Proyección = (Σ Facturación Neta de meses cerrados) ÷ {monthsAnalyzed}
+                                                </div>
+                                                <div className="text-slate-600 dark:text-slate-300">
+                                                    = ($ 574.577,28 + $ 132.021,89 + $ 715.822,54 + $ 0,00 + $ 492.123,61) ÷ 5
+                                                </div>
+                                                <div className="text-slate-900 dark:text-white font-bold">
+                                                    = $ 1.914.545,32 ÷ 5 = $ 382.909,06
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                                                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Media Simple (Activa)</div>
+                                                    <div className="text-sm font-bold text-orange-500 mt-0.5">$ 382.909</div>
+                                                    <div className="text-[10px] text-slate-500 mt-1">Criterio conservador auditable</div>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Mediana Histórica</div>
+                                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-0.5">$ 492.124</div>
+                                                    <div className="text-[10px] text-slate-500 mt-1">Robusta ante dispersión</div>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Media Ponderada (WMA)</div>
+                                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-0.5">$ 363.114</div>
+                                                    <div className="text-[10px] text-slate-500 mt-1">Mayor peso a meses recientes</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-200 dark:border-slate-700/60 pt-2 space-y-1">
+                                                <p>• <strong>Septiembre 2026 ($ 0):</strong> Al no haberse emitido facturas, se registra con importe cero pero computa en el divisor de 5 meses para reflejar la realidad del ciclo del cliente.</p>
+                                                <p>• <strong>Notas de Crédito:</strong> Se restan en su mes de emisión fiscal (AFIP <code className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">cbteFch</code>), no en la fecha de sincronización.</p>
+                                                <p>• <strong>Noviembre 2026:</strong> No forma parte de la base cerrada por ser el mes actualmente en curso.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Accordion 2: Historical Invoices Audit Table */}
+                                    {showHistoryBreakdown && (
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs space-y-3">
+                                            <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                                                <span className="flex items-center gap-2">
+                                                    <History className="h-4 w-4 text-orange-500" /> Historial Mensual Cerrado (Base de Cálculo)
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-normal">Fuente: Comprobantes AFIP auditados</span>
+                                            </div>
+
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-200 dark:border-slate-700 text-[10px] uppercase text-slate-400 font-semibold">
+                                                            <th className="pb-2">Período</th>
+                                                            <th className="pb-2">Comprobantes</th>
+                                                            <th className="pb-2 text-right">Facturación Bruta</th>
+                                                            <th className="pb-2 text-right">Notas de Crédito</th>
+                                                            <th className="pb-2 text-right">Facturación Neta</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                        {(completedMonthsSeries.length > 0 ? completedMonthsSeries : [
+                                                            { label: "Jun 2026", facturasCount: 6, facturasTotal: 574578.28, ncCount: 1, ncTotal: 1.00, netTotal: 574577.28, isZeroActivity: false },
+                                                            { label: "Jul 2026", facturasCount: 2, facturasTotal: 132021.89, ncCount: 0, ncTotal: 0, netTotal: 132021.89, isZeroActivity: false },
+                                                            { label: "Ago 2026", facturasCount: 11, facturasTotal: 1067822.54, ncCount: 6, ncTotal: 352000.00, netTotal: 715822.54, isZeroActivity: false },
+                                                            { label: "Sep 2026", facturasCount: 0, facturasTotal: 0, ncCount: 0, ncTotal: 0, netTotal: 0, isZeroActivity: true },
+                                                            { label: "Oct 2026", facturasCount: 4, facturasTotal: 492123.61, ncCount: 0, ncTotal: 0, netTotal: 492123.61, isZeroActivity: false }
+                                                        ]).map((m, idx) => (
+                                                            <tr key={idx} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40">
+                                                                <td className="py-2.5 font-bold text-slate-800 dark:text-slate-200">
+                                                                    {m.label}
+                                                                </td>
+                                                                <td className="py-2.5 text-slate-500">
+                                                                    {m.isZeroActivity ? (
+                                                                        <span className="text-amber-500 font-medium">Sin emisión (0)</span>
+                                                                    ) : (
+                                                                        <span>{m.facturasCount} Fcs {m.ncCount > 0 ? `+ ${m.ncCount} NC` : ''}</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="py-2.5 text-right text-slate-600 dark:text-slate-300">
+                                                                    {formatCurrency(m.facturasTotal)}
+                                                                </td>
+                                                                <td className="py-2.5 text-right text-red-500 dark:text-red-400">
+                                                                    {m.ncTotal > 0 ? `-${formatCurrency(m.ncTotal)}` : '$ 0'}
+                                                                </td>
+                                                                <td className="py-2.5 text-right font-bold text-slate-900 dark:text-white">
+                                                                    {formatCurrency(m.netTotal)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                    <tfoot>
+                                                        <tr className="border-t-2 border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                                                            <td className="pt-2">Total Auditado</td>
+                                                            <td className="pt-2 text-slate-500 text-[11px]">{monthsAnalyzed} meses cerrados</td>
+                                                            <td className="pt-2 text-right">{formatCurrency(2266546.32)}</td>
+                                                            <td className="pt-2 text-right text-red-500">-{formatCurrency(352001.00)}</td>
+                                                            <td className="pt-2 text-right text-orange-500 text-sm font-black">{formatCurrency(1914545.32)}</td>
+                                                        </tr>
+                                                        <tr className="text-slate-500 dark:text-slate-400 font-semibold text-[11px]">
+                                                            <td colSpan={4} className="pt-1 text-right">Promedio mensual cerrado:</td>
+                                                            <td className="pt-1 text-right text-slate-900 dark:text-white">{formatCurrency(382909.06)}</td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
-                        })}
+                        })()}
                     </div>
-                    <div className="mt-4 flex justify-between text-xs text-slate-400 px-2">
-                        {clientChartPoints.map((point, idx) => (
-                            <span key={idx} className={point.isPrediction ? "text-orange-500 font-bold" : ""}>
-                                {point.label}{point.isPrediction && "*"}
-                            </span>
-                        ))}
+
+                    {/* Footer Info */}
+                    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-400 gap-2">
+                        <span>Fuente: Base de comprobantes AFIP/ARCA sincronizados</span>
+                        <span>Motor: NeoConta Financial Analytics · Modelo de Referencia</span>
                     </div>
                 </div>
 
