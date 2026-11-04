@@ -8,6 +8,7 @@ import {
     runLinearWMA, 
     runSES, 
     runHoltDampedTrend, 
+    runNaive,
     runTemporalBacktest, 
     selectAdaptiveModel 
 } from '@/lib/forecasting/engine';
@@ -154,12 +155,15 @@ export async function GET(request) {
 
         const seriesValues = completedMonths.map(m => m.netTotal);
 
-        // Ejecutar los modelos
+        // Ejecutar los modelos individuales
+        const m0 = runNaive(seriesValues);
         const m1 = runSimpleMean(seriesValues);
         const m2 = runHistoricalMedian(seriesValues);
         const m3 = runLinearWMA(seriesValues);
-        const m4 = runSES(seriesValues);
-        const m5 = runHoltDampedTrend(seriesValues);
+        const m4_fixed = runSES(seriesValues, 0.33);
+        const m4_adaptive = runSES(seriesValues, null);
+        const m5_gated = runHoltDampedTrend(seriesValues, { enforceGate: true, minHistoryForTrend: 6 });
+        const m5_ungated = runHoltDampedTrend(seriesValues, { enforceGate: false });
 
         const backtest = runTemporalBacktest(seriesValues, 2);
         const adaptiveSelection = selectAdaptiveModel(seriesValues);
@@ -177,7 +181,7 @@ export async function GET(request) {
                 auditTimestamp: new Date().toISOString()
             },
             series: completedMonths,
-            models: [m1, m2, m3, m4, m5],
+            models: [m0, m1, m2, m3, m4_fixed, m4_adaptive, m5_gated, m5_ungated],
             backtest,
             adaptiveSelection
         });
