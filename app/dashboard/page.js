@@ -1904,10 +1904,10 @@ export default function Dashboard() {
                                             <div className="mt-5 pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
                                                 <div className="flex items-center justify-between text-xs mb-2">
                                                     <span className="text-slate-600 dark:text-slate-400 font-medium">
-                                                        Facturación acumulada en el mes en curso:
+                                                        Facturado hasta hoy frente a la estimación mensual:
                                                     </span>
                                                     <span className="font-bold text-slate-900 dark:text-white">
-                                                        {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la meta estimada)</span>
+                                                        {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la estimación)</span>
                                                     </span>
                                                 </div>
                                                 <div className="w-full bg-slate-200 dark:bg-slate-700/80 rounded-full h-2.5 overflow-hidden">

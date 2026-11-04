@@ -1,0 +1,189 @@
+import { NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
+import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { 
+    runSimpleMean, 
+    runHistoricalMedian, 
+    runLinearWMA, 
+    runSES, 
+    runHoltDampedTrend, 
+    runTemporalBacktest, 
+    selectAdaptiveModel 
+} from '@/lib/forecasting/engine';
+
+// Helper to resolve AFIP voucher type
+const getCbteTipo = (invoice) => {
+    if (!invoice) return 11;
+    if (invoice.CbteTipo !== undefined) return Number(invoice.CbteTipo);
+    if (invoice.cbteTipo !== undefined) return Number(invoice.cbteTipo);
+    const respTipo = invoice.afip_response?.response?.FeCabResp?.CbteTipo;
+    if (respTipo !== undefined) return Number(respTipo);
+    const respTipo2 = invoice.afip_response?.CbteTipo;
+    if (respTipo2 !== undefined) return Number(respTipo2);
+    return 11;
+};
+
+const parseInvoiceEmissionDate = (inv) => {
+    const raw = inv.cbteFch || inv.CbteFch || inv.created_at;
+    if (!raw) return null;
+    const str = String(raw).trim();
+    if (str.length === 8 && /^\d{8}$/.test(str)) {
+        const y = parseInt(str.substring(0, 4), 10);
+        const m = parseInt(str.substring(4, 6), 10) - 1;
+        const d = parseInt(str.substring(6, 8), 10);
+        return new Date(y, m, d);
+    }
+    const parsed = new Date(str);
+    return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+export async function GET(request) {
+    try {
+        const session = await getServerSession(request);
+        if (!session) {
+            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const userId = searchParams.get('userId');
+        const targetUserId = sanitizeUserId(userId || session.id);
+
+        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
+            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        }
+
+        const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
+        const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);
+
+        let history = [];
+        try {
+            const fileData = await fs.readFile(historyFile, 'utf8');
+            history = JSON.parse(fileData);
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+        }
+
+        const approved = history.filter(inv => (inv.status || 'aprobado') === 'aprobado');
+        const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        const fullMonthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+
+        const buckets = {};
+        let earliestDate = null;
+
+        approved.forEach(inv => {
+            const emissionDate = parseInvoiceEmissionDate(inv);
+            if (!emissionDate) return;
+
+            if (!earliestDate || emissionDate < earliestDate) {
+                earliestDate = emissionDate;
+            }
+
+            const y = emissionDate.getFullYear();
+            const m = emissionDate.getMonth();
+            const key = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+
+            const type = getCbteTipo(inv);
+            const isCredit = [3, 8, 13, 203, 208, 213].includes(type);
+            const amount = parseFloat(inv.Importe || inv.Total || 0);
+            const diff = isCredit ? -amount : amount;
+
+            if (!buckets[key]) {
+                buckets[key] = {
+                    year: y,
+                    month: m,
+                    key,
+                    facturasCount: 0,
+                    facturasTotal: 0,
+                    ncCount: 0,
+                    ncTotal: 0,
+                    netTotal: 0
+                };
+            }
+
+            if (isCredit) {
+                buckets[key].ncCount++;
+                buckets[key].ncTotal += amount;
+                buckets[key].netTotal -= amount;
+            } else {
+                buckets[key].facturasCount++;
+                buckets[key].facturasTotal += amount;
+                buckets[key].netTotal += amount;
+            }
+        });
+
+        // Construir serie continua cerrada
+        const completedMonths = [];
+        if (earliestDate) {
+            let cur = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+            const lastCompleteDate = new Date(currentYear, currentMonth - 1, 1);
+
+            while (cur <= lastCompleteDate) {
+                const y = cur.getFullYear();
+                const m = cur.getMonth();
+                const key = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+
+                const b = buckets[key] || {
+                    year: y,
+                    month: m,
+                    key,
+                    facturasCount: 0,
+                    facturasTotal: 0,
+                    ncCount: 0,
+                    ncTotal: 0,
+                    netTotal: 0
+                };
+
+                const net = Math.max(0, b.netTotal);
+                completedMonths.push({
+                    key,
+                    year: y,
+                    month: m,
+                    label: `${monthNames[m]} ${y}`,
+                    fullLabel: `${fullMonthNames[m]} ${y}`,
+                    netTotal: net
+                });
+
+                cur.setMonth(cur.getMonth() + 1);
+            }
+        }
+
+        const seriesValues = completedMonths.map(m => m.netTotal);
+
+        // Ejecutar los modelos
+        const m1 = runSimpleMean(seriesValues);
+        const m2 = runHistoricalMedian(seriesValues);
+        const m3 = runLinearWMA(seriesValues);
+        const m4 = runSES(seriesValues);
+        const m5 = runHoltDampedTrend(seriesValues);
+
+        const backtest = runTemporalBacktest(seriesValues, 2);
+        const adaptiveSelection = selectAdaptiveModel(seriesValues);
+
+        return NextResponse.json({
+            success: true,
+            isExperimental: true,
+            metadata: {
+                targetUserId,
+                seriesLength: seriesValues.length,
+                periodStart: completedMonths[0]?.label || 'N/A',
+                periodEnd: completedMonths[completedMonths.length - 1]?.label || 'N/A',
+                currency: 'ARS',
+                accountingCriteria: 'Facturación devengada mensual con deducción de Notas de Crédito por fecha fiscal (cbteFch). Excluye mes en curso.',
+                auditTimestamp: new Date().toISOString()
+            },
+            series: completedMonths,
+            models: [m1, m2, m3, m4, m5],
+            backtest,
+            adaptiveSelection
+        });
+
+    } catch (error) {
+        console.error('Error in forecasting benchmark API:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
