@@ -148,3 +148,35 @@ model WebAuditHistory {
   auditData String?
   createdAt DateTime @default(now())
 }
+
+model ShadowForecastLedger {
+  id                        String    @id // Formato idempotente: `${userId}_${targetMonthKey}_h${horizon}_${modelId}`
+  userId                    String
+  emissionDate              DateTime  @default(now())
+  targetMonthKey            String    // ej. "2026-11-01"
+  horizon                   Int       // 1 o 2
+  modelId                   String    // ej. "simple_mean", "ses_fixed_33", "holt_damped_gated"
+  modelName                 String
+  algorithmVersion          String    @default("3.2.0")
+  rawForecast               Float
+  presentedForecast         Float
+  parametersJson            String?
+  formula                   String?
+  trainingEndMonth          String?
+  trainingObservationsCount Int
+  
+  // Conciliación con resultados reales observados
+  actualObserved            Float?
+  actualClosedAt            DateTime?
+  error                     Float?
+  absError                  Float?
+  reconciliationStatus      String    @default("provisional") // "provisional" | "definitive" | "adjusted"
+  notes                     String?
+  
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  @@index([userId, targetMonthKey])
+  @@index([userId, modelId])
+  @@index([targetMonthKey, horizon])
+}
