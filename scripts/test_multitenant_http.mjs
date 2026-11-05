@@ -78,6 +78,12 @@ async function runTests() {
     const tokenSubaccount = await createToken({ id: 'profesional_perez', email: 'perez@test.neoconta', role: 'vitacore-professional', parentId: 'tenant_alfa_test_01' });
     const tokenOwner = await createToken({ id: 'super_owner_admin', email: 'owner@test.neoconta', role: 'owner' });
 
+    // Helper to build headers with Cookie and Bearer
+    const authHeaders = (token) => ({
+        'Cookie': `neoconta_session=${token}`,
+        'Authorization': `Bearer ${token}`
+    });
+
     // 1. Unauthenticated requests
     await test('Rechazo a solicitud anónima en API Arca Historial (401)', async () => {
         const res = await request('/api/arca/historial');
@@ -108,7 +114,7 @@ async function runTests() {
     // 2. Multi-tenant isolation & IDOR
     await test('Aislamiento IDOR: Tenant A no puede acceder a historial de Tenant B (403)', async () => {
         const res = await request('/api/arca/historial?userId=tenant_beta_test_02', {
-            headers: { 'Authorization': `Bearer ${tokenTenantA}` }
+            headers: authHeaders(tokenTenantA)
         });
         assert.strictEqual(res.status, 403, 'Debe devolver 403 Forbidden ante acceso cruzado');
         assert.strictEqual(res.data?.error, 'Acceso no autorizado');
@@ -116,7 +122,7 @@ async function runTests() {
 
     await test('Aislamiento IDOR: Tenant B no puede consultar banco de Tenant A (403)', async () => {
         const res = await request('/api/banco?userId=tenant_alfa_test_01', {
-            headers: { 'Authorization': `Bearer ${tokenTenantB}` }
+            headers: authHeaders(tokenTenantB)
         });
         assert.strictEqual(res.status, 403, 'Debe devolver 403 Forbidden');
         assert.strictEqual(res.data?.error, 'Acceso no autorizado');
@@ -124,7 +130,7 @@ async function runTests() {
 
     await test('Aislamiento IDOR: Tenant A no puede modificar configuración de Tenant B (403)', async () => {
         const res = await request('/api/user/config?userId=tenant_beta_test_02', {
-            headers: { 'Authorization': `Bearer ${tokenTenantA}` }
+            headers: authHeaders(tokenTenantA)
         });
         assert.strictEqual(res.status, 403, 'Debe devolver 403 Forbidden');
         assert.strictEqual(res.data?.error, 'Acceso no autorizado');
@@ -133,7 +139,7 @@ async function runTests() {
     // 3. Path Traversal Protection
     await test('Protección Directory Traversal en identificador de usuario (403)', async () => {
         const res = await request('/api/arca/historial?userId=../../etc/passwd', {
-            headers: { 'Authorization': `Bearer ${tokenTenantA}` }
+            headers: authHeaders(tokenTenantA)
         });
         assert.strictEqual(res.status, 403, 'Debe rechazar caracteres de traversal con 403');
     });
@@ -141,14 +147,14 @@ async function runTests() {
     // 4. Subaccount access scoping
     await test('Subcuenta autorizada accede a datos de empresa matriz (200/empty)', async () => {
         const res = await request('/api/arca/historial?userId=tenant_alfa_test_01', {
-            headers: { 'Authorization': `Bearer ${tokenSubaccount}` }
+            headers: authHeaders(tokenSubaccount)
         });
         assert.strictEqual(res.status, 200, 'Subcuenta de Vitacore debe poder consultar a su tenant matriz');
     });
 
     await test('Subcuenta bloqueada ante intento de acceso a empresa tercera (403)', async () => {
         const res = await request('/api/arca/historial?userId=tenant_beta_test_02', {
-            headers: { 'Authorization': `Bearer ${tokenSubaccount}` }
+            headers: authHeaders(tokenSubaccount)
         });
         assert.strictEqual(res.status, 403, 'Subcuenta no debe tener acceso a terceros');
     });
@@ -182,7 +188,7 @@ async function runTests() {
         const res = await request('/api/predict/cashflow', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${tokenTenantA}`,
+                ...authHeaders(tokenTenantA),
                 'Content-Type': 'application/json'
             },
             body: {
