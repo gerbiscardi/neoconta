@@ -4,10 +4,17 @@ import path from 'path';
 // import nodemailer from 'nodemailer'; // For later implementation once SMTP credentials are provided
 
 export async function GET(request) {
-    // SECURITY: In production, verify an Authorization header matching a CRON_SECRET env variable
+    // Verificación estricta Fail-Closed: La ausencia o discrepancia de CRON_SECRET bloquea la ejecución
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || typeof cronSecret !== 'string' || cronSecret.trim().length < 32) {
+        return NextResponse.json({ 
+            error: 'Configuración de seguridad inválida: CRON_SECRET no está definido o es insuficiente en el servidor.' 
+        }, { status: 500 });
+    }
+
     const authHeader = request.headers.get('authorization');
-    if (process.env.NODE_ENV === 'production' && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authHeader !== `Bearer ${cronSecret.trim()}`) {
+        return NextResponse.json({ error: 'No autorizado para ejecutar tarea programada' }, { status: 401 });
     }
 
     try {

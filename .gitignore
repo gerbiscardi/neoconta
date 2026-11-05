@@ -43,9 +43,11 @@ next-env.d.ts
 # sensitive user data, private keys, certificates and invoice databases
 /data/
 *.db
+*.db*
 *.db-journal
 *.sqlite*
 prisma/*.db
+*.bak*
 
 *.zip
 INSTRUCCIONES.txt

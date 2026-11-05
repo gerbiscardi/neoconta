@@ -167,7 +167,9 @@ model ShadowForecastLedger {
   
   // Conciliación con resultados reales observados
   actualObserved            Float?
+  previousActualObserved    Float?
   actualClosedAt            DateTime?
+  revisionNumber            Int       @default(1)
   error                     Float?
   absError                  Float?
   reconciliationStatus      String    @default("provisional") // "provisional" | "definitive" | "adjusted"

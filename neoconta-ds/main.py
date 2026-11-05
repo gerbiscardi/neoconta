@@ -40,14 +40,19 @@ app.add_middleware(
 def verify_internal_auth(x_internal_token: Optional[str] = Header(None)):
     """
     Verifica que la solicitud provenga exclusivamente de Next.js mediante token interno.
+    Comportamiento Fail-Closed: La ausencia o debilidad del secreto bloquea cualquier operación.
     """
     expected_secret = os.environ.get("DS_INTERNAL_SECRET")
-    if expected_secret:
-        if not x_internal_token or x_internal_token != expected_secret:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Acceso restringido: Se requiere autenticación interna autorizada."
-            )
+    if not expected_secret or len(expected_secret.strip()) < 32:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error de configuración interna: DS_INTERNAL_SECRET no está configurado o es insuficiente."
+        )
+    if not x_internal_token or x_internal_token.strip() != expected_secret.strip():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso restringido: Se requiere autenticación interna autorizada."
+        )
     return True
 
 # --- MODELOS DE DATOS ---

@@ -29,12 +29,17 @@ const parseInvoiceEmissionDate = (inv) => {
 };
 
 export async function GET(request) {
-    // Verificación de seguridad CRON_SECRET en producción
+    // Verificación estricta Fail-Closed: La ausencia o discrepancia de CRON_SECRET bloquea la ejecución
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || typeof cronSecret !== 'string' || cronSecret.trim().length < 32) {
+        return NextResponse.json({ 
+            error: 'Configuración de seguridad inválida: CRON_SECRET no está definido o es insuficiente en el servidor.' 
+        }, { status: 500 });
+    }
+
     const authHeader = request.headers.get('authorization');
-    if (process.env.NODE_ENV === 'production' && process.env.CRON_SECRET) {
-        if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-            return NextResponse.json({ error: 'No autorizado para ejecutar tarea programada' }, { status: 401 });
-        }
+    if (authHeader !== `Bearer ${cronSecret.trim()}`) {
+        return NextResponse.json({ error: 'No autorizado para ejecutar tarea programada' }, { status: 401 });
     }
 
     const jobResults = {
