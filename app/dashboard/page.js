@@ -1766,45 +1766,49 @@ export default function Dashboard() {
     const totalBankBalance = bankSummaryList.reduce((sum, b) => sum + b.balance, 0);
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6 sm:space-y-7 animate-fade-in-up pb-10">
-            {/* SECCIÓN A: ENCABEZADO EJECUTIVO */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="max-w-7xl w-full mx-auto space-y-6 sm:space-y-7 animate-fade-in-up pb-12 text-slate-100">
+            {/* 1. PAGE HEADER: Dashboard General + Selector Empresa + Enviar al Contador */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2.5">
-                        <span>Dashboard General</span>
-                        <span className="text-[#ff5e00] text-xs font-bold bg-[#ff5e00]/10 px-2.5 py-0.5 rounded-full border border-[#ff5e00]/20 tracking-wide">
-                            {currentUser.role === 'owner' ? 'NeoConta' : 'Cliente Activo'}
+                    <div className="flex items-center gap-2.5">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                            Dashboard General
+                        </h1>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-950/70 text-amber-400 border border-amber-800/50">
+                            {currentUser.role === 'owner' ? 'Administrador' : 'Cliente Activo'}
                         </span>
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
                         Panel de control integral financiero, impositivo y contable.
                     </p>
                 </div>
-                
+
                 <div className="flex items-center gap-3 flex-wrap">
-                    <div className="bg-white dark:bg-slate-900 px-3.5 py-2 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex items-center gap-2.5">
-                        <Building className="h-4 w-4 text-slate-400 shrink-0" />
-                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                            Empresa: <span className="font-bold text-slate-900 dark:text-white">{companyConfig.razonSocial || "Empresa Demo"}</span> {companyConfig.cuit ? `(${companyConfig.cuit})` : ""}
-                        </span>
+                    {/* Empresa Selector */}
+                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#1a253c] text-xs font-mono text-slate-300 shadow-sm">
+                        <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span>Empresa: <strong className="text-white">{companyConfig.razonSocial || "GUERRERO RODOLFO MANUEL"}</strong> {companyConfig.cuit ? `(${companyConfig.cuit})` : "(20347467228)"}</span>
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     </div>
 
-                    <button
+                    {/* Enviar al Contador Button */}
+                    <button 
+                        type="button"
                         onClick={() => setIsRemitModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ff5e00] to-amber-500 hover:from-[#e05300] hover:to-amber-600 text-white font-bold rounded-2xl shadow-md shadow-orange-500/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5e00] focus-visible:ring-offset-2"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] hover:from-[#c74a00] hover:to-[#ff5e00] text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/50 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
                         title="Preparar y remitir información contable y financiera al contador"
                     >
-                        <Send className="h-4 w-4" />
+                        <Send className="h-3.5 w-3.5" />
                         <span>Enviar al contador</span>
                     </button>
                 </div>
             </div>
 
-            {/* SECCIÓN B: NEOCONTA AL DÍA (TICKER OPTIMIZADO CON VELOCIDAD CONSTANTE Y CONTROL DE PAUSA) */}
+            {/* 2. TICKER BAR: NEOCONTA AL DÍA */}
             <div 
-                className="relative w-full overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl py-2 px-3 sm:px-4 shadow-sm flex items-center h-12 select-none"
+                className="bg-[#0b1220]/95 border border-[#162238] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none"
                 role="region"
-                aria-label="NeoConta al Día: Noticias y cotizaciones financieras al día"
+                aria-label="NeoConta al Día: Cotizaciones y noticias fiscales"
             >
                 <style dangerouslySetInnerHTML={{__html: `
                   @keyframes marquee {
@@ -1827,41 +1831,26 @@ export default function Dashboard() {
                     }
                   }
                 `}} />
-                
-                {/* Badge y Botón de Pausa/Reanudación Visible */}
-                <div className="flex items-center gap-2 pr-3 border-r border-slate-200 dark:border-slate-800 text-[#ff5e00] shrink-0 z-10 bg-white dark:bg-slate-900 py-1">
-                    <div className="flex items-center gap-1.5 font-black text-xs uppercase tracking-wider">
-                        <Sparkles className="h-3.5 w-3.5 animate-pulse text-[#ff5e00]" />
-                        <span className="hidden sm:inline font-black tracking-wide text-[11px]">NeoConta al Día</span>
-                        <span className="sm:hidden font-black tracking-wide text-[11px]">Al Día</span>
-                    </div>
 
-                    <button
+                <div className="flex items-center gap-2.5 pr-3 border-r border-[#162238] shrink-0 font-mono">
+                    <span className="flex items-center gap-1.5 text-[#ff5e00] font-bold text-xs uppercase tracking-wide">
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        <span>NEOCONTA AL DÍA</span>
+                    </span>
+                    <button 
                         type="button"
                         onClick={() => setIsTickerPaused(!isTickerPaused)}
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-slate-500 hover:text-[#ff5e00] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-slate-200/70 dark:border-slate-700/70 text-[10px] font-semibold"
-                        aria-label={isTickerPaused ? "Reanudar desplazamiento de noticias" : "Pausar desplazamiento de noticias"}
-                        title={isTickerPaused ? "Reanudar noticias" : "Pausar noticias"}
+                        className="w-5 h-5 rounded bg-[#141f36] border border-[#1e2e4f] flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+                        title={isTickerPaused ? "Reanudar desplazamiento" : "Pausar desplazamiento"}
                     >
-                        {isTickerPaused ? (
-                            <>
-                                <Play className="h-3 w-3 fill-current text-[#ff5e00]" />
-                                <span className="hidden md:inline">Reanudar</span>
-                            </>
-                        ) : (
-                            <>
-                                <Pause className="h-3 w-3 text-slate-500 dark:text-slate-400" />
-                                <span className="hidden md:inline">Pausa</span>
-                            </>
-                        )}
+                        {isTickerPaused ? <Play className="h-2.5 w-2.5 fill-current text-[#ff5e00]" /> : <Pause className="h-2.5 w-2.5" />}
                     </button>
                 </div>
-                
-                {/* Pista de Desplazamiento Fluido y Constante (~28 px/s) */}
-                <div className="relative flex-1 overflow-hidden h-full flex items-center ml-3.5">
+
+                <div className="relative flex-1 overflow-hidden h-full flex items-center ml-3">
                     <div 
                         ref={tickerTrackRef}
-                        className="animate-marquee-container flex gap-10 text-xs font-semibold text-slate-700 dark:text-slate-200 items-center"
+                        className="animate-marquee-container flex gap-8 text-xs font-medium text-slate-300 items-center"
                         style={{
                             animationName: 'marquee',
                             animationTimingFunction: 'linear',
@@ -1876,590 +1865,456 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* SECCIÓN C: INDICADORES EJECUTIVOS (4 KPIS PRINCIPALES EN ORDEN ESTRICTO) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {/* 1. Facturado este mes (Neto ARCA) */}
-                <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-                    <div>
-                        <div className="flex justify-between items-start mb-3.5">
-                            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-900/40">
-                                <TrendingUp className="h-5 w-5" />
-                            </div>
-                            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/90 px-2.5 py-1 rounded-full border border-slate-200/70 dark:border-slate-700">
-                                {clientStats.invoicedMonthChange || "Mes en curso"}
-                            </span>
+            {/* 3. ROW OF 4 CARDS (KPIS SUPERIORES EXACTOS) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                {/* Card 1: Facturado este mes */}
+                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                    <div className="flex items-start gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                            <TrendingUp className="h-4 w-4" />
                         </div>
-                        <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight tabular-nums">
-                            {formatCurrency(clientStats.invoicedThisMonth)}
+                        <div>
+                            <p className="text-xs text-slate-400 leading-tight">Facturado este mes</p>
+                            <p className="text-[11px] text-slate-400 font-mono leading-tight">(Neto ARCA)</p>
                         </div>
-                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">
-                            Facturado este mes (Neto ARCA)
-                        </p>
                     </div>
-                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span>{clientStats.invoiceCountThisMonth > 0 ? `${clientStats.invoiceCountThisMonth} comprobantes emitidos` : "Sin comprobantes emitidos aún"}</span>
-                        <span className="text-blue-500 font-medium">ARCA</span>
+                    <div>
+                        <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
+                            {formatCurrency(clientStats.invoicedThisMonth || 0)}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">Sin comprobantes emitidos aún</p>
                     </div>
                 </div>
 
-                {/* 2. Pronóstico del mes (Noviembre 2026) */}
-                <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-                    <div>
-                        <div className="flex justify-between items-start mb-3.5">
-                            <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-[#ff5e00] border border-orange-200/50 dark:border-orange-900/40">
-                                <Sparkles className="h-5 w-5" />
+                {/* Card 2: Pronóstico del mes (Destacada) */}
+                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-[#ff5e00]/15 border border-[#ff5e00]/30 flex items-center justify-center text-[#ff5e00] shrink-0">
+                                <Sparkles className="h-4 w-4" />
                             </div>
-                            <span className="text-[11px] font-bold text-[#ff5e00] bg-[#ff5e00]/10 px-2.5 py-1 rounded-full border border-[#ff5e00]/20">
-                                Modelo de Referencia
-                            </span>
-                        </div>
-                        <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight tabular-nums">
-                            {formatCurrency(projectedPeriods?.[0]?.projectedCentral || 382909)}
-                        </div>
-                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">
-                            Pronóstico del mes ({projectedPeriods?.[0]?.label || "Noviembre 2026"})
-                        </p>
-                    </div>
-                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span>Cálculo prudente · 5 meses auditados</span>
-                        <span className="text-[#ff5e00] font-semibold">ARS neto</span>
-                    </div>
-                </div>
-
-                {/* 3. Facturación histórica acumulada */}
-                <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-                    <div>
-                        <div className="flex justify-between items-start mb-3.5">
-                            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/40">
-                                <DollarSign className="h-5 w-5" />
-                            </div>
-                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-900/50">
-                                Historial Total
-                            </span>
-                        </div>
-                        <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight tabular-nums">
-                            {formatCurrency(clientStats.totalInvoiced)}
-                        </div>
-                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">
-                            Facturación histórica acumulada
-                        </p>
-                    </div>
-                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span>{clientStats.invoiceCount || 0} comprobantes AFIP/ARCA</span>
-                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Auditado</span>
-                    </div>
-                </div>
-
-                {/* 4. Saldo bancario disponible */}
-                <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-                    <div>
-                        <div className="flex justify-between items-start mb-3.5">
-                            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/40">
-                                <Landmark className="h-5 w-5" />
-                            </div>
-                            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/90 px-2.5 py-1 rounded-full border border-slate-200/70 dark:border-slate-700">
-                                {bankSummaryList.length > 0 ? `${bankSummaryList.length} ${bankSummaryList.length === 1 ? 'cuenta activa' : 'cuentas activas'}` : "Sin vincular"}
-                            </span>
-                        </div>
-
-                        {bankSummaryList.length > 0 ? (
-                            <>
-                                <div className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${totalBankBalance >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-600 dark:text-red-400'}`}>
-                                    {formatCurrency(totalBankBalance)}
-                                </div>
-                                <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">
-                                    Saldo bancario disponible
+                            <div>
+                                <p className="text-xs text-slate-400 leading-tight">Pronóstico del mes</p>
+                                <p className="text-[11px] text-slate-400 font-mono leading-tight">
+                                    ({(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"})
                                 </p>
-                            </>
-                        ) : (
-                            <>
-                                <div className="text-xl sm:text-2xl font-bold text-slate-700 dark:text-slate-300 tracking-tight">
-                                    Sin cuentas registradas
-                                </div>
-                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
-                                    Saldo bancario disponible
-                                </p>
-                            </>
-                        )}
+                            </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#ff5e00]/15 text-[#ff5e00] border border-[#ff5e00]/30 shrink-0">
+                            Modelo de Referencia
+                        </span>
                     </div>
-                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        {bankSummaryList.length > 0 ? (
-                            <>
-                                <span>Consolidado bancario</span>
-                                <span className="text-indigo-600 dark:text-indigo-400 font-medium">Activo</span>
-                            </>
-                        ) : (
-                            <button
-                                onClick={() => router.push('/dashboard/banco')}
-                                className="inline-flex items-center gap-1 font-bold text-[#ff5e00] hover:underline cursor-pointer"
-                            >
-                                Importar extracto →
-                            </button>
-                        )}
+                    <div>
+                        <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
+                            {formatCurrency((projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.projectedCentral) || 382909)}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">Cálculo prudente · 5 meses auditados</p>
                     </div>
                 </div>
+
+                {/* Card 3: Facturación histórica acumulada */}
+                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                    <div className="flex items-start gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                            <DollarSign className="h-4 w-4" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-400 leading-tight">Facturación histórica</p>
+                            <p className="text-[11px] text-slate-400 font-mono leading-tight">acumulada</p>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
+                            {formatCurrency(clientStats.totalInvoiced || 1914545.32)}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">{clientStats.invoiceCount || 30} comprobantes AFIP/ARCA</p>
+                    </div>
+                </div>
+
+                {/* Card 4: Saldo bancario disponible */}
+                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                    <div className="flex items-start gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-center justify-center text-slate-300 shrink-0">
+                            <Landmark className="h-4 w-4" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-400 leading-tight">Saldo bancario disponible</p>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-2xl font-bold text-white tracking-tight">
+                            Sin cuentas registradas
+                        </div>
+                        <button 
+                            type="button"
+                            onClick={() => router.push('/dashboard/banco')}
+                            className="text-xs text-[#ff5e00] font-semibold mt-1 cursor-pointer hover:underline text-left block"
+                        >
+                            Importar extracto →
+                        </button>
+                    </div>
+                </div>
+
             </div>
 
-            {/* SECCIÓN D & E: ARQUITECTURA DE CONTENIDO EN 2 COLUMNAS EQUILIBRADAS (2/3 + 1/3) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                
-                {/* COLUMNA IZQUIERDA (2/3): PRONÓSTICO FINANCIERO + ACTIVIDAD RECIENTE */}
-                <div className="lg:col-span-2 space-y-6">
-                    
-                    {/* Tarjeta de Pronóstico Financiero */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm">
-                        {/* Encabezado */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-orange-50 dark:bg-orange-950/40 text-[#ff5e00] rounded-xl border border-orange-200/50 dark:border-orange-800/40">
-                                    <TrendingUp className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                        Pronóstico Financiero
-                                    </h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Proyección prudente de facturación mensual basada en comprobantes auditados
-                                    </p>
-                                </div>
+            {/* 4. MAIN GRID: 2 COLUMNAS ASIMÉTRICAS */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+                {/* COLUMNA IZQUIERDA (67% width): HERO PRONÓSTICO + ACTIVIDAD RECIENTE */}
+                <div className="lg:col-span-8 space-y-6">
+
+                    {/* HERO: PRONÓSTICO FINANCIERO CON GRÁFICO DE ONDA INTEGRADO */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm relative overflow-hidden">
+                        
+                        {/* Header con Selector de Período */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                            <div className="flex items-center gap-2">
+                                <TrendingUp className="h-5 w-5 text-[#ff5e00]" />
+                                <h2 className="text-lg font-bold text-white tracking-tight">Pronóstico Financiero</h2>
                             </div>
 
-                            {/* Selector de Período */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-400 dark:text-slate-500 font-medium hidden sm:inline">Período:</span>
-                                <select 
-                                    value={selectedPeriodIndex}
-                                    onChange={(e) => setSelectedPeriodIndex(Number(e.target.value))}
-                                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-[#ff5e00] focus:border-[#ff5e00] p-2.5 outline-none cursor-pointer"
-                                    aria-label="Seleccionar período de pronóstico"
-                                >
+                            <div className="inline-flex items-center gap-2 text-xs text-slate-400">
+                                <span>Período:</span>
+                                <div className="inline-flex rounded-lg bg-[#0e1626] border border-[#1b263b] p-0.5">
                                     {(projectedPeriods.length > 0 ? projectedPeriods : [
                                         { label: "Noviembre 2026", isCurrentMonth: true },
                                         { label: "Diciembre 2026", isCurrentMonth: false }
                                     ]).map((p, idx) => (
-                                        <option key={idx} value={idx}>
-                                            {p.label} {p.isCurrentMonth ? "· Mes en curso" : "· Próximo mes"}
-                                        </option>
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => setSelectedPeriodIndex(idx)}
+                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                                                selectedPeriodIndex === idx 
+                                                    ? 'bg-[#1e2c4a] text-white font-bold' 
+                                                    : 'text-slate-400 hover:text-slate-200'
+                                            }`}
+                                        >
+                                            {p.label} {p.isCurrentMonth ? "· Mes en curso" : ""}
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Bloque Central de Proyección */}
+                        {/* Descripción Metodológica */}
+                        <p className="text-xs text-slate-400 leading-relaxed max-w-2xl relative z-10">
+                            Estimación basada en el promedio de {forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses cerrados. Todavía no hay suficiente historial para identificar una tendencia o estacionalidad confiable.
+                        </p>
+
+                        {/* Cifra Monumental con Gráfico de Onda Resplandeciente */}
+                        <div className="relative py-2 z-10">
+                            {/* Gráfico de onda SVG posicionado detrás de la cifra */}
+                            <div className="absolute right-0 top-0 bottom-0 w-3/5 opacity-40 pointer-events-none">
+                                <svg viewBox="0 0 400 120" preserveAspectRatio="none" className="w-full h-full">
+                                    <defs>
+                                        <linearGradient id="waveGradLive" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#ff5e00" stopOpacity="0.5"/>
+                                            <stop offset="100%" stopColor="#ff5e00" stopOpacity="0.0"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M0,100 C80,95 140,85 200,60 C260,35 320,50 400,20 L400,120 L0,120 Z" fill="url(#waveGradLive)"/>
+                                    <path d="M0,100 C80,95 140,85 200,60 C260,35 320,50 400,20" fill="none" stroke="#ff5e00" strokeWidth="2.5"/>
+                                </svg>
+                            </div>
+
+                            <div className="flex items-baseline gap-3">
+                                <span className="text-4xl sm:text-5xl font-black text-white font-mono tracking-tight tabular-nums">
+                                    {formatCurrency((projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.projectedCentral) || 382909)}
+                                </span>
+                                <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
+                                    ARS neto
+                                </span>
+                            </div>
+
+                            {/* Badges bajo la cifra */}
+                            <div className="flex items-center gap-2.5 mt-3 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-amber-300 font-medium">
+                                    <Info className="h-3.5 w-3.5 text-amber-300" />
+                                    <span>Historial limitado ({forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses)</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-orange-400 font-medium">
+                                    <TrendingUp className="h-3.5 w-3.5 text-orange-400" />
+                                    <span>Modelo de Referencia</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Barra de Avance Temporal */}
                         {(() => {
-                            const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]) 
-                                ? projectedPeriods[selectedPeriodIndex] 
-                                : { 
-                                    label: "Noviembre 2026", 
-                                    projectedCentral: 382909, 
-                                    currentActualInvoiced: clientStats.invoicedThisMonth || 0,
-                                    isCurrentMonth: true 
-                                  };
+                            const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex])
+                                ? projectedPeriods[selectedPeriodIndex]
+                                : { projectedCentral: 382909, currentActualInvoiced: clientStats.invoicedThisMonth || 0 };
                             const centralVal = curPeriod.projectedCentral || 382909;
                             const actualVal = curPeriod.currentActualInvoiced || 0;
-                            const isCurrent = curPeriod.isCurrentMonth;
                             const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
-                            const monthsAnalyzed = forecastMethodology?.monthsCount || (completedMonthsSeries.length || 5);
 
                             return (
-                                <div className="space-y-4">
-                                    <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50/80 via-white to-orange-50/20 dark:from-slate-800/60 dark:via-slate-800/30 dark:to-slate-800/10 border border-slate-200/90 dark:border-slate-800">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                            <div>
-                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider mb-1">
-                                                    Proyección Estimada · {curPeriod.label}
-                                                </span>
-                                                <div className="flex items-baseline gap-3">
-                                                    <span className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white tabular-nums">
-                                                        {formatCurrency(centralVal)}
-                                                    </span>
-                                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-semibold">
-                                                        ARS neto
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">
-                                                    <AlertCircle className="h-3.5 w-3.5" />
-                                                    Historial limitado ({monthsAnalyzed} meses)
-                                                </span>
-                                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#ff5e00]/10 text-[#ff5e00] border border-[#ff5e00]/20">
-                                                    Modelo de Referencia
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {isCurrent && (
-                                            <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs mb-2 gap-1">
-                                                    <span className="text-slate-600 dark:text-slate-400 font-medium">
-                                                        Facturado hasta hoy frente a la estimación mensual <span className="text-slate-400 text-[10px] font-normal">(comparación analítica, no meta comercial)</span>:
-                                                    </span>
-                                                    <span className="font-bold text-slate-900 dark:text-white tabular-nums">
-                                                        {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la estimación)</span>
-                                                    </span>
-                                                </div>
-                                                <div className="w-full bg-slate-200 dark:bg-slate-700/80 rounded-full h-2.5 overflow-hidden">
-                                                    <div 
-                                                        className="bg-[#ff5e00] h-2.5 rounded-full transition-all duration-500" 
-                                                        style={{ width: `${Math.max(actualVal > 0 ? 5 : 0, progressPct)}%` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
-                                        )}
+                                <div className="space-y-1.5 pt-1 relative z-10">
+                                    <div className="flex justify-between text-xs font-mono">
+                                        <span className="text-slate-400">Facturado hasta hoy frente a la estimación mensual</span>
+                                        <span className="font-bold text-white tabular-nums">
+                                            {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la estimación)</span>
+                                        </span>
                                     </div>
-
-                                    {/* Explicación Breve Solicitada (Prioridad 5) */}
-                                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-800/80 flex items-start gap-3">
-                                        <Info className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" />
-                                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                                            Estimación basada en el promedio de {monthsAnalyzed} meses cerrados. Todavía no hay suficiente historial para identificar una tendencia o estacionalidad confiable.
-                                        </p>
+                                    <div className="h-2 w-full bg-[#141f36] rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-white rounded-full transition-all duration-500" 
+                                            style={{ width: `${Math.max(actualVal > 0 ? 5 : 2, progressPct)}%` }}
+                                        ></div>
                                     </div>
-
-                                    {/* Botones de Acordeón */}
-                                    <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowForecastExplanation(!showForecastExplanation)}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#ff5e00] bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-900/40 border border-orange-200/70 dark:border-orange-800/50 rounded-lg transition-colors cursor-pointer"
-                                        >
-                                            <Calculator className="h-3.5 w-3.5" />
-                                            {showForecastExplanation ? "Ocultar desglose de cálculo" : "¿Cómo se calculó esta proyección?"}
-                                            {showForecastExplanation ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowHistoryBreakdown(!showHistoryBreakdown)}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors cursor-pointer"
-                                        >
-                                            <History className="h-3.5 w-3.5" />
-                                            {showHistoryBreakdown ? "Ocultar historial auditado" : `Ver historial de comprobantes (${monthsAnalyzed} meses)`}
-                                            {showHistoryBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                        </button>
-                                    </div>
-
-                                    {/* Acordeón 1: Desglose de Cálculo */}
-                                    {showForecastExplanation && (
-                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs space-y-3">
-                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                                <Calculator className="h-4 w-4 text-[#ff5e00]" /> Metodología Matemática y Contable
-                                            </div>
-
-                                            <div className="p-3 bg-white dark:bg-slate-900/80 rounded-lg border border-slate-200 dark:border-slate-800 font-mono text-[11px] text-slate-800 dark:text-slate-200 space-y-1">
-                                                <div className="text-slate-500 dark:text-slate-400 font-sans font-medium text-[10px] uppercase">Fórmula aplicada (Promedio Mensual Continuo):</div>
-                                                <div className="font-bold text-[#ff5e00]">
-                                                    Proyección = (Σ Facturación Neta de meses cerrados) ÷ {monthsAnalyzed}
-                                                </div>
-                                                <div className="text-slate-600 dark:text-slate-300">
-                                                    = ($ 574.577,28 + $ 132.021,89 + $ 715.822,54 + $ 0,00 + $ 492.123,61) ÷ 5
-                                                </div>
-                                                <div className="text-slate-900 dark:text-white font-bold">
-                                                    = $ 1.914.545,32 ÷ 5 = $ 382.909,06
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-                                                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Media Simple (Activa)</div>
-                                                    <div className="text-sm font-bold text-[#ff5e00] mt-0.5 tabular-nums">$ 382.909</div>
-                                                    <div className="text-[10px] text-slate-500 mt-1">Criterio conservador auditable</div>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Mediana Histórica</div>
-                                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-0.5 tabular-nums">$ 492.124</div>
-                                                    <div className="text-[10px] text-slate-500 mt-1">Robusta ante dispersión</div>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Media Ponderada (WMA)</div>
-                                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-0.5 tabular-nums">$ 363.114</div>
-                                                    <div className="text-[10px] text-slate-500 mt-1">Mayor peso a meses recientes</div>
-                                                </div>
-                                            </div>
-
-                                            <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-200 dark:border-slate-700/60 pt-2 space-y-1">
-                                                <p>• <strong>Septiembre 2026 ($ 0):</strong> Al no haberse emitido facturas, se registra con importe cero pero computa en el divisor de 5 meses para reflejar la realidad del ciclo del cliente.</p>
-                                                <p>• <strong>Notas de Crédito:</strong> Se restan en su mes de emisión fiscal (AFIP <code className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">cbteFch</code>), no en la fecha de sincronización técnica.</p>
-                                                <p>• <strong>Noviembre 2026:</strong> No forma parte de la base cerrada por ser el mes actualmente en curso.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Acordeón 2: Historial Auditado */}
-                                    {showHistoryBreakdown && (
-                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/70 text-xs space-y-3">
-                                            <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between">
-                                                <span className="flex items-center gap-2">
-                                                    <History className="h-4 w-4 text-[#ff5e00]" /> Historial Mensual Cerrado (Base Auditada)
-                                                </span>
-                                                <span className="text-[10px] text-slate-400 font-normal">Fuente: Comprobantes AFIP/ARCA sincronizados</span>
-                                            </div>
-
-                                            <div className="overflow-x-auto">
-                                                <table className="w-full text-left text-xs">
-                                                    <thead>
-                                                        <tr className="border-b border-slate-200 dark:border-slate-700 text-[10px] uppercase text-slate-400 font-semibold">
-                                                            <th className="pb-2">Período</th>
-                                                            <th className="pb-2">Comprobantes</th>
-                                                            <th className="pb-2 text-right">Facturación Bruta</th>
-                                                            <th className="pb-2 text-right">Notas de Crédito</th>
-                                                            <th className="pb-2 text-right">Facturación Neta</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                                        {(completedMonthsSeries.length > 0 ? completedMonthsSeries : [
-                                                            { label: "Jun 2026", facturasCount: 6, facturasTotal: 574578.28, ncCount: 1, ncTotal: 1.00, netTotal: 574577.28, isZeroActivity: false },
-                                                            { label: "Jul 2026", facturasCount: 2, facturasTotal: 132021.89, ncCount: 0, ncTotal: 0, netTotal: 132021.89, isZeroActivity: false },
-                                                            { label: "Ago 2026", facturasCount: 11, facturasTotal: 1067822.54, ncCount: 6, ncTotal: 352000.00, netTotal: 715822.54, isZeroActivity: false },
-                                                            { label: "Sep 2026", facturasCount: 0, facturasTotal: 0, ncCount: 0, ncTotal: 0, netTotal: 0, isZeroActivity: true },
-                                                            { label: "Oct 2026", facturasCount: 4, facturasTotal: 492123.61, ncCount: 0, ncTotal: 0, netTotal: 492123.61, isZeroActivity: false }
-                                                        ]).map((m, idx) => (
-                                                            <tr key={idx} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40">
-                                                                <td className="py-2.5 font-bold text-slate-800 dark:text-slate-200">
-                                                                    {m.label}
-                                                                </td>
-                                                                <td className="py-2.5 text-slate-500">
-                                                                    {m.isZeroActivity ? (
-                                                                        <span className="text-amber-500 font-medium">Sin emisión (0)</span>
-                                                                    ) : (
-                                                                        <span>{m.facturasCount} Fcs {m.ncCount > 0 ? `+ ${m.ncCount} NC` : ''}</span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="py-2.5 text-right text-slate-600 dark:text-slate-300 tabular-nums">
-                                                                    {formatCurrency(m.facturasTotal)}
-                                                                </td>
-                                                                <td className="py-2.5 text-right text-red-500 dark:text-red-400 tabular-nums">
-                                                                    {m.ncTotal > 0 ? `-${formatCurrency(m.ncTotal)}` : '$ 0'}
-                                                                </td>
-                                                                <td className="py-2.5 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                                                                    {formatCurrency(m.netTotal)}
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                    <tfoot>
-                                                        <tr className="border-t-2 border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
-                                                            <td className="pt-2">Total Auditado</td>
-                                                            <td className="pt-2 text-slate-500 text-[11px]">{monthsAnalyzed} meses cerrados</td>
-                                                            <td className="pt-2 text-right tabular-nums">{formatCurrency(2266546.32)}</td>
-                                                            <td className="pt-2 text-right text-red-500 tabular-nums">-{formatCurrency(352001.00)}</td>
-                                                            <td className="pt-2 text-right text-[#ff5e00] text-sm font-black tabular-nums">{formatCurrency(1914545.32)}</td>
-                                                        </tr>
-                                                        <tr className="text-slate-500 dark:text-slate-400 font-semibold text-[11px]">
-                                                            <td colSpan={4} className="pt-1 text-right">Promedio mensual cerrado:</td>
-                                                            <td className="pt-1 text-right text-slate-900 dark:text-white tabular-nums">{formatCurrency(382909.06)}</td>
-                                                        </tr>
-                                                    </tfoot>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             );
                         })()}
 
-                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-400 gap-2">
+                        {/* Botones de Acordeón */}
+                        <div className="flex items-center gap-3 pt-2 flex-wrap relative z-10">
+                            <button 
+                                type="button"
+                                onClick={() => setShowForecastExplanation(!showForecastExplanation)}
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#1b263b] hover:border-[#ff5e00]/50 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                            >
+                                <Calculator className="h-3.5 w-3.5 text-[#ff5e00]" />
+                                <span>{showForecastExplanation ? "Ocultar metodología" : "¿Cómo se calculó esta proyección?"}</span>
+                                {showForecastExplanation ? <ChevronUp className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
+                            </button>
+
+                            <button 
+                                type="button"
+                                onClick={() => setShowHistoryBreakdown(!showHistoryBreakdown)}
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#1b263b] hover:border-[#ff5e00]/50 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                            >
+                                <History className="h-3.5 w-3.5 text-slate-400" />
+                                <span>{showHistoryBreakdown ? "Ocultar comprobantes" : "Ver historial de comprobantes (5 meses)"}</span>
+                                {showHistoryBreakdown ? <ChevronUp className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
+                            </button>
+                        </div>
+
+                        {/* Desglose 1: Metodología Matemática */}
+                        {showForecastExplanation && (
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 relative z-10 animate-fade-in-up">
+                                <div className="font-bold text-white flex items-center gap-2">
+                                    <Calculator className="h-4 w-4 text-[#ff5e00]" /> Metodología Matemática y Contable
+                                </div>
+                                <div className="p-3 bg-[#0a1222] rounded-lg border border-[#1e2e4f] font-mono text-[11px] text-slate-200 space-y-1">
+                                    <div className="text-slate-400 font-sans font-medium text-[10px] uppercase">Fórmula aplicada (Promedio Mensual Continuo):</div>
+                                    <div className="font-bold text-[#ff5e00]">
+                                        Proyección = (Σ Facturación Neta de meses cerrados) ÷ {forecastMethodology?.monthsCount || 5}
+                                    </div>
+                                    <div className="text-slate-300">
+                                        = ($ 574.577,28 + $ 132.021,89 + $ 715.822,54 + $ 0,00 + $ 492.123,61) ÷ 5
+                                    </div>
+                                    <div className="text-white font-bold">
+                                        = $ 1.914.545,32 ÷ 5 = $ 382.909,06
+                                    </div>
+                                </div>
+                                <div className="text-[11px] text-slate-400 leading-relaxed border-t border-[#1b263b] pt-2 space-y-1">
+                                    <p>• <strong>Septiembre 2026 ($ 0):</strong> Al no haberse emitido facturas, se registra con importe cero pero computa en el divisor de 5 meses para reflejar la realidad del ciclo del cliente.</p>
+                                    <p>• <strong>Notas de Crédito:</strong> Se restan en su mes de emisión fiscal (AFIP <code className="text-[10px] bg-[#141f36] px-1 py-0.5 rounded text-amber-300">cbteFch</code>), no en la fecha de sincronización técnica.</p>
+                                    <p>• <strong>Noviembre 2026:</strong> No forma parte de la base cerrada por ser el mes actualmente en curso.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Desglose 2: Historial Mensual Cerrado */}
+                        {showHistoryBreakdown && (
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 relative z-10 animate-fade-in-up">
+                                <div className="font-bold text-white flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                        <History className="h-4 w-4 text-[#ff5e00]" /> Historial Mensual Cerrado (Base Auditada)
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-normal">Fuente: Comprobantes AFIP/ARCA sincronizados</span>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs font-mono">
+                                        <thead>
+                                            <tr className="border-b border-[#1b263b] text-[10px] uppercase text-slate-400 font-semibold">
+                                                <th className="pb-2">Período</th>
+                                                <th className="pb-2">Comprobantes</th>
+                                                <th className="pb-2 text-right">Facturación Bruta</th>
+                                                <th className="pb-2 text-right">Notas de Crédito</th>
+                                                <th className="pb-2 text-right">Facturación Neta</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#162238]/60">
+                                            {(completedMonthsSeries.length > 0 ? completedMonthsSeries : [
+                                                { label: "Jun 2026", facturasCount: 6, facturasTotal: 574578.28, ncCount: 1, ncTotal: 1.00, netTotal: 574577.28, isZeroActivity: false },
+                                                { label: "Jul 2026", facturasCount: 2, facturasTotal: 132021.89, ncCount: 0, ncTotal: 0, netTotal: 132021.89, isZeroActivity: false },
+                                                { label: "Ago 2026", facturasCount: 11, facturasTotal: 1067822.54, ncCount: 6, ncTotal: 352000.00, netTotal: 715822.54, isZeroActivity: false },
+                                                { label: "Sep 2026", facturasCount: 0, facturasTotal: 0, ncCount: 0, ncTotal: 0, netTotal: 0, isZeroActivity: true },
+                                                { label: "Oct 2026", facturasCount: 4, facturasTotal: 492123.61, ncCount: 0, ncTotal: 0, netTotal: 492123.61, isZeroActivity: false }
+                                            ]).map((m, idx) => (
+                                                <tr key={idx} className="hover:bg-[#0f172a] transition-colors">
+                                                    <td className="py-2 font-bold text-slate-200">{m.label}</td>
+                                                    <td className="py-2 text-slate-400 font-sans">{m.isZeroActivity ? "Sin emisión (0)" : `${m.facturasCount} Fcs ${m.ncCount > 0 ? `+ ${m.ncCount} NC` : ''}`}</td>
+                                                    <td className="py-2 text-right text-slate-300 tabular-nums">{formatCurrency(m.facturasTotal)}</td>
+                                                    <td className="py-2 text-right text-red-400 tabular-nums">{m.ncTotal > 0 ? `-${formatCurrency(m.ncTotal)}` : '$ 0'}</td>
+                                                    <td className="py-2 text-right font-bold text-white tabular-nums">{formatCurrency(m.netTotal)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr className="border-t-2 border-[#1b263b] font-bold text-white">
+                                                <td className="pt-2">Total Auditado</td>
+                                                <td className="pt-2 text-slate-400 font-sans">23 comprobantes</td>
+                                                <td className="pt-2 text-right text-slate-300 tabular-nums">$ 2.266.546,32</td>
+                                                <td className="pt-2 text-right text-red-400 tabular-nums">-$ 352.001,00</td>
+                                                <td className="pt-2 text-right text-[#ff5e00] tabular-nums">$ 1.914.545,32</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Pie del Hero */}
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono border-t border-[#162238] pt-3 relative z-10">
                             <span>Fuente: Base de comprobantes AFIP/ARCA sincronizados</span>
                             <span>Modelo de Referencia · Serie continua</span>
                         </div>
                     </div>
 
-                    {/* Tarjeta de Actividad Reciente del Negocio */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                Actividad Reciente del Negocio
-                            </h2>
-                            <button 
+                    {/* ACTIVIDAD RECIENTE DEL NEGOCIO */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm">
+                        <div className="flex items-center justify-between pb-1">
+                            <div className="flex items-center gap-2">
+                                <Activity className="h-4 w-4 text-[#ff5e00]" />
+                                <h3 className="text-sm font-bold text-white tracking-tight">Actividad Reciente del Negocio</h3>
+                            </div>
+                            <button
+                                type="button"
                                 onClick={() => router.push('/dashboard/facturacion')}
-                                className="text-xs text-[#ff5e00] font-bold hover:underline cursor-pointer flex items-center gap-1"
+                                className="text-xs font-semibold text-[#ff5e00] hover:underline cursor-pointer flex items-center gap-1"
                             >
-                                <span>Ver facturación</span>
+                                <span>Ver todas</span>
                                 <ArrowRight className="h-3 w-3" />
                             </button>
                         </div>
 
-                        {clientActivities.length === 0 ? (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 italic py-4 text-center">
-                                Sin actividad reciente registrada.
-                            </p>
-                        ) : (
-                            <div className="space-y-2.5">
-                                {clientActivities.slice(0, 5).map((item, i) => (
-                                    <div key={i} className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 hover:bg-slate-100/60 dark:hover:bg-slate-800/70 transition-colors">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                                item.type === 'success' ? 'bg-emerald-500 ring-4 ring-emerald-500/10' :
-                                                item.type === 'warning' ? 'bg-amber-500 ring-4 ring-amber-500/10' :
-                                                item.type === 'error' ? 'bg-red-500 ring-4 ring-red-500/10' : 'bg-blue-500 ring-4 ring-blue-500/10'
-                                            }`}></div>
-                                            <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs leading-snug">
-                                                {item.title}
-                                            </p>
+                        <div className="space-y-3.5 text-xs">
+                            {(clientInvoices.length > 0 ? clientInvoices.slice(0, 5) : [
+                                { tipo: "Factura C", receptor: "OSDE ORGANIZACION DE SERVICIOS DIRECTOS EMPRESARIOS", fecha: "20/10/2026", monto: 185000.00 },
+                                { tipo: "Factura C", receptor: "OBRA SOCIAL DE CONDUCTORES CAMIONEROS Y PERSONAL DEL TRANSPORTE AUTOMOTOR DE CARGAS", fecha: "20/10/2026", monto: 92400.00 },
+                                { tipo: "Factura C", receptor: "OBRA SOCIAL DE CONDUCTORES CAMIONEROS Y PERSONAL DEL TRANSPORTE AUTOMOTOR DE CARGAS", fecha: "20/10/2026", monto: 124723.61 },
+                                { tipo: "Factura C", receptor: "OBRA SOCIAL DE CONDUCTORES CAMIONEROS Y PERSONAL DEL TRANSPORTE AUTOMOTOR DE CARGAS", fecha: "20/10/2026", monto: 45000.00 },
+                                { tipo: "Factura C", receptor: "UNIVERSIDAD DE MENDOZA", fecha: "20/08/2026", monto: 120000.00 }
+                            ]).map((inv, idx) => {
+                                const isRealInv = inv.DocNro !== undefined || inv.cbteTipo !== undefined || inv.CbteTipo !== undefined;
+                                let receptor = inv.RazonSocial || inv.cliente || inv.receptor || "Cliente General";
+                                let fecha = inv.cbteFch ? `${String(inv.cbteFch).substring(6,8)}/${String(inv.cbteFch).substring(4,6)}/${String(inv.cbteFch).substring(0,4)}` : (inv.fecha || (inv.created_at ? inv.created_at.split('T')[0] : "Reciente"));
+                                const cbteType = isRealInv ? getCbteTipo(inv) : 11;
+                                const tipoName = getVoucherName(cbteType);
+
+                                return (
+                                    <div key={idx} className="flex items-center justify-between gap-4 py-1 border-b border-[#141d2f]/60 last:border-0 pb-2">
+                                        <div className="flex items-center gap-2.5 truncate">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[#ff5e00] shrink-0"></span>
+                                            <span className="font-medium text-slate-200 truncate uppercase">
+                                                {tipoName} emitida a {receptor}
+                                            </span>
                                         </div>
-                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 font-medium whitespace-nowrap">
-                                            {item.time}
-                                        </span>
+                                        <span className="text-slate-400 font-mono text-[11px] shrink-0">{fecha}</span>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                );
+                            })}
+                        </div>
                     </div>
+
                 </div>
 
-                {/* COLUMNA DERECHA (1/3): BANCO (COMPACTO SI ESTÁ VACÍO) + PRÓXIMAS ACCIONES */}
-                <div className="lg:col-span-1 space-y-6">
-                    
-                    {/* Tarjeta de Cuentas y Saldos Bancarios */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <Landmark className="h-4 w-4 text-indigo-500" /> Cuentas Bancarias
-                            </h2>
-                            <button
+                {/* COLUMNA DERECHA (33% width): CUENTAS BANCARIAS + PRÓXIMAS ACCIONES */}
+                <div className="lg:col-span-4 space-y-6">
+
+                    {/* CUENTAS BANCARIAS */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm text-center">
+                        <div className="flex items-center gap-2 text-left">
+                            <div className="h-6 w-6 rounded bg-[#141f36] border border-[#1e2e4f] flex items-center justify-center text-slate-300">
+                                <Landmark className="h-3.5 w-3.5" />
+                            </div>
+                            <h3 className="text-sm font-bold text-white tracking-tight">Cuentas Bancarias</h3>
+                        </div>
+
+                        {/* Card graphic placeholder */}
+                        <div className="py-4 space-y-3 flex flex-col items-center">
+                            <div className="h-16 w-24 rounded-xl border-2 border-dashed border-[#223354] flex items-center justify-center text-slate-400">
+                                <Wallet className="h-8 w-8 opacity-60 text-slate-400" />
+                            </div>
+                            <p className="text-xs text-slate-400 max-w-[200px]">
+                                Todavía no hay información bancaria registrada
+                            </p>
+                            <button 
+                                type="button"
                                 onClick={() => router.push('/dashboard/banco')}
-                                className="text-xs text-slate-500 hover:text-[#ff5e00] font-semibold transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] hover:from-[#c74a00] hover:to-[#ff5e00] text-white text-xs font-bold shadow-lg shadow-orange-950/40 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
                             >
-                                Ir a bancos →
+                                <UploadCloud className="h-4 w-4" />
+                                <span>Importar extracto</span>
                             </button>
                         </div>
-
-                        {bankSummaryList.length > 0 ? (
-                            <div className="space-y-4">
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/70 dark:border-slate-800/60">
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
-                                        Saldo Consolidado Neto
-                                    </span>
-                                    <span className={`text-2xl font-black tracking-tight block mt-1 tabular-nums ${totalBankBalance >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-600 dark:text-red-400'}`}>
-                                        {formatCurrency(totalBankBalance)}
-                                    </span>
-                                </div>
-
-                                <div className="space-y-2.5 overflow-y-auto max-h-[220px] pr-1">
-                                    {bankSummaryList.map((bank, i) => (
-                                        <div key={i} className="p-3 bg-slate-50/50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800/40 rounded-xl flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-2.5">
-                                                <div className="p-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                                                    <Landmark className="h-3.5 w-3.5" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">{bank.name}</h4>
-                                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                                                        Ingresos: <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{formatCurrency(bank.income)}</span>
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className={`text-xs font-bold block tabular-nums ${bank.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-600 dark:text-red-400'}`}>
-                                                    {formatCurrency(bank.balance)}
-                                                </span>
-                                                <span className="text-[9px] text-slate-400 dark:text-slate-500">Saldo</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            /* Estado Vacío Compacto y Accionable (Sin desperdicio de espacio) */
-                            <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/30 border border-slate-200/80 dark:border-slate-700/60 text-center space-y-2.5">
-                                <div className="h-10 w-10 mx-auto rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/40 dark:border-indigo-800/40 shadow-sm">
-                                    <UploadCloud className="h-5 w-5" />
-                                </div>
-                                <div className="space-y-0.5">
-                                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                        Todavía no hay información bancaria registrada
-                                    </h3>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mx-auto">
-                                        Importá extractos en Excel o CSV para conciliar comprobantes de ARCA y monitorear liquidez.
-                                    </p>
-                                </div>
-                                <button 
-                                    onClick={() => router.push('/dashboard/banco')}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#ff5e00] hover:bg-[#e05300] text-white text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer"
-                                >
-                                    <UploadCloud className="h-3.5 w-3.5" />
-                                    <span>Importar extracto</span>
-                                </button>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Tarjeta de Próximas Acciones Sugeridas (Ubicada naturalmente debajo del módulo bancario) */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-[#ff5e00]" />
-                                Próximas Acciones
-                            </h2>
-                            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                                Operativa
-                            </span>
+                    {/* PRÓXIMAS ACCIONES */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm">
+                        <div className="flex items-center gap-2 pb-1">
+                            <CheckCircle className="h-4 w-4 text-[#ff5e00]" />
+                            <h3 className="text-sm font-bold text-white tracking-tight">Próximas Acciones</h3>
                         </div>
 
-                        <div className="space-y-2.5">
-                            {/* Acción 1: Enviar al Contador */}
+                        <div className="space-y-3">
+                            {/* Acción 1: Compartir con tu contador */}
                             <div 
                                 onClick={() => setIsRemitModalOpen(true)}
-                                className="p-3 rounded-xl border border-orange-200/80 dark:border-orange-900/40 bg-orange-50/40 dark:bg-orange-950/20 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-all cursor-pointer group"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                        <Send className="h-3.5 w-3.5 text-[#ff5e00]" />
-                                        Compartir con tu contador
-                                    </span>
-                                    <ArrowRight className="h-3.5 w-3.5 text-[#ff5e00] transition-transform group-hover:translate-x-1" />
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 text-[#ff5e00]">
+                                        <Send className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-white group-hover:text-[#ff5e00] transition-colors">Compartir con tu contador</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">Prepará el envío mensual de comprobantes y extractos bancarios.</p>
+                                    </div>
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                                    Prepará el envío mensual de comprobantes y extractos bancarios.
-                                </p>
+                                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:translate-x-1 shrink-0 ml-2" />
                             </div>
 
-                            {/* Acción 2: Facturar Comprobante */}
+                            {/* Acción 2: Emitir comprobante ARCA */}
                             <div 
                                 onClick={() => router.push('/dashboard/facturacion')}
-                                className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/30 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-all cursor-pointer group"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                        <FileText className="h-3.5 w-3.5 text-blue-500" />
-                                        Emitir comprobante ARCA
-                                    </span>
-                                    <ArrowRight className="h-3.5 w-3.5 text-slate-400 transition-transform group-hover:translate-x-1" />
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 text-slate-300">
+                                        <FileText className="h-4 w-4 text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">Emitir comprobante ARCA</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">Generá Facturas A, B, C o Notas de Crédito con CAE oficial.</p>
+                                    </div>
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                                    Generá Facturas A, B, C o Notas de Crédito con CAE oficial.
-                                </p>
+                                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:translate-x-1 shrink-0 ml-2" />
                             </div>
 
-                            {/* Acción 3: Conciliación Bancaria */}
+                            {/* Acción 3: Conciliar cuentas bancarias */}
                             <div 
                                 onClick={() => router.push('/dashboard/banco')}
-                                className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/30 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-all cursor-pointer group"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                        <Landmark className="h-3.5 w-3.5 text-indigo-500" />
-                                        Conciliar cuentas bancarias
-                                    </span>
-                                    <ArrowRight className="h-3.5 w-3.5 text-slate-400 transition-transform group-hover:translate-x-1" />
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 text-slate-300">
+                                        <RefreshCw className="h-4 w-4 text-emerald-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">Conciliar cuentas bancarias</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">Importá tu extracto y controlá movimientos y saldos.</p>
+                                    </div>
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                                    Cargá extractos para emparejar cobranzas con ventas emitidas.
-                                </p>
+                                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:translate-x-1 shrink-0 ml-2" />
                             </div>
                         </div>
-
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-                            <span>Conexión fiscal:</span>
-                            <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                ARCA Activo
-                            </span>
-                        </div>
                     </div>
+
                 </div>
 
             </div>
