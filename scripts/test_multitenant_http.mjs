@@ -1,7 +1,24 @@
 import assert from 'node:assert/strict';
 import { SignJWT } from 'jose';
+import fs from 'node:fs';
+import path from 'node:path';
 
-// Read or default JWT_SECRET for test environment
+// Load JWT_SECRET from .env if running from script runner
+if (!process.env.JWT_SECRET) {
+    try {
+        const envPath = path.resolve(process.cwd(), '.env');
+        if (fs.existsSync(envPath)) {
+            const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+            for (const line of lines) {
+                if (line.trim().startsWith('JWT_SECRET=')) {
+                    process.env.JWT_SECRET = line.trim().split('=', 1)[1].trim().replace(/['"]/g, '');
+                    break;
+                }
+            }
+        }
+    } catch {}
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'test_suite_cryptographic_secret_key_minimum_32_chars_ok';
 const BASE_URL = process.env.TEST_BASE_URL || 'https://neoconta.com.ar';
 
@@ -136,7 +153,54 @@ async function runTests() {
         assert.strictEqual(res.status, 403, 'Subcuenta no debe tener acceso a terceros');
     });
 
-    // 5. Cache-Control Header Enforcement
+    // 5. Data Science Surface Hardening
+    await test('Bloqueo perimetral Nginx a cálculo directo en /api-ds/api/predict/cashflow (404)', async () => {
+        const res = await request('/api-ds/api/predict/cashflow', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { history: [], periods: 2 }
+        });
+        assert.strictEqual(res.status, 404, 'Nginx debe rechazar llamadas externas con 404');
+    });
+
+    await test('Bloqueo perimetral Nginx a cálculo directo en /api-ds/api/reconcile/match (404)', async () => {
+        const res = await request('/api-ds/api/reconcile/match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { movement: {}, invoices: [] }
+        });
+        assert.strictEqual(res.status, 404, 'Nginx debe rechazar llamadas externas con 404');
+    });
+
+    await test('Disponibilidad de diagnóstico perimetral en /api-ds/health (200)', async () => {
+        const res = await request('/api-ds/health');
+        assert.strictEqual(res.status, 200, 'Endpoint de salud debe responder 200');
+        assert.strictEqual(res.data?.status, 'ok');
+    });
+
+    await test('Comunicación legítima autenticada a través del proxy Next.js /api/predict/cashflow (200)', async () => {
+        const res = await request('/api/predict/cashflow', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenTenantA}`,
+                'Content-Type': 'application/json'
+            },
+            body: {
+                history: [
+                    { ds: '2026-05-01', y: 350000 },
+                    { ds: '2026-06-01', y: 380000 },
+                    { ds: '2026-07-01', y: 410000 }
+                ],
+                periods: 2,
+                freq: 'MS'
+            }
+        });
+        assert.strictEqual(res.status, 200, 'Debe devolver 200 OK para usuario autenticado');
+        assert.strictEqual(res.data?.success, true);
+        assert.ok(Array.isArray(res.data?.forecast), 'Debe devolver arreglo de proyecciones');
+    });
+
+    // 6. Cache-Control Header Enforcement
     await test('Cabecera Cache-Control en /dashboard redirecciona a login con private, no-store', async () => {
         const res = await fetch(`${BASE_URL}/dashboard`, {
             redirect: 'manual',
