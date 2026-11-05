@@ -243,7 +243,7 @@ export default function Dashboard() {
                 { ds: "2026-05-01", y: currentMRR }
             ];
 
-            const res = await fetch("/api-ds/api/predict/cashflow", {
+            const res = await fetch("/api/predict/cashflow", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -277,7 +277,7 @@ export default function Dashboard() {
                 }
 
                 // Call Prophet backend!
-                const forecastRes = await fetch("/api-ds/api/predict/cashflow", {
+                const forecastRes = await fetch("/api/predict/cashflow", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

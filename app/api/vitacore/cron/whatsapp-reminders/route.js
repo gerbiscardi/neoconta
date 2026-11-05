@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getServerSession } from '@/lib/auth';
 
-const CRON_SECRET = process.env.CRON_SECRET || 'neoconta_cron_secret_internal_2026';
+const CRON_SECRET = process.env.CRON_SECRET;
 
 let isCronRunning = false;
 
@@ -19,7 +19,7 @@ export async function GET(request) {
         const authHeader = request.headers.get('authorization') || '';
         const bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
 
-        const isAuthorizedSecret = (secretParam && secretParam === CRON_SECRET) || (bearerSecret && bearerSecret === CRON_SECRET);
+        const isAuthorizedSecret = Boolean(CRON_SECRET) && ((secretParam && secretParam === CRON_SECRET) || (bearerSecret && bearerSecret === CRON_SECRET));
         
         if (!isAuthorizedSecret) {
             const session = await getServerSession(request);

@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'neoconta_super_secret_jwt_key_2026_pro';
+function getJwtSecret() {
+    const secret = process.env.JWT_SECRET;
+    if (!secret || typeof secret !== 'string' || secret.trim().length < 32) {
+        throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing, empty, or insufficiently secure.');
+    }
+    return new TextEncoder().encode(secret.trim());
+}
 
 export async function middleware(request) {
     const { pathname } = request.nextUrl;
@@ -20,7 +26,7 @@ export async function middleware(request) {
         }
 
         try {
-            const secret = new TextEncoder().encode(JWT_SECRET);
+            const secret = getJwtSecret();
             await jwtVerify(sessionToken, secret);
         } catch (err) {
             console.warn('Invalid or expired session token:', err.message);

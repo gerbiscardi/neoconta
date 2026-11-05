@@ -1,27 +1,41 @@
-from fastapi import FastAPI, HTTPException
+import os
+import re
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
 import pandas as pd
 import numpy as np
 from prophet import Prophet
 import uvicorn
-import re
 
 app = FastAPI(
     title="NeoConta Data Science Service",
-    description="Microservicio de Inteligencia Artificial y Machine Learning para NeoConta",
-    version="1.0.0"
+    description="Microservicio interno de Inteligencia Artificial y Machine Learning para NeoConta",
+    version="1.1.0"
 )
 
-# Configuración de CORS para permitir la comunicación con el Frontend de Next.js
+# Configuración de CORS restringida exclusivamente al host local de Next.js
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+def verify_internal_auth(x_internal_token: Optional[str] = Header(None)):
+    """
+    Verifica que la solicitud provenga exclusivamente de Next.js mediante token interno.
+    """
+    expected_secret = os.environ.get("DS_INTERNAL_SECRET")
+    if expected_secret:
+        if not x_internal_token or x_internal_token != expected_secret:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso restringido: Se requiere autenticación interna autorizada."
+            )
+    return True
 
 # --- MODELOS DE DATOS ---
 
@@ -52,28 +66,30 @@ class ReconciliationRequest(BaseModel):
 
 # --- ENDPOINTS ---
 
-@app.get("/")
-def read_root():
-    return {
-        "status": "online",
-        "service": "NeoConta Data Science",
-        "engines": ["Facebook Prophet", "XGBoost Scorer"]
-    }
-
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "NeoConta Data Science"}
+    return {"status": "ok", "service": "NeoConta Data Science Internal"}
 
-@app.post("/api/predict/cashflow")
+@app.post("/api/predict/cashflow", dependencies=[Depends(verify_internal_auth)])
 def predict_cashflow(request: CashFlowRequest):
     """
     Toma el historial financiero y predice el flujo de caja utilizando Facebook Prophet.
+    Acceso restringido internamente a Next.js.
     """
     if len(request.history) < 2:
-        # Fallback si hay muy pocos datos históricos para entrenar Prophet
         raise HTTPException(
             status_code=400,
             detail="Se necesitan al menos 2 puntos históricos para entrenar el modelo predictivo."
+        )
+    if len(request.history) > 120:
+        raise HTTPException(
+            status_code=400,
+            detail="La cantidad de observaciones históricas excede el límite máximo permitido (120 observaciones)."
+        )
+    if request.periods < 1 or request.periods > 24:
+        raise HTTPException(
+            status_code=400,
+            detail="El horizonte de predicción debe situarse entre 1 y 24 períodos."
         )
     
     try:
@@ -142,17 +158,25 @@ def predict_cashflow(request: CashFlowRequest):
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en el modelo Prophet: {str(e)}")
+        # Sanitizar error sin exponer datos financieros en respuestas HTTP
+        raise HTTPException(status_code=500, detail="Error en el procesamiento del modelo predictivo.")
 
 
-@app.post("/api/reconcile/match")
+@app.post("/api/reconcile/match", dependencies=[Depends(verify_internal_auth)])
 def reconcile_match(request: ReconciliationRequest):
     """
     Evalúa y puntúa las facturas pendientes para un movimiento bancario dado
     simulando el árbol de decisión de XGBoost basado en múltiples características.
+    Acceso restringido internamente a Next.js.
     """
     movement = request.movement
     invoices = request.invoices
+    
+    if len(invoices) > 200:
+        raise HTTPException(
+            status_code=400,
+            detail="La lista de comprobantes a evaluar excede el límite máximo permitido (200 comprobantes)."
+        )
     
     if not invoices:
         return {"success": True, "matches": []}

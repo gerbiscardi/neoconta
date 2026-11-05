@@ -122,7 +122,7 @@ export default function BankingDetailModal({ transactionId, features = {}, onClo
                 if (features.conciliacionAsistida !== false && details && details.transaction && invoicesToScore.length > 0) {
                     try {
                         const tx = details.transaction;
-                        const matchRes = await fetch("/api-ds/api/reconcile/match", {
+                        const matchRes = await fetch("/api/reconcile/match", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({

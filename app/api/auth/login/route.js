@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import jwt from 'jsonwebtoken';
-import { verifyPassword, hashPassword, JWT_SECRET } from '@/lib/auth';
+import { verifyPassword, hashPassword, getJwtSecret } from '@/lib/auth';
 import { getClientIp, loginLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(request) {
@@ -56,9 +56,10 @@ export async function POST(request) {
         userInfo.mustChangePassword = user.mustChangePassword === true;
 
         // Generate JWT Token
+        const jwtSecret = getJwtSecret();
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role, parentId: user.parentId },
-            JWT_SECRET,
+            jwtSecret,
             { expiresIn: '7d' }
         );
 
