@@ -140,7 +140,8 @@ export async function GET(request) {
                     netTotal: 0
                 };
 
-                const net = Math.max(0, b.netTotal);
+                // Conservar el dato contable neto exacto sin truncar (soporta meses con saldo negativo por notas de crédito)
+                const net = Math.round(b.netTotal * 100) / 100;
                 completedMonths.push({
                     key,
                     year: y,

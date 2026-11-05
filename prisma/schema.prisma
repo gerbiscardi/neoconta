@@ -14,6 +14,7 @@ model User {
   password           String
   role               String
   parentId           String?
+  status             String   @default("active") // "active" | "inactive" | "disabled"
   mustChangePassword Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -170,6 +171,7 @@ model ShadowForecastLedger {
   previousActualObserved    Float?
   actualClosedAt            DateTime?
   revisionNumber            Int       @default(1)
+  revisionHistoryJson       String?   // Historial inmutable de eventos de revisión contable en JSON
   error                     Float?
   absError                  Float?
   reconciliationStatus      String    @default("provisional") // "provisional" | "definitive" | "adjusted"

@@ -115,7 +115,8 @@ export async function GET(request) {
                     const m = cur.getMonth();
                     const key = `${y}-${String(m + 1).padStart(2, '0')}-01`;
                     const b = buckets[key] || { netTotal: 0 };
-                    completedSeries.push(Math.max(0, b.netTotal));
+                    // Conservar el dato contable neto exacto sin truncar (soporta meses con facturación neta negativa)
+                    completedSeries.push(Math.round(b.netTotal * 100) / 100);
                     cur.setMonth(cur.getMonth() + 1);
                 }
 
@@ -134,8 +135,8 @@ export async function GET(request) {
                     jobResults.forecastsRecorded += (recRes.recordedCount || 0);
                 }
 
-                // 2. Conciliar el mes cerrado previo (si hay datos registrados en el ledger)
-                const prevClosedNet = buckets[prevMonthKey] ? Math.max(0, buckets[prevMonthKey].netTotal) : 0;
+                // 2. Conciliar el mes cerrado previo con su valor contable neto original
+                const prevClosedNet = buckets[prevMonthKey] ? Math.round(buckets[prevMonthKey].netTotal * 100) / 100 : 0;
                 const reconRes = await reconcileMonthInLedger({
                     userId,
                     targetMonthKey: prevMonthKey,

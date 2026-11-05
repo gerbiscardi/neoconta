@@ -197,6 +197,20 @@ async function runAdvancedAuthSuite() {
 
         assert('Shadow Forecast Ledger registra horizontes h=1 y h=2 diferenciados (16 registros)', recResult.recordedCount === 16);
 
+        // Inmutabilidad ante ejecuciones repetidas
+        const frozenBefore = recResult.records ? recResult.records[0] : null;
+        const repeatResult = await recordShadowForecasts({
+            userId: 'usr_test_audit_suite',
+            seriesValues: [999999, 999999], // Valores distintos que no deben sobreescribir lo congelado
+            trainingEndMonth: '2026-10-01',
+            targetMonthKey: '2026-11-01'
+        });
+        const recAfterRepeat = await prisma.shadowForecastLedger.findFirst({
+            where: { userId: 'usr_test_audit_suite', targetMonthKey: '2026-11-01', modelId: 'simple_mean' }
+        });
+        assert('Ejecuciones repetidas del cron no alteran el pronóstico congelado original', 
+            recAfterRepeat && Math.round(recAfterRepeat.rawForecast) === 382909);
+
         // Conciliación inicial (h=1 = 2026-11-01)
         const recon1 = await reconcileMonthInLedger({
             userId: 'usr_test_audit_suite',
@@ -204,12 +218,10 @@ async function runAdvancedAuthSuite() {
             actualNetInvoiced: 410000.00
         });
 
-
-
         assert('Conciliación inicial establece status="definitive" y revisionNumber=1', 
             recon1.reconciledCount > 0 && recon1.records[0].reconciliationStatus === 'definitive' && recon1.records[0].revisionNumber === 1);
 
-        // Ajuste tardío por nota de crédito posterior
+        // Ajuste tardío 1 por nota de crédito posterior
         const recon2 = await reconcileMonthInLedger({
             userId: 'usr_test_audit_suite',
             targetMonthKey: '2026-11-01',
@@ -221,6 +233,19 @@ async function runAdvancedAuthSuite() {
             recon2.records[0].previousActualObserved === 410000.00 &&
             recon2.records[0].actualObserved === 395000.00 &&
             recon2.records[0].reconciliationStatus === 'adjusted');
+
+        // Ajuste tardío 2 (tercera revisión sucesiva) con facturación neta negativa
+        const recon3 = await reconcileMonthInLedger({
+            userId: 'usr_test_audit_suite',
+            targetMonthKey: '2026-11-01',
+            actualNetInvoiced: -15000.00
+        });
+
+        const recHistory = JSON.parse(recon3.records[0].revisionHistoryJson || '[]');
+        assert('Historial contable inmutable almacena todas las revisiones sucesivas (3 eventos)', 
+            recHistory.length === 3 && recHistory[0].revision === 1 && recHistory[1].revision === 2 && recHistory[2].revision === 3);
+        assert('Revisión con saldo neto negativo preserva exactamente el valor negativo y su error', 
+            recon3.records[0].actualObserved === -15000.00 && recHistory[2].newActual === -15000.00);
 
         // Limpieza de datos de prueba
         await prisma.shadowForecastLedger.deleteMany({
