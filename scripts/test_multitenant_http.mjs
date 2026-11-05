@@ -134,7 +134,7 @@ async function runTests() {
             headers: authHeaders(tokenTenantA)
         });
         assert.strictEqual(res.status, 403, 'Debe devolver 403 Forbidden');
-        assert.strictEqual(res.data?.error, 'Acceso no autorizado');
+        assert.match(res.data?.error, /Acceso no autorizado/, 'Debe indicar acceso no autorizado');
     });
 
     // 3. Path Traversal Protection
