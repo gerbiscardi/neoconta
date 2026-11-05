@@ -293,7 +293,8 @@ export async function GET(request) {
                         netTotal: 0
                     };
 
-                    const net = Math.max(0, b.netTotal);
+                    // Conservar el dato contable neto exacto sin truncar (soporta saldo negativo por NC)
+                    const net = Math.round(b.netTotal * 100) / 100;
                     totalNetCompleted += net;
 
                     completedMonthsSeries.push({
@@ -319,20 +320,22 @@ export async function GET(request) {
             // Current Month (in progress / incomplete)
             const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
             const currentBucket = buckets[currentMonthKey] || { facturasCount: 0, facturasTotal: 0, ncCount: 0, ncTotal: 0, netTotal: 0 };
-            const currentMonthInvoiced = Math.max(0, currentBucket.netTotal);
+            const currentMonthInvoiced = Math.round(currentBucket.netTotal * 100) / 100;
 
             // Previous Month (last closed month)
             const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
             const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
             const prevBucket = buckets[prevMonthKey] || { netTotal: 0 };
-            const prevMonthInvoiced = Math.max(0, prevBucket.netTotal);
+            const prevMonthInvoiced = Math.round(prevBucket.netTotal * 100) / 100;
 
-            let invoicedMonthChange = "Mes en curso";
-            if (prevMonthInvoiced > 0) {
-                const diffPct = ((currentMonthInvoiced - prevMonthInvoiced) / prevMonthInvoiced) * 100;
-                invoicedMonthChange = (diffPct >= 0 ? "+" : "") + diffPct.toFixed(1) + "% vs mes ant.";
-            } else if (currentMonthInvoiced > 0) {
-                invoicedMonthChange = "+100% vs mes ant.";
+            // Contexto del mes en curso sin caídas falsas del -100% por comparación de mes parcial vs mes completo
+            const currentDay = now.getDate();
+            let invoicedMonthChange = `Día ${currentDay} del mes en curso`;
+            if (currentBucket.facturasCount > 0) {
+                invoicedMonthChange = `${currentBucket.facturasCount} ${currentBucket.facturasCount === 1 ? 'comprobante emitido' : 'comprobantes emitidos'}`;
+                if (currentBucket.ncCount > 0) {
+                    invoicedMonthChange += ` (${currentBucket.ncCount} NC)`;
+                }
             }
 
             // 3. Continuous timeline sent to Prophet (only complete months + zero months in between)
@@ -433,7 +436,8 @@ export async function GET(request) {
                     forecastHistory,
                     completedMonthsSeries,
                     projectedPeriods,
-                    forecastMethodology
+                    forecastMethodology,
+                    invoices: approved
                 }
             });
         }

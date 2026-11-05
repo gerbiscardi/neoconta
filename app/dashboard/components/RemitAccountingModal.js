@@ -1,23 +1,33 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-    X, 
-    Send, 
-    Download, 
-    Calendar, 
-    FileSpreadsheet, 
-    FileText, 
-    FileCode2, 
-    Mail, 
-    Building, 
-    CheckCircle2, 
-    AlertCircle, 
-    Loader2, 
-    Sparkles 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    X,
+    Send,
+    Download,
+    Calendar,
+    FileSpreadsheet,
+    FileText,
+    FileCode2,
+    Mail,
+    Building,
+    CheckCircle2,
+    AlertCircle,
+    Loader2,
+    Sparkles,
+    Eye,
+    Info,
+    Check
 } from 'lucide-react';
 
-export default function RemitAccountingModal({ isOpen, onClose, currentUser, companyConfig }) {
+export default function RemitAccountingModal({ 
+    isOpen, 
+    onClose, 
+    currentUser, 
+    companyConfig,
+    invoices = [],
+    transactions = []
+}) {
     if (!isOpen) return null;
 
     // Helper: format YYYY-MM-DD
@@ -76,6 +86,54 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
         }
     };
 
+    // Calculate real preview counts based on selected dates
+    const previewSummary = useMemo(() => {
+        const dFrom = new Date(fechaDesde);
+        const dTo = new Date(fechaHasta);
+        dTo.setHours(23, 59, 59, 999);
+
+        let filteredInvoicesCount = 0;
+        let invoiceTotalNet = 0;
+        if (Array.isArray(invoices) && invoices.length > 0) {
+            invoices.forEach(inv => {
+                const rawDate = inv.cbteFch || inv.CbteFch || inv.created_at;
+                if (!rawDate) return;
+                const str = String(rawDate).trim();
+                let emDate = null;
+                if (str.length === 8 && /^\d{8}$/.test(str)) {
+                    emDate = new Date(parseInt(str.substring(0, 4)), parseInt(str.substring(4, 6)) - 1, parseInt(str.substring(6, 8)));
+                } else {
+                    emDate = new Date(str);
+                }
+                if (!isNaN(emDate.getTime()) && emDate >= dFrom && emDate <= dTo) {
+                    filteredInvoicesCount++;
+                    const amt = parseFloat(inv.Importe || inv.Total || 0);
+                    const isNc = [3, 8, 13, 203, 208, 213].includes(Number(inv.cbteTipo || inv.CbteTipo || 11));
+                    invoiceTotalNet += isNc ? -amt : amt;
+                }
+            });
+        }
+
+        let filteredBankCount = 0;
+        if (Array.isArray(transactions) && transactions.length > 0) {
+            transactions.forEach(tx => {
+                const txDate = tx.transaction_date ? new Date(tx.transaction_date) : null;
+                if (txDate && !isNaN(txDate.getTime()) && txDate >= dFrom && txDate <= dTo) {
+                    filteredBankCount++;
+                }
+            });
+        }
+
+        const hasBankData = Array.isArray(transactions) && transactions.length > 0;
+
+        return {
+            filteredInvoicesCount,
+            invoiceTotalNet,
+            filteredBankCount,
+            hasBankData
+        };
+    }, [fechaDesde, fechaHasta, invoices, transactions]);
+
     // Trigger Download from base64
     const downloadBase64File = (base64Data, filename, mimeType) => {
         const byteCharacters = atob(base64Data);
@@ -107,7 +165,7 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
 
         if (action === 'send_email') {
             if (!recipientEmail || !recipientEmail.includes('@')) {
-                setStatusMessage({ type: 'error', text: 'Por favor ingresa un correo electrónico de destinatario válido.' });
+                setStatusMessage({ type: 'error', text: 'Por favor ingresá un correo electrónico de destinatario válido.' });
                 return;
             }
             // Save email to localStorage for future use
@@ -129,7 +187,7 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                     recipientEmail: recipientEmail.trim(),
                     message: message.trim(),
                     includeInvoices,
-                    includeBank,
+                    includeBank: includeBank && previewSummary.hasBankData,
                     action
                 })
             });
@@ -137,19 +195,19 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
             const data = await res.json();
 
             if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Ocurrió un error al procesar el informe.');
+                throw new Error(data.error || 'Ocurrió un error al procesar el informe contable.');
             }
 
             if (action === 'download') {
                 downloadBase64File(data.base64Data, data.filename, data.mimeType);
                 setStatusMessage({
                     type: 'success',
-                    text: `¡Archivo ${data.filename} generado y descargado con éxito!`
+                    text: `Archivo ${data.filename} generado y descargado con éxito.`
                 });
             } else {
                 setStatusMessage({
                     type: 'success',
-                    text: data.message || `¡Información contable remitida con éxito a ${recipientEmail}!`
+                    text: data.message || `Información contable remitida con éxito a ${recipientEmail}.`
                 });
             }
 
@@ -163,31 +221,29 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true">
             <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
-                
+
                 {/* Modal Header */}
-                <div className="px-6 py-5 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
+                <div className="px-6 py-5 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
                             <Send className="h-5 w-5" />
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                Remitir Información Contable
-                                <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
-                                    Contador
-                                </span>
+                                Preparar envío al contador
                             </h2>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Exporta y envía la facturación y movimientos bancarios a tu contador en un clic.
+                                Seleccioná el período y la información que querés compartir con tu contador
                             </p>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={onClose}
                         disabled={loading}
                         className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        aria-label="Cerrar modal"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -197,16 +253,16 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                 <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm">
 
                     {/* Company Pill */}
-                    <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
                         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-medium">
                             <Building className="h-4 w-4 text-orange-500" />
                             <span>{companyConfig?.razonSocial || currentUser?.nombre || "Mi Empresa"}</span>
                             {companyConfig?.cuit && (
-                                <span className="text-xs text-slate-400">({companyConfig.cuit})</span>
+                                <span className="text-xs text-slate-400 font-mono">CUIT: {companyConfig.cuit}</span>
                             )}
                         </div>
-                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                            Datos Verificados
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-700/60 px-2.5 py-1 rounded-full">
+                            {currentUser?.role === 'owner' ? 'Administrador' : 'Contribuyente'}
                         </span>
                     </div>
 
@@ -216,7 +272,7 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                             <Calendar className="h-4 w-4 text-orange-500" />
                             Período a Remitir
                         </label>
-                        
+
                         {/* Preset buttons */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {[
@@ -274,38 +330,85 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
-                                includeInvoices 
-                                    ? 'bg-blue-500/5 dark:bg-blue-500/10 border-blue-500/30' 
+                                includeInvoices
+                                    ? 'bg-blue-500/5 dark:bg-blue-500/10 border-blue-500/30'
                                     : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-60'
                             }`}>
-                                <input 
-                                    type="checkbox" 
-                                    checked={includeInvoices} 
+                                <input
+                                    type="checkbox"
+                                    checked={includeInvoices}
                                     onChange={(e) => setIncludeInvoices(e.target.checked)}
-                                    className="mt-1 h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                                    className="mt-1 h-4 w-4 rounded text-orange-500 focus:ring-orange-500 border-slate-300"
                                 />
                                 <div>
                                     <p className="font-bold text-xs text-slate-800 dark:text-slate-200">Facturación Emitida (ARCA)</p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Facturas A, B, C, NC y ND con CAE, totales e IVA.</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Facturas A, B, C, NC y ND con CAE, totales e IVA discriminado.</p>
                                 </div>
                             </label>
 
                             <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
-                                includeBank 
-                                    ? 'bg-purple-500/5 dark:bg-purple-500/10 border-purple-500/30' 
+                                includeBank
+                                    ? 'bg-purple-500/5 dark:bg-purple-500/10 border-purple-500/30'
                                     : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-60'
                             }`}>
-                                <input 
-                                    type="checkbox" 
-                                    checked={includeBank} 
+                                <input
+                                    type="checkbox"
+                                    checked={includeBank}
                                     onChange={(e) => setIncludeBank(e.target.checked)}
-                                    className="mt-1 h-4 w-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300"
+                                    className="mt-1 h-4 w-4 rounded text-orange-500 focus:ring-orange-500 border-slate-300"
                                 />
                                 <div>
                                     <p className="font-bold text-xs text-slate-800 dark:text-slate-200">Movimientos Bancarios</p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Extracto de ingresos, egresos y flujo financiero.</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        {previewSummary.hasBankData 
+                                            ? 'Extracto de ingresos, egresos y conciliación financiera.'
+                                            : 'Sin información bancaria registrada en la plataforma.'}
+                                    </p>
                                 </div>
                             </label>
+                        </div>
+                    </div>
+
+                    {/* Pre-Shipment Live Verification & Preview */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <Eye className="h-4 w-4 text-orange-500" />
+                                Vista previa del paquete de exportación
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                Período: {fechaDesde} al {fechaHasta}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                                <span className="text-[10px] text-slate-400 uppercase font-bold block">Facturación ARCA</span>
+                                {includeInvoices ? (
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                        {previewSummary.filteredInvoicesCount > 0 
+                                            ? `${previewSummary.filteredInvoicesCount} comprobantes detectados` 
+                                            : 'Sin comprobantes en el rango seleccionado'}
+                                    </span>
+                                ) : (
+                                    <span className="text-slate-400 italic">No incluida</span>
+                                )}
+                            </div>
+
+                            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                                <span className="text-[10px] text-slate-400 uppercase font-bold block">Movimientos Bancarios</span>
+                                {!includeBank ? (
+                                    <span className="text-slate-400 italic">No incluidos</span>
+                                ) : !previewSummary.hasBankData ? (
+                                    <span className="text-slate-400 italic">Sin cuentas registradas</span>
+                                ) : (
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                        {previewSummary.filteredBankCount > 0 
+                                            ? `${previewSummary.filteredBankCount} movimientos detectados` 
+                                            : 'Sin movimientos en el período'}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -316,23 +419,23 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                         </label>
                         <div className="grid grid-cols-3 gap-3">
                             {[
-                                { 
-                                    id: 'xlsx', 
-                                    label: 'Excel (.xlsx)', 
+                                {
+                                    id: 'xlsx',
+                                    label: 'Excel (.xlsx)',
                                     desc: 'Hojas y fórmulas',
                                     badge: 'Recomendado',
                                     icon: <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
                                 },
-                                { 
-                                    id: 'pdf', 
-                                    label: 'PDF Ejecutivo', 
+                                {
+                                    id: 'pdf',
+                                    label: 'PDF Ejecutivo',
                                     desc: 'Documento formal',
                                     badge: null,
                                     icon: <FileText className="h-5 w-5 text-red-500" />
                                 },
-                                { 
-                                    id: 'csv', 
-                                    label: 'CSV Plano', 
+                                {
+                                    id: 'csv',
+                                    label: 'CSV Plano',
                                     desc: 'Para sistemas contables',
                                     badge: null,
                                     icon: <FileCode2 className="h-5 w-5 text-blue-500" />
@@ -344,7 +447,7 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                                     onClick={() => setFormat(fmt.id)}
                                     className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all ${
                                         format === fmt.id
-                                            ? 'bg-orange-500/5 dark:bg-orange-500/10 border-orange-500 shadow-sm'
+                                            ? 'bg-orange-500/5 dark:bg-orange-500/10 border-orange-500 shadow-sm ring-1 ring-orange-500'
                                             : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                                     }`}
                                 >
@@ -369,25 +472,31 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                     <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                             <Mail className="h-4 w-4 text-orange-500" />
-                            Email del Destinatario (Contador / Estudio)
+                            Destinatario del Envío
                         </label>
-                        <input
-                            type="email"
-                            placeholder="ej: contador@estudiocontable.com"
-                            value={recipientEmail}
-                            onChange={(e) => setRecipientEmail(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs font-medium placeholder:text-slate-400"
-                        />
 
                         <div>
-                            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                                Correo del Contador o Estudio Contable
+                            </label>
+                            <input
+                                type="email"
+                                value={recipientEmail}
+                                onChange={(e) => setRecipientEmail(e.target.value)}
+                                placeholder="contador@estudiocontable.com.ar"
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs font-medium placeholder:text-slate-400"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
                                 Mensaje o Nota Opcional
                             </label>
                             <textarea
                                 rows={2}
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
-                                placeholder="Escribe un mensaje para adjuntar al correo..."
+                                placeholder="Escribí un mensaje para adjuntar al correo..."
                                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs font-medium placeholder:text-slate-400 resize-none"
                             />
                         </div>
@@ -436,7 +545,7 @@ export default function RemitAccountingModal({ isOpen, onClose, currentUser, com
                             type="button"
                             onClick={() => handleAction('send_email')}
                             disabled={loading}
-                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs font-bold transition-all shadow-lg shadow-orange-500/20 cursor-pointer disabled:opacity-50"
+                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition-all shadow-md shadow-orange-600/20 cursor-pointer disabled:opacity-50"
                         >
                             {loading && actionType === 'send_email' ? (
                                 <>
