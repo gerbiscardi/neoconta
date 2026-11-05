@@ -11,7 +11,8 @@ if (!process.env.JWT_SECRET) {
             const lines = fs.readFileSync(envPath, 'utf8').split('\n');
             for (const line of lines) {
                 if (line.trim().startsWith('JWT_SECRET=')) {
-                    process.env.JWT_SECRET = line.trim().split('=', 1)[1].trim().replace(/['"]/g, '');
+                    const idx = line.indexOf('=');
+                    process.env.JWT_SECRET = line.substring(idx + 1).trim().replace(/['"]/g, '');
                     break;
                 }
             }
