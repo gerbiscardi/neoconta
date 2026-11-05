@@ -1959,10 +1959,10 @@ export default function Dashboard() {
             </div>
 
             {/* 4. MAIN GRID: 2 COLUMNAS ASIMÉTRICAS */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
 
                 {/* COLUMNA IZQUIERDA (67% width): HERO PRONÓSTICO + ACTIVIDAD RECIENTE */}
-                <div className="lg:col-span-8 space-y-6">
+                <div className="w-full lg:w-[67%] space-y-6 min-w-0 shrink-0">
 
                     {/* HERO: PRONÓSTICO FINANCIERO CON GRÁFICO DE ONDA INTEGRADO */}
                     <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm relative overflow-hidden">
@@ -2224,7 +2224,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* COLUMNA DERECHA (33% width): CUENTAS BANCARIAS + PRÓXIMAS ACCIONES */}
-                <div className="lg:col-span-4 space-y-6">
+                <div className="w-full lg:flex-1 space-y-6 min-w-0">
 
                     {/* CUENTAS BANCARIAS */}
                     <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm text-center">
