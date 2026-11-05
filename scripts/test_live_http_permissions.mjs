@@ -179,7 +179,7 @@ async function runHttpPermissionSuite() {
         }, secretStr);
 
         // Intento de acceso a recursos de otro tenant ('tenant_forbidden_99') -> HTTP 403
-        const resTenant1 = await fetch(`${BASE_URL}/api/arca/historial?targetUserId=tenant_forbidden_99`, {
+        const resTenant1 = await fetch(`${BASE_URL}/api/arca/historial?userId=tenant_forbidden_99`, {
             headers: {
                 'Cookie': `neoconta_session=${tokenTenant}`
             }
@@ -187,7 +187,7 @@ async function runHttpPermissionSuite() {
         assert('5a. Intento de acceso IDOR a otro tenant bloqueado por HTTP (HTTP 403)', resTenant1.status === 403);
 
         // Intento de acceso a sus propios recursos -> HTTP 200
-        const resTenant2 = await fetch(`${BASE_URL}/api/arca/historial?targetUserId=usr_tenant_test_01`, {
+        const resTenant2 = await fetch(`${BASE_URL}/api/arca/historial?userId=usr_tenant_test_01`, {
             headers: {
                 'Cookie': `neoconta_session=${tokenTenant}`
             }
