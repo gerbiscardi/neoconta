@@ -12,7 +12,11 @@ export async function middleware(request) {
 
         if (!sessionToken) {
             const loginUrl = new URL('/login', request.url);
-            return NextResponse.redirect(loginUrl);
+            const redirectResponse = NextResponse.redirect(loginUrl);
+            redirectResponse.headers.set('Cache-Control', 'private, no-cache, no-store, max-age=0, must-revalidate');
+            redirectResponse.headers.set('Pragma', 'no-cache');
+            redirectResponse.headers.set('Expires', '0');
+            return redirectResponse;
         }
 
         try {
@@ -23,6 +27,9 @@ export async function middleware(request) {
             const loginUrl = new URL('/login', request.url);
             const response = NextResponse.redirect(loginUrl);
             response.cookies.delete('neoconta_session');
+            response.headers.set('Cache-Control', 'private, no-cache, no-store, max-age=0, must-revalidate');
+            response.headers.set('Pragma', 'no-cache');
+            response.headers.set('Expires', '0');
             return response;
         }
     }
@@ -37,6 +44,18 @@ export async function middleware(request) {
 
     if (process.env.NODE_ENV === 'production') {
         response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+
+    // Cache-Control hardening for private / sensitive routes (Dashboard and APIs)
+    const isPrivate = pathname.startsWith('/dashboard') || 
+                      pathname.startsWith('/api/') || 
+                      pathname === '/login' || 
+                      pathname === '/register';
+
+    if (isPrivate) {
+        response.headers.set('Cache-Control', 'private, no-cache, no-store, max-age=0, must-revalidate');
+        response.headers.set('Pragma', 'no-cache');
+        response.headers.set('Expires', '0');
     }
 
     return response;
