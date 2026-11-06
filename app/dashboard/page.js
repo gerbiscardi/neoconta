@@ -212,6 +212,19 @@ export default function Dashboard() {
         }).format(val || 0);
     };
 
+    const formatDateAR = (val) => {
+        if (!val) return "—";
+        const str = String(val).trim();
+        if (/^\d{8}$/.test(str)) {
+            return `${str.substring(6, 8)}/${str.substring(4, 6)}/${str.substring(0, 4)}`;
+        }
+        const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) {
+            return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+        }
+        return str;
+    };
+
     // Calendar States
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(null);
@@ -1787,7 +1800,7 @@ export default function Dashboard() {
 
                 <div className="flex items-center gap-3 flex-wrap">
                     {/* Empresa Selector */}
-                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#1a253c] text-xs font-mono text-slate-300 shadow-sm max-w-full">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#334155] text-xs font-mono text-slate-200 shadow-sm max-w-full">
                         <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span className="truncate">Empresa: <strong className="text-white">{companyConfig.razonSocial || "GUERRERO RODOLFO MANUEL"}</strong> {companyConfig.cuit ? `(${companyConfig.cuit})` : "(20347467228)"}</span>
                         <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -1808,7 +1821,7 @@ export default function Dashboard() {
 
             {/* 2. TICKER BAR: NEOCONTA AL DÍA */}
             <div 
-                className="bg-[#0b1220] border border-[#162238] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none w-full"
+                className="bg-[#0b1220] border border-[#334155] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none w-full"
                 role="region"
                 aria-label="NeoConta al Día: Cotizaciones y noticias fiscales"
             >
@@ -1834,7 +1847,7 @@ export default function Dashboard() {
                   }
                 `}} />
 
-                <div className="flex items-center gap-2.5 pr-3 border-r border-[#162238] shrink-0 font-mono">
+                <div className="flex items-center gap-2.5 pr-3 border-r border-[#273449] shrink-0 font-mono">
                     <span className="flex items-center gap-1.5 text-[#ff5e00] font-bold text-xs uppercase tracking-wide">
                         <TrendingUp className="h-3.5 w-3.5" />
                         <span>NEOCONTA AL DÍA</span>
@@ -1842,7 +1855,7 @@ export default function Dashboard() {
                     <button 
                         type="button"
                         onClick={() => setIsTickerPaused(!isTickerPaused)}
-                        className="w-5 h-5 rounded bg-[#141f36] border border-[#1e2e4f] flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+                        className="w-5 h-5 rounded bg-[#141f36] border border-[#273449] hover:border-[#475569] flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
                         title={isTickerPaused ? "Reanudar desplazamiento" : "Pausar desplazamiento"}
                     >
                         {isTickerPaused ? <Play className="h-2.5 w-2.5 fill-current text-[#ff5e00]" /> : <Pause className="h-2.5 w-2.5" />}
@@ -1871,7 +1884,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                 
                 {/* Card 1: Facturado este mes */}
-                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#475569] transition-colors">
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
                             <TrendingUp className="h-4 w-4" />
@@ -1890,7 +1903,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 2: Pronóstico del mes (Destacada) */}
-                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#475569] transition-colors">
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-3">
                             <div className="h-8 w-8 rounded-lg bg-[#ff5e00]/15 border border-[#ff5e00]/30 flex items-center justify-center text-[#ff5e00] shrink-0">
@@ -1916,7 +1929,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 3: Facturación histórica acumulada */}
-                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#475569] transition-colors">
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
                             <DollarSign className="h-4 w-4" />
@@ -1935,7 +1948,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 4: Saldo bancario disponible */}
-                <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
+                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#475569] transition-colors">
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-center justify-center text-slate-300 shrink-0">
                             <Landmark className="h-4 w-4" />
@@ -1966,24 +1979,68 @@ export default function Dashboard() {
                 {/* COLUMNA IZQUIERDA (2/3 de ancho): HERO PRONÓSTICO + ACTIVIDAD RECIENTE */}
                 <div className="lg:col-span-2 space-y-6 w-full min-w-0">
 
-                    {/* HERO: PRONÓSTICO FINANCIERO (LIMPIO, SIN CURVAS DECORATIVAS FALSAS) */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm relative">
+                    {/* HERO: PRONÓSTICO FINANCIERO (REFINADO, COMPACTO Y CON GRÁFICO INTEGRADO) */}
+                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm relative">
                         
-                        {/* BLOQUE PRINCIPAL INTEGRADO: IZQUIERDA (Título, Explicación, Cifra, Badges) | DERECHA (Período, Leyenda, Gráfico Compacto) */}
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                            
-                            {/* SECTOR IZQUIERDO: Título + Explicación + Importe $382.909 + Badges */}
-                            <div className="lg:col-span-5 space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
-                                    <h2 className="text-lg font-bold text-white tracking-tight">Pronóstico Financiero</h2>
-                                </div>
+                        {/* Cabecera General: Título a la izquierda + Selector de Período a la derecha */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0.5 border-b border-[#273449]/70">
+                            <div className="flex items-center gap-2.5">
+                                <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
+                                <h2 className="text-lg font-bold text-white tracking-tight">Pronóstico Financiero</h2>
+                            </div>
 
-                                <p className="text-xs text-slate-400 leading-relaxed">
-                                    Estimación basada en el promedio de {forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses cerrados. Todavía no hay suficiente historial para identificar una tendencia o estacionalidad confiable.
+                            {/* Selector Desplegable de Período en la Cabecera General */}
+                            <div className="flex items-center gap-2 text-xs text-slate-300 shrink-0">
+                                <span className="font-medium text-slate-400">Período:</span>
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
+                                        className="px-3 py-1.5 rounded-lg bg-[#0e1626] border border-[#273449] hover:border-[#475569] focus:border-[#ff5e00] focus:ring-1 focus:ring-[#ff5e00] text-white text-xs font-medium flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
+                                    >
+                                        <span>
+                                            {(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"}
+                                            {projectedPeriods[selectedPeriodIndex]?.isCurrentMonth ? " · Mes en curso" : ""}
+                                        </span>
+                                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                                    </button>
+
+                                    {isPeriodDropdownOpen && (
+                                        <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#334155] shadow-2xl py-1 z-30 font-sans">
+                                            {(projectedPeriods.length > 0 ? projectedPeriods : [
+                                                { label: "Noviembre 2026", isCurrentMonth: true },
+                                                { label: "Diciembre 2026", isCurrentMonth: false }
+                                            ]).map((p, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => { setSelectedPeriodIndex(idx); setIsPeriodDropdownOpen(false); }}
+                                                    className={`w-full text-left px-3.5 py-2 text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                                                        selectedPeriodIndex === idx ? 'bg-[#ff5e00]/20 text-[#ff5e00] font-bold' : 'text-slate-200 hover:bg-[#141f36]'
+                                                    }`}
+                                                >
+                                                    <span>{p.label}</span>
+                                                    <span className="text-[10px] text-slate-400 font-mono">
+                                                        {p.isCurrentMonth ? "Mes en curso" : "$ 382.909"}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Bloque Central: Izquierda (Explicación, Cifra Monumental, Badges) | Derecha (Gráfico Integrado sin segundo marco) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center pt-0.5">
+                            
+                            {/* Sector Izquierdo: Cifra $382.909 como protagonista */}
+                            <div className="lg:col-span-5 space-y-2.5">
+                                <p className="text-xs text-slate-300 leading-relaxed">
+                                    Estimación basada en el promedio de {forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses cerrados. Historial sin estacionalidad o tendencia artificial.
                                 </p>
 
-                                <div className="pt-1">
+                                <div>
                                     <div className="flex items-baseline gap-3">
                                         <span className="text-4xl sm:text-5xl font-black text-white font-mono tracking-tight tabular-nums">
                                             {formatCurrency((projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.projectedCentral) || 382909)}
@@ -1994,12 +2051,12 @@ export default function Dashboard() {
                                     </div>
 
                                     {/* Badges bajo la cifra */}
-                                    <div className="flex items-center gap-2 mt-3 flex-wrap">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-amber-300 font-medium">
+                                    <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#273449] text-xs text-amber-300 font-medium">
                                             <Info className="h-3.5 w-3.5 text-amber-300" />
                                             <span>Historial limitado ({forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses)</span>
                                         </span>
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-orange-400 font-medium">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#273449] text-xs text-orange-400 font-medium">
                                             <TrendingUp className="h-3.5 w-3.5 text-orange-400" />
                                             <span>Modelo de Referencia</span>
                                         </span>
@@ -2007,72 +2064,35 @@ export default function Dashboard() {
                                 </div>
                             </div>
 
-                            {/* SECTOR DERECHO: Período + Leyenda + Gráfico Compacto de Evolución */}
-                            <div className="lg:col-span-7 bg-[#080e1a]/80 border border-[#162238]/80 rounded-xl p-3.5 space-y-2 relative">
+                            {/* Sector Derecho: Gráfico de Evolución Integrado (Directamente sobre el fondo, separado por línea sutil) */}
+                            <div className="lg:col-span-7 space-y-2 relative lg:pl-6 lg:border-l lg:border-[#273449]">
                                 
-                                {/* Encabezado del sector derecho: Selector de Período y Leyenda */}
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-[#141f33]">
-                                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                                        <span>Período:</span>
-                                        <div className="relative">
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-                                                className="px-2.5 py-1 rounded-lg bg-[#0e1626] border border-[#1b263b] text-white text-[11px] font-medium flex items-center gap-1.5 cursor-pointer shadow-sm hover:border-slate-600 transition-colors"
-                                            >
-                                                <span>
-                                                    {(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"}
-                                                    {projectedPeriods[selectedPeriodIndex]?.isCurrentMonth ? " · Mes en curso" : ""}
-                                                </span>
-                                                <ChevronDown className="h-3 w-3 text-slate-400" />
-                                            </button>
-
-                                            {isPeriodDropdownOpen && (
-                                                <div className="absolute left-0 sm:right-0 sm:left-auto mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#1b263b] shadow-2xl py-1 z-30 font-sans">
-                                                    {(projectedPeriods.length > 0 ? projectedPeriods : [
-                                                        { label: "Noviembre 2026", isCurrentMonth: true },
-                                                        { label: "Diciembre 2026", isCurrentMonth: false }
-                                                    ]).map((p, idx) => (
-                                                        <button
-                                                            key={idx}
-                                                            type="button"
-                                                            onClick={() => { setSelectedPeriodIndex(idx); setIsPeriodDropdownOpen(false); }}
-                                                            className={`w-full text-left px-3.5 py-2 text-xs transition-colors flex items-center justify-between cursor-pointer ${
-                                                                selectedPeriodIndex === idx ? 'bg-[#ff5e00]/20 text-[#ff5e00] font-bold' : 'text-slate-300 hover:bg-[#141f36]'
-                                                            }`}
-                                                        >
-                                                            <span>{p.label}</span>
-                                                            <span className="text-[10px] text-slate-400 font-mono">
-                                                                {p.isCurrentMonth ? "Mes en curso" : "$ 382.909"}
-                                                            </span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                {/* Encabezado del gráfico y Leyenda visual */}
+                                <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-slate-200 tracking-tight">Evolución real y proyección</span>
                                     </div>
 
-                                    {/* Leyenda visual */}
-                                    <div className="flex items-center gap-3 text-[10px] font-mono">
-                                        <div className="flex items-center gap-1">
-                                            <span className="w-2 h-2 rounded-xs bg-sky-400 inline-block"></span>
-                                            <span className="text-slate-400">Histórico</span>
+                                    <div className="flex items-center gap-3 text-[11px] font-mono">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-sm bg-sky-400/90 inline-block"></span>
+                                            <span className="text-slate-300">Histórico</span>
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                            <span className="w-3 border-b-2 border-dashed border-[#ff5e00] inline-block"></span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-3.5 border-b-2 border-dashed border-[#ff5e00] inline-block"></span>
                                             <span className="text-orange-400 font-semibold">Proyección</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Subtítulo y Tooltip dinámico al hover */}
-                                <div className="h-5 flex items-center justify-between px-2 py-0.5 rounded bg-[#0a1222]/80 text-[10px] font-mono">
+                                {/* Tooltip dinámico en franja compacta */}
+                                <div className="h-5 flex items-center justify-between px-2.5 py-0.5 rounded bg-[#0a1222]/90 border border-[#273449]/80 text-[10.5px] font-mono">
                                     {chartTooltip ? (
                                         <div className="flex items-center justify-between w-full">
                                             <span className="text-slate-200 font-bold">{chartTooltip.month}:</span>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-amber-300 font-bold tabular-nums">{chartTooltip.amount}</span>
-                                                <span className={`text-[9px] px-1 py-0.2 rounded font-sans font-medium ${
+                                                <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-sans font-medium ${
                                                     chartTooltip.isProjection ? 'bg-orange-500/20 text-[#ff5e00] border border-orange-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
                                                 }`}>
                                                     {chartTooltip.type}
@@ -2081,144 +2101,145 @@ export default function Dashboard() {
                                         </div>
                                     ) : (
                                         <div className="flex items-center justify-between w-full">
-                                            <span className="text-slate-300 font-semibold">Evolución real y proyección</span>
-                                            <span className="text-slate-400 italic text-[9.5px]">Pasa el cursor para ver el detalle mensual</span>
+                                            <span className="text-slate-400 text-[10px]">Serie auditada mensual</span>
+                                            <span className="text-slate-400 italic text-[10px]">Pasa el cursor sobre una barra o punto</span>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* SVG Compacto y Proporcionado */}
-                                <div className="relative w-full aspect-[400/120] select-none">
-                                    <svg viewBox="0 0 400 120" className="w-full h-full overflow-visible font-mono text-[9px]">
+                                {/* SVG Compacto de Evolución Real (Altura reducida optimizada) */}
+                                <div className="relative w-full aspect-[390/105] select-none">
+                                    <svg viewBox="0 0 390 105" className="w-full h-full overflow-visible font-mono text-[9px]">
                                         <defs>
-                                            <linearGradient id="barCompact" x1="0" y1="0" x2="0" y2="1">
+                                            <linearGradient id="barGradSmooth" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.9"/>
-                                                <stop offset="100%" stopColor="#0284c7" stopOpacity="0.4"/>
+                                                <stop offset="100%" stopColor="#0284c7" stopOpacity="0.45"/>
                                             </linearGradient>
-                                            <linearGradient id="projCompact" x1="0" y1="0" x2="0" y2="1">
+                                            <linearGradient id="projGradSmooth" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="0%" stopColor="#ff5e00" stopOpacity="0.25"/>
                                                 <stop offset="100%" stopColor="#ff5e00" stopOpacity="0.05"/>
                                             </linearGradient>
                                         </defs>
 
-                                        {/* Guías horizontales */}
-                                        <line x1="38" y1="16" x2="390" y2="16" stroke="#141f33" strokeDasharray="2 3" strokeWidth="1"/>
-                                        <text x="32" y="19" fill="#475569" textAnchor="end">$ 800k</text>
+                                        {/* Guías horizontales discretas */}
+                                        <line x1="36" y1="14" x2="380" y2="14" stroke="#1e293b" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="30" y="17" fill="#64748b" textAnchor="end">$ 800k</text>
 
-                                        <line x1="38" y1="52" x2="390" y2="52" stroke="#141f33" strokeDasharray="2 3" strokeWidth="1"/>
-                                        <text x="32" y="55" fill="#475569" textAnchor="end">$ 400k</text>
+                                        <line x1="36" y1="46" x2="380" y2="46" stroke="#1e293b" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="30" y="49" fill="#64748b" textAnchor="end">$ 400k</text>
 
-                                        <line x1="38" y1="88" x2="390" y2="88" stroke="#1e293b" strokeWidth="1"/>
-                                        <text x="32" y="91" fill="#475569" textAnchor="end">$ 0</text>
+                                        <line x1="36" y1="78" x2="380" y2="78" stroke="#334155" strokeWidth="1"/>
+                                        <text x="30" y="81" fill="#64748b" textAnchor="end">$ 0</text>
 
-                                        {/* Línea divisoria vertical Histórico | Proyección */}
-                                        <line x1="288" y1="8" x2="288" y2="88" stroke="#1e293b" strokeDasharray="3 3" strokeWidth="1"/>
-                                        <text x="288" y="6" fill="#64748b" textAnchor="middle" fontSize="8">Auditado | Proy</text>
+                                        {/* Línea divisoria vertical sutil */}
+                                        <line x1="278" y1="6" x2="278" y2="78" stroke="#334155" strokeDasharray="3 3" strokeWidth="1"/>
+                                        <text x="278" y="5" fill="#64748b" textAnchor="middle" fontSize="8">Auditado | Proy</text>
 
-                                        {/* 1. Jun 2026: $ 574.577,28 (h=51.7, y=36.3, x=58) */}
+                                        {/* BARRAS HISTÓRICAS REALES AUDITADAS */}
+                                        {/* 1. Jun 2026: $ 574.577,28 */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Junio 2026", amount: "$ 574.577,28", type: "Real auditado", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="48" y="36.3" width="20" height="51.7" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                            <text x="58" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jun</text>
-                                            <text x="58" y="31" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 575k</text>
+                                            <rect x="46" y="32" width="19" height="46" rx="2.5" fill="url(#barGradSmooth)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="55.5" y="90" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jun</text>
+                                            <text x="55.5" y="27" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 575k</text>
                                         </g>
 
-                                        {/* 2. Jul 2026: $ 132.021,89 (h=11.9, y=76.1, x=106) */}
+                                        {/* 2. Jul 2026: $ 132.021,89 */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Julio 2026", amount: "$ 132.021,89", type: "Real auditado", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="96" y="76.1" width="20" height="11.9" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                            <text x="106" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jul</text>
-                                            <text x="106" y="71" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 132k</text>
+                                            <rect x="92" y="67.4" width="19" height="10.6" rx="2" fill="url(#barGradSmooth)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="101.5" y="90" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jul</text>
+                                            <text x="101.5" y="62" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 132k</text>
                                         </g>
 
-                                        {/* 3. Ago 2026: $ 715.822,54 (h=64.4, y=23.6, x=154) */}
+                                        {/* 3. Ago 2026: $ 715.822,54 (Pico de facturación) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Agosto 2026", amount: "$ 715.822,54", type: "Real auditado (Mes pico)", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="144" y="23.6" width="20" height="64.4" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                            <text x="154" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Ago</text>
-                                            <text x="154" y="18" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 716k</text>
+                                            <rect x="138" y="20.7" width="19" height="57.3" rx="2.5" fill="url(#barGradSmooth)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="147.5" y="90" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Ago</text>
+                                            <text x="147.5" y="16" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 716k</text>
                                         </g>
 
-                                        {/* 4. Sep 2026: $ 0,00 (VISIBLE EXPLÍCITO EN CERO) (x=202) */}
+                                        {/* 4. Sep 2026: $ 0,00 (VISIBLE EXPLÍCITO EN CERO) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Septiembre 2026", amount: "$ 0,00", type: "Real auditado (Sin emisión)", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="192" y="86.5" width="20" height="2" rx="1" fill="#475569" stroke="#64748b" strokeWidth="0.8"/>
-                                            <circle cx="202" cy="88" r="2.5" fill="#64748b"/>
-                                            <text x="202" y="101" fill="#94a3b8" textAnchor="middle" fontWeight="600">Sep</text>
-                                            <text x="202" y="82" fill="#94a3b8" textAnchor="middle" fontWeight="600">$ 0</text>
+                                            <rect x="184" y="76.5" width="19" height="2" rx="1" fill="#475569" stroke="#64748b" strokeWidth="0.8"/>
+                                            <circle cx="193.5" cy="78" r="2.5" fill="#64748b"/>
+                                            <text x="193.5" y="90" fill="#94a3b8" textAnchor="middle" fontWeight="600">Sep</text>
+                                            <text x="193.5" y="73" fill="#94a3b8" textAnchor="middle" fontWeight="600">$ 0</text>
                                         </g>
 
-                                        {/* 5. Oct 2026: $ 492.123,61 (h=44.3, y=43.7, x=250) */}
+                                        {/* 5. Oct 2026: $ 492.123,61 */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Octubre 2026", amount: "$ 492.123,61", type: "Real auditado", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="240" y="43.7" width="20" height="44.3" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                            <text x="250" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Oct</text>
-                                            <text x="250" y="38" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 492k</text>
+                                            <rect x="230" y="38.6" width="19" height="39.4" rx="2.5" fill="url(#barGradSmooth)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="239.5" y="90" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Oct</text>
+                                            <text x="239.5" y="33" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 492k</text>
                                         </g>
 
-                                        {/* PROYECCIÓN: Noviembre y Diciembre = $ 382.909,06 (h=34.5, y=53.5) */}
-                                        {/* Nov 2026 (x=315) */}
+                                        {/* PROYECCIÓN ESTIMADA: Noviembre 2026 y Diciembre 2026 = $ 382.909,06 */}
+                                        {/* Nov 2026 (x=305) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Noviembre 2026", amount: "$ 382.909,06", type: "Estimado (Mes en curso)", isProjection: true })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="305" y="53.5" width="20" height="34.5" rx="2.5" fill="url(#projCompact)" stroke="#ff5e00" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
-                                            <text x="315" y="101" fill="#ff7a29" textAnchor="middle" fontWeight="700">Nov</text>
+                                            <rect x="295" y="47.4" width="19" height="30.6" rx="2.5" fill="url(#projGradSmooth)" stroke="#ff5e00" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
+                                            <text x="304.5" y="90" fill="#ff7a29" textAnchor="middle" fontWeight="700">Nov</text>
                                         </g>
 
-                                        {/* Dic 2026 (x=362) */}
+                                        {/* Dic 2026 (x=350) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Diciembre 2026", amount: "$ 382.909,06", type: "Estimado (Proyección)", isProjection: true })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="352" y="53.5" width="20" height="34.5" rx="2.5" fill="url(#projCompact)" stroke="#ff5e00" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
-                                            <text x="362" y="101" fill="#ff7a29" textAnchor="middle" fontWeight="700">Dic</text>
+                                            <rect x="340" y="47.4" width="19" height="30.6" rx="2.5" fill="url(#projGradSmooth)" stroke="#ff5e00" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
+                                            <text x="349.5" y="90" fill="#ff7a29" textAnchor="middle" fontWeight="700">Dic</text>
                                         </g>
 
                                         {/* Conector fino discontinuo Oct -> Nov */}
-                                        <line x1="250" y1="43.7" x2="315" y2="53.5" stroke="#ff5e00" strokeDasharray="2 2" strokeWidth="1.2" strokeOpacity="0.5"/>
+                                        <line x1="239.5" y1="38.6" x2="304.5" y2="47.4" stroke="#ff5e00" strokeDasharray="2 2" strokeWidth="1" strokeOpacity="0.5"/>
 
-                                        {/* TRAMO RIGUROSAMENTE PLANO ENTRE NOVIEMBRE Y DICIEMBRE (y1=53.5, y2=53.5) */}
-                                        <line x1="315" y1="53.5" x2="362" y2="53.5" stroke="#ff5e00" strokeWidth="2" strokeDasharray="3 2"/>
+                                        {/* TRAMO RIGUROSAMENTE PLANO ENTRE NOVIEMBRE Y DICIEMBRE (y1=47.4, y2=47.4) */}
+                                        <line x1="304.5" y1="47.4" x2="349.5" y2="47.4" stroke="#ff5e00" strokeWidth="2" strokeDasharray="3 2"/>
 
                                         {/* Marcadores circulares */}
-                                        <circle cx="315" cy="53.5" r="3.5" fill="#ff5e00" stroke="#080e1a" strokeWidth="1.2"/>
-                                        <circle cx="362" cy="53.5" r="3.5" fill="#ff5e00" stroke="#080e1a" strokeWidth="1.2"/>
+                                        <circle cx="304.5" cy="47.4" r="3" fill="#ff5e00" stroke="#0b1220" strokeWidth="1.2"/>
+                                        <circle cx="349.5" cy="47.4" r="3" fill="#ff5e00" stroke="#0b1220" strokeWidth="1.2"/>
 
                                         {/* Etiqueta sobre el tramo plano */}
-                                        <text x="338.5" y="47" fill="#ff5e00" textAnchor="middle" fontWeight="800" fontSize="8.5">
+                                        <text x="327" y="41.5" fill="#ff5e00" textAnchor="middle" fontWeight="800" fontSize="8">
                                             $ 382.909 (plano)
                                         </text>
                                     </svg>
                                 </div>
 
-                                {/* Footer explicativo del gráfico */}
-                                <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono pt-0.5 border-t border-[#141f33]">
-                                    <span>Fuente: ARCA auditado</span>
-                                    <span className="text-emerald-400 font-semibold">• Proyección prudente continua</span>
+                                {/* Pie integrado del gráfico */}
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5 border-t border-[#273449]">
+                                    <span>Fuente: Base ARCA auditada</span>
+                                    <span className="text-emerald-400 font-medium">• Proyección continua sin sesgo</span>
                                 </div>
                             </div>
 
                         </div>
 
-                        {/* Barra de Avance Temporal (A TODO LO ANCHO DE LA TARJETA) */}
+                        {/* Barra de Avance Temporal: 0% real cuando facturado sea cero */}
                         {(() => {
                             const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex])
                                 ? projectedPeriods[selectedPeriodIndex]
@@ -2226,19 +2247,20 @@ export default function Dashboard() {
                             const centralVal = curPeriod.projectedCentral || 382909;
                             const actualVal = curPeriod.currentActualInvoiced || 0;
                             const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
+                            const fillWidth = actualVal > 0 ? Math.max(1, progressPct) : 0;
 
                             return (
-                                <div className="space-y-1.5 pt-2">
+                                <div className="space-y-1.5 pt-1 border-t border-[#273449]/70">
                                     <div className="flex justify-between text-xs font-mono">
-                                        <span className="text-slate-400">Facturado hasta hoy frente a la estimación mensual</span>
+                                        <span className="text-slate-300">Facturado hasta hoy frente a la estimación mensual</span>
                                         <span className="font-bold text-white tabular-nums">
                                             {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la estimación)</span>
                                         </span>
                                     </div>
-                                    <div className="h-2 w-full bg-[#141f36] rounded-full overflow-hidden">
+                                    <div className="h-2 w-full bg-[#1e293b] rounded-full overflow-hidden">
                                         <div 
                                             className="h-full bg-white rounded-full transition-all duration-500" 
-                                            style={{ width: `${Math.max(actualVal > 0 ? 5 : 2, progressPct)}%` }}
+                                            style={{ width: `${fillWidth}%` }}
                                         ></div>
                                     </div>
                                 </div>
@@ -2246,11 +2268,11 @@ export default function Dashboard() {
                         })()}
 
                         {/* Botones de Acordeón */}
-                        <div className="flex items-center gap-3 pt-1 flex-wrap">
+                        <div className="flex items-center gap-3 pt-0.5 flex-wrap">
                             <button 
                                 type="button"
                                 onClick={() => setShowForecastExplanation(!showForecastExplanation)}
-                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#1b263b] hover:border-[#ff5e00]/50 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#273449] hover:border-[#475569] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
                             >
                                 <Calculator className="h-3.5 w-3.5 text-[#ff5e00]" />
                                 <span>{showForecastExplanation ? "Ocultar metodología" : "¿Cómo se calculó esta proyección?"}</span>
@@ -2260,7 +2282,7 @@ export default function Dashboard() {
                             <button 
                                 type="button"
                                 onClick={() => setShowHistoryBreakdown(!showHistoryBreakdown)}
-                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#1b263b] hover:border-[#ff5e00]/50 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#273449] hover:border-[#475569] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
                             >
                                 <History className="h-3.5 w-3.5 text-slate-400" />
                                 <span>{showHistoryBreakdown ? "Ocultar comprobantes" : "Ver historial de comprobantes (5 meses)"}</span>
@@ -2270,11 +2292,11 @@ export default function Dashboard() {
 
                         {/* Desglose 1: Metodología Matemática */}
                         {showForecastExplanation && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#273449] text-xs space-y-3 animate-fade-in-up">
                                 <div className="font-bold text-white flex items-center gap-2">
                                     <Calculator className="h-4 w-4 text-[#ff5e00]" /> Metodología Matemática y Contable
                                 </div>
-                                <div className="p-3 bg-[#0a1222] rounded-lg border border-[#1e2e4f] font-mono text-[11px] text-slate-200 space-y-1">
+                                <div className="p-3 bg-[#0a1222] rounded-lg border border-[#273449] font-mono text-[11px] text-slate-200 space-y-1">
                                     <div className="text-slate-400 font-sans font-medium text-[10px] uppercase">Fórmula aplicada (Promedio Mensual Continuo):</div>
                                     <div className="font-bold text-[#ff5e00]">
                                         Proyección = (Σ Facturación Neta de meses cerrados) ÷ {forecastMethodology?.monthsCount || 5}
@@ -2286,7 +2308,7 @@ export default function Dashboard() {
                                         = $ 1.914.545,32 ÷ 5 = $ 382.909,06
                                     </div>
                                 </div>
-                                <div className="text-[11px] text-slate-400 leading-relaxed border-t border-[#1b263b] pt-2 space-y-1">
+                                <div className="text-xs text-slate-400 leading-relaxed border-t border-[#273449] pt-2 space-y-1">
                                     <p>• <strong>Septiembre 2026 ($ 0):</strong> Al no haberse emitido facturas, se registra con importe cero pero computa en el divisor de 5 meses para reflejar la realidad del ciclo del cliente.</p>
                                     <p>• <strong>Notas de Crédito:</strong> Se restan en su mes de emisión fiscal (AFIP <code className="text-[10px] bg-[#141f36] px-1 py-0.5 rounded text-amber-300">cbteFch</code>), no en la fecha de sincronización técnica.</p>
                                     <p>• <strong>Noviembre 2026:</strong> No forma parte de la base cerrada por ser el mes actualmente en curso.</p>
@@ -2296,17 +2318,17 @@ export default function Dashboard() {
 
                         {/* Desglose 2: Historial Mensual Cerrado */}
                         {showHistoryBreakdown && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#273449] text-xs space-y-3 animate-fade-in-up">
                                 <div className="font-bold text-white flex items-center justify-between">
                                     <span className="flex items-center gap-2">
                                         <History className="h-4 w-4 text-[#ff5e00]" /> Historial Mensual Cerrado (Base Auditada)
                                     </span>
-                                    <span className="text-[10px] text-slate-400 font-normal">Fuente: Comprobantes AFIP/ARCA sincronizados</span>
+                                    <span className="text-xs text-slate-400 font-normal">Fuente: Comprobantes AFIP/ARCA sincronizados</span>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs font-mono">
                                         <thead>
-                                            <tr className="border-b border-[#1b263b] text-[10px] uppercase text-slate-400 font-semibold">
+                                            <tr className="border-b border-[#273449] text-[10px] uppercase text-slate-400 font-semibold">
                                                 <th className="pb-2">Período</th>
                                                 <th className="pb-2">Comprobantes</th>
                                                 <th className="pb-2 text-right">Facturación Bruta</th>
@@ -2314,7 +2336,7 @@ export default function Dashboard() {
                                                 <th className="pb-2 text-right">Facturación Neta</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-[#162238]/60">
+                                        <tbody className="divide-y divide-[#273449]/60">
                                             {(completedMonthsSeries.length > 0 ? completedMonthsSeries : [
                                                 { label: "Jun 2026", facturasCount: 6, facturasTotal: 574578.28, ncCount: 1, ncTotal: 1.00, netTotal: 574577.28, isZeroActivity: false },
                                                 { label: "Jul 2026", facturasCount: 2, facturasTotal: 132021.89, ncCount: 0, ncTotal: 0, netTotal: 132021.89, isZeroActivity: false },
@@ -2332,7 +2354,7 @@ export default function Dashboard() {
                                             ))}
                                         </tbody>
                                         <tfoot>
-                                            <tr className="border-t-2 border-[#1b263b] font-bold text-white">
+                                            <tr className="border-t-2 border-[#273449] font-bold text-white">
                                                 <td className="pt-2">Total Auditado</td>
                                                 <td className="pt-2 text-slate-400 font-sans">23 comprobantes</td>
                                                 <td className="pt-2 text-right text-slate-300 tabular-nums">$ 2.266.546,32</td>
@@ -2346,14 +2368,14 @@ export default function Dashboard() {
                         )}
 
                         {/* Pie del Hero */}
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono border-t border-[#162238] pt-3">
+                        <div className="flex items-center justify-between text-xs text-slate-400 font-mono border-t border-[#273449] pt-2.5">
                             <span>Fuente: Base de comprobantes AFIP/ARCA sincronizados</span>
                             <span>Modelo de Referencia · Serie continua</span>
                         </div>
                     </div>
 
                     {/* ACTIVIDAD RECIENTE DEL NEGOCIO (DEBAJO DEL PRONÓSTICO) */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm w-full">
+                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-6 space-y-4 shadow-sm w-full">
                         <div className="flex items-center justify-between pb-1">
                             <div className="flex items-center gap-2">
                                 <Activity className="h-4 w-4 text-[#ff5e00]" />
@@ -2379,12 +2401,12 @@ export default function Dashboard() {
                             ]).map((inv, idx) => {
                                 const isRealInv = inv.DocNro !== undefined || inv.cbteTipo !== undefined || inv.CbteTipo !== undefined;
                                 let receptor = inv.RazonSocial || inv.cliente || inv.receptor || "Cliente General";
-                                let fecha = inv.cbteFch ? `${String(inv.cbteFch).substring(6,8)}/${String(inv.cbteFch).substring(4,6)}/${String(inv.cbteFch).substring(0,4)}` : (inv.fecha || (inv.created_at ? inv.created_at.split('T')[0] : "Reciente"));
+                                let fecha = formatDateAR(inv.cbteFch || inv.fecha || inv.created_at || "Reciente");
                                 const cbteType = isRealInv ? getCbteTipo(inv) : 11;
                                 const tipoName = getVoucherName(cbteType);
 
                                 return (
-                                    <div key={idx} className="flex items-center justify-between gap-4 py-1 border-b border-[#141d2f]/60 last:border-0 pb-2">
+                                    <div key={idx} className="flex items-center justify-between gap-4 py-1 border-b border-[#273449]/60 last:border-0 pb-2">
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[#ff5e00] shrink-0"></span>
                                             <span className="font-medium text-slate-200 truncate uppercase">
@@ -2404,9 +2426,9 @@ export default function Dashboard() {
                 <div className="lg:col-span-1 space-y-6 w-full min-w-0">
 
                     {/* CUENTAS BANCARIAS (ARRIBA) */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm text-center w-full">
+                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-6 space-y-4 shadow-sm text-center w-full">
                         <div className="flex items-center gap-2 text-left">
-                            <div className="h-6 w-6 rounded bg-[#141f36] border border-[#1e2e4f] flex items-center justify-center text-slate-300 shrink-0">
+                            <div className="h-6 w-6 rounded bg-[#141f36] border border-[#273449] flex items-center justify-center text-slate-300 shrink-0">
                                 <Landmark className="h-3.5 w-3.5" />
                             </div>
                             <h3 className="text-sm font-bold text-white tracking-tight">Cuentas Bancarias</h3>
@@ -2414,7 +2436,7 @@ export default function Dashboard() {
 
                         {/* Card graphic placeholder */}
                         <div className="py-4 space-y-3 flex flex-col items-center">
-                            <div className="h-16 w-24 rounded-xl border-2 border-dashed border-[#223354] flex items-center justify-center text-slate-400">
+                            <div className="h-16 w-24 rounded-xl border-2 border-dashed border-[#273449] flex items-center justify-center text-slate-400">
                                 <Wallet className="h-8 w-8 opacity-60 text-slate-400" />
                             </div>
                             <p className="text-xs text-slate-400 max-w-[220px]">
@@ -2432,7 +2454,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* PRÓXIMAS ACCIONES (DEBAJO) */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm w-full">
+                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-6 space-y-4 shadow-sm w-full">
                         <div className="flex items-center gap-2 pb-1">
                             <CheckCircle className="h-4 w-4 text-[#ff5e00]" />
                             <h3 className="text-sm font-bold text-white tracking-tight">Próximas Acciones</h3>
@@ -2442,7 +2464,7 @@ export default function Dashboard() {
                             {/* Acción 1: Compartir con tu contador */}
                             <div 
                                 onClick={() => setIsRemitModalOpen(true)}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#273449] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-[#ff5e00] shrink-0">
@@ -2459,7 +2481,7 @@ export default function Dashboard() {
                             {/* Acción 2: Emitir comprobante ARCA */}
                             <div 
                                 onClick={() => router.push('/dashboard/facturacion')}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#273449] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-slate-300 shrink-0">
@@ -2476,7 +2498,7 @@ export default function Dashboard() {
                             {/* Acción 3: Conciliar cuentas bancarias */}
                             <div 
                                 onClick={() => router.push('/dashboard/banco')}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#273449] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-slate-300 shrink-0">
