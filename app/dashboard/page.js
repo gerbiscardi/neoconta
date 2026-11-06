@@ -119,6 +119,7 @@ export default function Dashboard() {
     const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
     const [showForecastExplanation, setShowForecastExplanation] = useState(false);
     const [showHistoryBreakdown, setShowHistoryBreakdown] = useState(false);
+    const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
     const [dolarData, setDolarData] = useState(null);
     const [weatherData, setWeatherData] = useState(null);
     const [newsData, setNewsData] = useState([]);
@@ -1766,7 +1767,7 @@ export default function Dashboard() {
     const totalBankBalance = bankSummaryList.reduce((sum, b) => sum + b.balance, 0);
 
     return (
-        <div className="max-w-7xl w-full mx-auto space-y-6 sm:space-y-7 animate-fade-in-up pb-12 text-slate-100">
+        <div className="w-full space-y-6 sm:space-y-7 animate-fade-in-up pb-12 text-slate-100">
             {/* 1. PAGE HEADER: Dashboard General + Selector Empresa + Enviar al Contador */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
@@ -1785,9 +1786,9 @@ export default function Dashboard() {
 
                 <div className="flex items-center gap-3 flex-wrap">
                     {/* Empresa Selector */}
-                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#1a253c] text-xs font-mono text-slate-300 shadow-sm">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#1a253c] text-xs font-mono text-slate-300 shadow-sm max-w-full">
                         <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                        <span>Empresa: <strong className="text-white">{companyConfig.razonSocial || "GUERRERO RODOLFO MANUEL"}</strong> {companyConfig.cuit ? `(${companyConfig.cuit})` : "(20347467228)"}</span>
+                        <span className="truncate">Empresa: <strong className="text-white">{companyConfig.razonSocial || "GUERRERO RODOLFO MANUEL"}</strong> {companyConfig.cuit ? `(${companyConfig.cuit})` : "(20347467228)"}</span>
                         <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     </div>
 
@@ -1795,7 +1796,7 @@ export default function Dashboard() {
                     <button 
                         type="button"
                         onClick={() => setIsRemitModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] hover:from-[#c74a00] hover:to-[#ff5e00] text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/50 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] hover:from-[#c74a00] hover:to-[#ff5e00] text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/50 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
                         title="Preparar y remitir información contable y financiera al contador"
                     >
                         <Send className="h-3.5 w-3.5" />
@@ -1806,7 +1807,7 @@ export default function Dashboard() {
 
             {/* 2. TICKER BAR: NEOCONTA AL DÍA */}
             <div 
-                className="bg-[#0b1220]/95 border border-[#162238] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none"
+                className="bg-[#0b1220] border border-[#162238] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none w-full"
                 role="region"
                 aria-label="NeoConta al Día: Cotizaciones y noticias fiscales"
             >
@@ -1866,7 +1867,7 @@ export default function Dashboard() {
             </div>
 
             {/* 3. ROW OF 4 CARDS (KPIS SUPERIORES EXACTOS) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                 
                 {/* Card 1: Facturado este mes */}
                 <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#1e2f4f] transition-colors">
@@ -1958,67 +1959,70 @@ export default function Dashboard() {
 
             </div>
 
-            {/* 4. MAIN GRID: 2 COLUMNAS ASIMÉTRICAS */}
-            <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+            {/* 4. MAIN SECTION: DISTRIBUCIÓN 2/3 (IZQUIERDA) + 1/3 (DERECHA) GARANTIZADA */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full items-start">
 
-                {/* COLUMNA IZQUIERDA (67% width): HERO PRONÓSTICO + ACTIVIDAD RECIENTE */}
-                <div className="w-full lg:w-[67%] space-y-6 min-w-0 shrink-0">
+                {/* COLUMNA IZQUIERDA (2/3 de ancho): HERO PRONÓSTICO + ACTIVIDAD RECIENTE */}
+                <div className="lg:col-span-2 space-y-6 w-full min-w-0">
 
-                    {/* HERO: PRONÓSTICO FINANCIERO CON GRÁFICO DE ONDA INTEGRADO */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm relative overflow-hidden">
+                    {/* HERO: PRONÓSTICO FINANCIERO (LIMPIO, SIN CURVAS DECORATIVAS FALSAS) */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm relative">
                         
-                        {/* Header con Selector de Período */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                        {/* Header con Selector Desplegable de Período */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
-                                <TrendingUp className="h-5 w-5 text-[#ff5e00]" />
+                                <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
                                 <h2 className="text-lg font-bold text-white tracking-tight">Pronóstico Financiero</h2>
                             </div>
 
-                            <div className="inline-flex items-center gap-2 text-xs text-slate-400">
+                            <div className="flex items-center gap-2 text-xs text-slate-400 shrink-0">
                                 <span>Período:</span>
-                                <div className="inline-flex rounded-lg bg-[#0e1626] border border-[#1b263b] p-0.5">
-                                    {(projectedPeriods.length > 0 ? projectedPeriods : [
-                                        { label: "Noviembre 2026", isCurrentMonth: true },
-                                        { label: "Diciembre 2026", isCurrentMonth: false }
-                                    ]).map((p, idx) => (
-                                        <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => setSelectedPeriodIndex(idx)}
-                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                                                selectedPeriodIndex === idx 
-                                                    ? 'bg-[#1e2c4a] text-white font-bold' 
-                                                    : 'text-slate-400 hover:text-slate-200'
-                                            }`}
-                                        >
-                                            {p.label} {p.isCurrentMonth ? "· Mes en curso" : ""}
-                                        </button>
-                                    ))}
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
+                                        className="px-3 py-1.5 rounded-lg bg-[#0e1626] border border-[#1b263b] text-white font-medium flex items-center gap-2 cursor-pointer shadow-sm hover:border-slate-600 transition-colors"
+                                    >
+                                        <span>
+                                            {(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"}
+                                            {projectedPeriods[selectedPeriodIndex]?.isCurrentMonth ? " · Mes en curso" : ""}
+                                        </span>
+                                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                                    </button>
+
+                                    {isPeriodDropdownOpen && (
+                                        <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#1b263b] shadow-2xl py-1 z-30 font-sans">
+                                            {(projectedPeriods.length > 0 ? projectedPeriods : [
+                                                { label: "Noviembre 2026", isCurrentMonth: true },
+                                                { label: "Diciembre 2026", isCurrentMonth: false }
+                                            ]).map((p, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => { setSelectedPeriodIndex(idx); setIsPeriodDropdownOpen(false); }}
+                                                    className={`w-full text-left px-3.5 py-2 text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                                                        selectedPeriodIndex === idx ? 'bg-[#ff5e00]/20 text-[#ff5e00] font-bold' : 'text-slate-300 hover:bg-[#141f36]'
+                                                    }`}
+                                                >
+                                                    <span>{p.label}</span>
+                                                    <span className="text-[10px] text-slate-400 font-mono">
+                                                        {p.isCurrentMonth ? "Mes en curso" : "$ 382.909"}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Descripción Metodológica */}
-                        <p className="text-xs text-slate-400 leading-relaxed max-w-2xl relative z-10">
+                        {/* Descripción Metodológica Real */}
+                        <p className="text-xs text-slate-400 leading-relaxed">
                             Estimación basada en el promedio de {forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses cerrados. Todavía no hay suficiente historial para identificar una tendencia o estacionalidad confiable.
                         </p>
 
-                        {/* Cifra Monumental con Gráfico de Onda Resplandeciente */}
-                        <div className="relative py-2 z-10">
-                            {/* Gráfico de onda SVG posicionado detrás de la cifra */}
-                            <div className="absolute right-0 top-0 bottom-0 w-3/5 opacity-40 pointer-events-none">
-                                <svg viewBox="0 0 400 120" preserveAspectRatio="none" className="w-full h-full">
-                                    <defs>
-                                        <linearGradient id="waveGradLive" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#ff5e00" stopOpacity="0.5"/>
-                                            <stop offset="100%" stopColor="#ff5e00" stopOpacity="0.0"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M0,100 C80,95 140,85 200,60 C260,35 320,50 400,20 L400,120 L0,120 Z" fill="url(#waveGradLive)"/>
-                                    <path d="M0,100 C80,95 140,85 200,60 C260,35 320,50 400,20" fill="none" stroke="#ff5e00" strokeWidth="2.5"/>
-                                </svg>
-                            </div>
-
+                        {/* Cifra Monumental Limpia (Sin Gráficos Decorativos) */}
+                        <div className="py-1">
                             <div className="flex items-baseline gap-3">
                                 <span className="text-4xl sm:text-5xl font-black text-white font-mono tracking-tight tabular-nums">
                                     {formatCurrency((projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.projectedCentral) || 382909)}
@@ -2051,7 +2055,7 @@ export default function Dashboard() {
                             const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
 
                             return (
-                                <div className="space-y-1.5 pt-1 relative z-10">
+                                <div className="space-y-1.5 pt-1">
                                     <div className="flex justify-between text-xs font-mono">
                                         <span className="text-slate-400">Facturado hasta hoy frente a la estimación mensual</span>
                                         <span className="font-bold text-white tabular-nums">
@@ -2069,7 +2073,7 @@ export default function Dashboard() {
                         })()}
 
                         {/* Botones de Acordeón */}
-                        <div className="flex items-center gap-3 pt-2 flex-wrap relative z-10">
+                        <div className="flex items-center gap-3 pt-1 flex-wrap">
                             <button 
                                 type="button"
                                 onClick={() => setShowForecastExplanation(!showForecastExplanation)}
@@ -2093,7 +2097,7 @@ export default function Dashboard() {
 
                         {/* Desglose 1: Metodología Matemática */}
                         {showForecastExplanation && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 relative z-10 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 animate-fade-in-up">
                                 <div className="font-bold text-white flex items-center gap-2">
                                     <Calculator className="h-4 w-4 text-[#ff5e00]" /> Metodología Matemática y Contable
                                 </div>
@@ -2119,7 +2123,7 @@ export default function Dashboard() {
 
                         {/* Desglose 2: Historial Mensual Cerrado */}
                         {showHistoryBreakdown && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 relative z-10 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1b263b] text-xs space-y-3 animate-fade-in-up">
                                 <div className="font-bold text-white flex items-center justify-between">
                                     <span className="flex items-center gap-2">
                                         <History className="h-4 w-4 text-[#ff5e00]" /> Historial Mensual Cerrado (Base Auditada)
@@ -2169,14 +2173,14 @@ export default function Dashboard() {
                         )}
 
                         {/* Pie del Hero */}
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono border-t border-[#162238] pt-3 relative z-10">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono border-t border-[#162238] pt-3">
                             <span>Fuente: Base de comprobantes AFIP/ARCA sincronizados</span>
                             <span>Modelo de Referencia · Serie continua</span>
                         </div>
                     </div>
 
-                    {/* ACTIVIDAD RECIENTE DEL NEGOCIO */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm">
+                    {/* ACTIVIDAD RECIENTE DEL NEGOCIO (DEBAJO DEL PRONÓSTICO) */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm w-full">
                         <div className="flex items-center justify-between pb-1">
                             <div className="flex items-center gap-2">
                                 <Activity className="h-4 w-4 text-[#ff5e00]" />
@@ -2208,7 +2212,7 @@ export default function Dashboard() {
 
                                 return (
                                     <div key={idx} className="flex items-center justify-between gap-4 py-1 border-b border-[#141d2f]/60 last:border-0 pb-2">
-                                        <div className="flex items-center gap-2.5 truncate">
+                                        <div className="flex items-center gap-2.5 min-w-0">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[#ff5e00] shrink-0"></span>
                                             <span className="font-medium text-slate-200 truncate uppercase">
                                                 {tipoName} emitida a {receptor}
@@ -2223,13 +2227,13 @@ export default function Dashboard() {
 
                 </div>
 
-                {/* COLUMNA DERECHA (33% width): CUENTAS BANCARIAS + PRÓXIMAS ACCIONES */}
-                <div className="w-full lg:flex-1 space-y-6 min-w-0">
+                {/* COLUMNA DERECHA (1/3 de ancho): CUENTAS BANCARIAS ARRIBA + PRÓXIMAS ACCIONES DEBAJO */}
+                <div className="lg:col-span-1 space-y-6 w-full min-w-0">
 
-                    {/* CUENTAS BANCARIAS */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm text-center">
+                    {/* CUENTAS BANCARIAS (ARRIBA) */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm text-center w-full">
                         <div className="flex items-center gap-2 text-left">
-                            <div className="h-6 w-6 rounded bg-[#141f36] border border-[#1e2e4f] flex items-center justify-center text-slate-300">
+                            <div className="h-6 w-6 rounded bg-[#141f36] border border-[#1e2e4f] flex items-center justify-center text-slate-300 shrink-0">
                                 <Landmark className="h-3.5 w-3.5" />
                             </div>
                             <h3 className="text-sm font-bold text-white tracking-tight">Cuentas Bancarias</h3>
@@ -2240,7 +2244,7 @@ export default function Dashboard() {
                             <div className="h-16 w-24 rounded-xl border-2 border-dashed border-[#223354] flex items-center justify-center text-slate-400">
                                 <Wallet className="h-8 w-8 opacity-60 text-slate-400" />
                             </div>
-                            <p className="text-xs text-slate-400 max-w-[200px]">
+                            <p className="text-xs text-slate-400 max-w-[220px]">
                                 Todavía no hay información bancaria registrada
                             </p>
                             <button 
@@ -2254,8 +2258,8 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* PRÓXIMAS ACCIONES */}
-                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm">
+                    {/* PRÓXIMAS ACCIONES (DEBAJO) */}
+                    <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 space-y-4 shadow-sm w-full">
                         <div className="flex items-center gap-2 pb-1">
                             <CheckCircle className="h-4 w-4 text-[#ff5e00]" />
                             <h3 className="text-sm font-bold text-white tracking-tight">Próximas Acciones</h3>
@@ -2267,13 +2271,13 @@ export default function Dashboard() {
                                 onClick={() => setIsRemitModalOpen(true)}
                                 className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 text-[#ff5e00]">
+                                <div className="flex items-start gap-3 min-w-0">
+                                    <div className="mt-0.5 text-[#ff5e00] shrink-0">
                                         <Send className="h-4 w-4" />
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-white group-hover:text-[#ff5e00] transition-colors">Compartir con tu contador</p>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">Prepará el envío mensual de comprobantes y extractos bancarios.</p>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold text-white group-hover:text-[#ff5e00] transition-colors truncate">Compartir con tu contador</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">Prepará el envío mensual de comprobantes y extractos bancarios.</p>
                                     </div>
                                 </div>
                                 <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:translate-x-1 shrink-0 ml-2" />
@@ -2284,13 +2288,13 @@ export default function Dashboard() {
                                 onClick={() => router.push('/dashboard/facturacion')}
                                 className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 text-slate-300">
+                                <div className="flex items-start gap-3 min-w-0">
+                                    <div className="mt-0.5 text-slate-300 shrink-0">
                                         <FileText className="h-4 w-4 text-blue-400" />
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">Emitir comprobante ARCA</p>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">Generá Facturas A, B, C o Notas de Crédito con CAE oficial.</p>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors truncate">Emitir comprobante ARCA</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">Generá Facturas A, B, C o Notas de Crédito con CAE oficial.</p>
                                     </div>
                                 </div>
                                 <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:translate-x-1 shrink-0 ml-2" />
@@ -2301,13 +2305,13 @@ export default function Dashboard() {
                                 onClick={() => router.push('/dashboard/banco')}
                                 className="p-3.5 rounded-xl bg-[#0e1626] border border-[#18253d] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 text-slate-300">
+                                <div className="flex items-start gap-3 min-w-0">
+                                    <div className="mt-0.5 text-slate-300 shrink-0">
                                         <RefreshCw className="h-4 w-4 text-emerald-400" />
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">Conciliar cuentas bancarias</p>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">Importá tu extracto y controlá movimientos y saldos.</p>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors truncate">Conciliar cuentas bancarias</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">Importá tu extracto y controlá movimientos y saldos.</p>
                                     </div>
                                 </div>
                                 <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:translate-x-1 shrink-0 ml-2" />
