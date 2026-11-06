@@ -1800,7 +1800,7 @@ export default function Dashboard() {
 
                 <div className="flex items-center gap-3 flex-wrap">
                     {/* Empresa Selector */}
-                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#2B3648] text-xs font-mono text-slate-200 shadow-sm max-w-full">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#162238] text-xs font-mono text-slate-200 shadow-sm max-w-full">
                         <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span className="truncate">Empresa: <strong className="text-white">{companyConfig.razonSocial || "GUERRERO RODOLFO MANUEL"}</strong> {companyConfig.cuit ? `(${companyConfig.cuit})` : "(20347467228)"}</span>
                         <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -1821,7 +1821,7 @@ export default function Dashboard() {
 
             {/* 2. TICKER BAR: NEOCONTA AL DÍA */}
             <div 
-                className="bg-[#0b1220] border border-[#334155] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none w-full"
+                className="bg-[#0b1220] border border-[#1e293b] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none w-full"
                 role="region"
                 aria-label="NeoConta al Día: Cotizaciones y noticias fiscales"
             >
@@ -1847,7 +1847,7 @@ export default function Dashboard() {
                   }
                 `}} />
 
-                <div className="flex items-center gap-2.5 pr-3 border-r border-[#243041] shrink-0 font-mono">
+                <div className="flex items-center gap-2.5 pr-3 border-r border-[#121a29] shrink-0 font-mono">
                     <span className="flex items-center gap-1.5 text-[#ff5e00] font-bold text-xs uppercase tracking-wide">
                         <TrendingUp className="h-3.5 w-3.5" />
                         <span>NEOCONTA AL DÍA</span>
@@ -1855,7 +1855,7 @@ export default function Dashboard() {
                     <button 
                         type="button"
                         onClick={() => setIsTickerPaused(!isTickerPaused)}
-                        className="w-5 h-5 rounded bg-[#141f36] border border-[#2B3648] hover:border-[#334155] flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+                        className="w-5 h-5 rounded bg-[#141f36] border border-[#162238] hover:border-[#2b3950] flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
                         title={isTickerPaused ? "Reanudar desplazamiento" : "Pausar desplazamiento"}
                     >
                         {isTickerPaused ? <Play className="h-2.5 w-2.5 fill-current text-[#ff5e00]" /> : <Pause className="h-2.5 w-2.5" />}
@@ -1884,7 +1884,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                 
                 {/* Card 1: Facturado este mes */}
-                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#3e4f66] transition-colors">
+                <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2b3950] transition-colors">
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
                             <TrendingUp className="h-4 w-4" />
@@ -1903,7 +1903,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 2: Pronóstico del mes (Destacada) */}
-                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#3e4f66] transition-colors">
+                <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2b3950] transition-colors">
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-3">
                             <div className="h-8 w-8 rounded-lg bg-[#ff5e00]/15 border border-[#ff5e00]/30 flex items-center justify-center text-[#ff5e00] shrink-0">
@@ -1929,7 +1929,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 3: Facturación histórica acumulada */}
-                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#3e4f66] transition-colors">
+                <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2b3950] transition-colors">
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
                             <DollarSign className="h-4 w-4" />
@@ -1948,7 +1948,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 4: Saldo bancario disponible */}
-                <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#3e4f66] transition-colors">
+                <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2b3950] transition-colors">
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-center justify-center text-slate-300 shrink-0">
                             <Landmark className="h-4 w-4" />
@@ -1980,10 +1980,10 @@ export default function Dashboard() {
                 <div className="lg:col-span-2 space-y-6 w-full min-w-0">
 
                     {/* HERO: PRONÓSTICO FINANCIERO (REFINADO, COMPACTO Y CON GRÁFICO INTEGRADO) */}
-                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm relative">
+                    <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm relative">
                         
                         {/* Cabecera General: Título a la izquierda + Selector de Período a la derecha */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0.5 border-b border-[#243041]">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0.5 border-b border-[#121a29]">
                             <div className="flex items-center gap-2.5">
                                 <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
                                 <h2 className="text-lg font-bold text-white tracking-tight">Pronóstico Financiero</h2>
@@ -1996,7 +1996,7 @@ export default function Dashboard() {
                                     <button
                                         type="button"
                                         onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-                                        className="px-3 py-1.5 rounded-lg bg-[#0e1626] border border-[#2B3648] hover:border-[#334155] focus:border-[#ff5e00] focus:ring-1 focus:ring-[#ff5e00] text-white text-xs font-medium flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
+                                        className="px-3 py-1.5 rounded-lg bg-[#0e1626] border border-[#162238] hover:border-[#2b3950] focus:border-[#ff5e00] focus:ring-1 focus:ring-[#ff5e00] text-white text-xs font-medium flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
                                     >
                                         <span>
                                             {(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"}
@@ -2006,7 +2006,7 @@ export default function Dashboard() {
                                     </button>
 
                                     {isPeriodDropdownOpen && (
-                                        <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#2B3648] shadow-2xl py-1 z-30 font-sans">
+                                        <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#162238] shadow-2xl py-1 z-30 font-sans">
                                             {(projectedPeriods.length > 0 ? projectedPeriods : [
                                                 { label: "Noviembre 2026", isCurrentMonth: true },
                                                 { label: "Diciembre 2026", isCurrentMonth: false }
@@ -2052,11 +2052,11 @@ export default function Dashboard() {
 
                                     {/* Badges bajo la cifra */}
                                     <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#243041] text-xs text-amber-300 font-medium">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#121a29] text-xs text-amber-300 font-medium">
                                             <Info className="h-3.5 w-3.5 text-amber-300" />
                                             <span>Historial limitado ({forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses)</span>
                                         </span>
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#243041] text-xs text-orange-400 font-medium">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#121a29] text-xs text-orange-400 font-medium">
                                             <TrendingUp className="h-3.5 w-3.5 text-orange-400" />
                                             <span>Modelo de Referencia</span>
                                         </span>
@@ -2065,7 +2065,7 @@ export default function Dashboard() {
                             </div>
 
                             {/* Sector Derecho: Gráfico de Evolución Integrado (Directamente sobre el fondo, separado por línea sutil) */}
-                            <div className="lg:col-span-7 space-y-2 relative lg:pl-6 lg:border-l lg:border-[#243041]">
+                            <div className="lg:col-span-7 space-y-2 relative lg:pl-6 lg:border-l lg:border-[#121a29]">
                                 
                                 {/* Encabezado del gráfico y Leyenda visual */}
                                 <div className="flex items-center justify-between text-xs">
@@ -2086,7 +2086,7 @@ export default function Dashboard() {
                                 </div>
 
                                 {/* Tooltip dinámico en franja compacta */}
-                                <div className="h-5 flex items-center justify-between px-2.5 py-0.5 rounded bg-[#0a1222]/90 border border-[#243041] text-[10.5px] font-mono">
+                                <div className="h-5 flex items-center justify-between px-2.5 py-0.5 rounded bg-[#0a1222]/90 border border-[#121a29] text-[10.5px] font-mono">
                                     {chartTooltip ? (
                                         <div className="flex items-center justify-between w-full">
                                             <span className="text-slate-200 font-bold">{chartTooltip.month}:</span>
@@ -2128,11 +2128,11 @@ export default function Dashboard() {
                                         <line x1="36" y1="46" x2="380" y2="46" stroke="#1e293b" strokeDasharray="2 3" strokeWidth="1"/>
                                         <text x="30" y="49" fill="#64748b" textAnchor="end">$ 400k</text>
 
-                                        <line x1="36" y1="78" x2="380" y2="78" stroke="#243041" strokeWidth="1"/>
+                                        <line x1="36" y1="78" x2="380" y2="78" stroke="#121a29" strokeWidth="1"/>
                                         <text x="30" y="81" fill="#64748b" textAnchor="end">$ 0</text>
 
                                         {/* Línea divisoria vertical sutil */}
-                                        <line x1="278" y1="6" x2="278" y2="78" stroke="#243041" strokeDasharray="3 3" strokeWidth="1"/>
+                                        <line x1="278" y1="6" x2="278" y2="78" stroke="#121a29" strokeDasharray="3 3" strokeWidth="1"/>
                                         <text x="278" y="5" fill="#64748b" textAnchor="middle" fontSize="8">Auditado | Proy</text>
 
                                         {/* BARRAS HISTÓRICAS REALES AUDITADAS */}
@@ -2231,7 +2231,7 @@ export default function Dashboard() {
                                 </div>
 
                                 {/* Pie integrado del gráfico */}
-                                <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5 border-t border-[#243041]">
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5 border-t border-[#121a29]">
                                     <span>Fuente: Base ARCA auditada</span>
                                     <span className="text-emerald-400 font-medium">• Proyección continua sin sesgo</span>
                                 </div>
@@ -2250,7 +2250,7 @@ export default function Dashboard() {
                             const fillWidth = actualVal > 0 ? Math.max(1, progressPct) : 0;
 
                             return (
-                                <div className="space-y-1.5 pt-1 border-t border-[#243041]">
+                                <div className="space-y-1.5 pt-1 border-t border-[#121a29]">
                                     <div className="flex justify-between text-xs font-mono">
                                         <span className="text-slate-300">Facturado hasta hoy frente a la estimación mensual</span>
                                         <span className="font-bold text-white tabular-nums">
@@ -2272,7 +2272,7 @@ export default function Dashboard() {
                             <button 
                                 type="button"
                                 onClick={() => setShowForecastExplanation(!showForecastExplanation)}
-                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#2B3648] hover:border-[#334155] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#162238] hover:border-[#2b3950] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
                             >
                                 <Calculator className="h-3.5 w-3.5 text-[#ff5e00]" />
                                 <span>{showForecastExplanation ? "Ocultar metodología" : "¿Cómo se calculó esta proyección?"}</span>
@@ -2282,7 +2282,7 @@ export default function Dashboard() {
                             <button 
                                 type="button"
                                 onClick={() => setShowHistoryBreakdown(!showHistoryBreakdown)}
-                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#2B3648] hover:border-[#334155] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#162238] hover:border-[#2b3950] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
                             >
                                 <History className="h-3.5 w-3.5 text-slate-400" />
                                 <span>{showHistoryBreakdown ? "Ocultar comprobantes" : "Ver historial de comprobantes (5 meses)"}</span>
@@ -2292,11 +2292,11 @@ export default function Dashboard() {
 
                         {/* Desglose 1: Metodología Matemática */}
                         {showForecastExplanation && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#2B3648] text-xs space-y-3 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#162238] text-xs space-y-3 animate-fade-in-up">
                                 <div className="font-bold text-white flex items-center gap-2">
                                     <Calculator className="h-4 w-4 text-[#ff5e00]" /> Metodología Matemática y Contable
                                 </div>
-                                <div className="p-3 bg-[#0a1222] rounded-lg border border-[#243041] font-mono text-[11px] text-slate-200 space-y-1">
+                                <div className="p-3 bg-[#0a1222] rounded-lg border border-[#121a29] font-mono text-[11px] text-slate-200 space-y-1">
                                     <div className="text-slate-400 font-sans font-medium text-[10px] uppercase">Fórmula aplicada (Promedio Mensual Continuo):</div>
                                     <div className="font-bold text-[#ff5e00]">
                                         Proyección = (Σ Facturación Neta de meses cerrados) ÷ {forecastMethodology?.monthsCount || 5}
@@ -2308,7 +2308,7 @@ export default function Dashboard() {
                                         = $ 1.914.545,32 ÷ 5 = $ 382.909,06
                                     </div>
                                 </div>
-                                <div className="text-xs text-slate-400 leading-relaxed border-t border-[#243041] pt-2 space-y-1">
+                                <div className="text-xs text-slate-400 leading-relaxed border-t border-[#121a29] pt-2 space-y-1">
                                     <p>• <strong>Septiembre 2026 ($ 0):</strong> Al no haberse emitido facturas, se registra con importe cero pero computa en el divisor de 5 meses para reflejar la realidad del ciclo del cliente.</p>
                                     <p>• <strong>Notas de Crédito:</strong> Se restan en su mes de emisión fiscal (AFIP <code className="text-[10px] bg-[#141f36] px-1 py-0.5 rounded text-amber-300">cbteFch</code>), no en la fecha de sincronización técnica.</p>
                                     <p>• <strong>Noviembre 2026:</strong> No forma parte de la base cerrada por ser el mes actualmente en curso.</p>
@@ -2318,7 +2318,7 @@ export default function Dashboard() {
 
                         {/* Desglose 2: Historial Mensual Cerrado */}
                         {showHistoryBreakdown && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#2B3648] text-xs space-y-3 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#162238] text-xs space-y-3 animate-fade-in-up">
                                 <div className="font-bold text-white flex items-center justify-between">
                                     <span className="flex items-center gap-2">
                                         <History className="h-4 w-4 text-[#ff5e00]" /> Historial Mensual Cerrado (Base Auditada)
@@ -2328,7 +2328,7 @@ export default function Dashboard() {
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs font-mono">
                                         <thead>
-                                            <tr className="border-b border-[#243041] text-[10px] uppercase text-slate-400 font-semibold">
+                                            <tr className="border-b border-[#121a29] text-[10px] uppercase text-slate-400 font-semibold">
                                                 <th className="pb-2">Período</th>
                                                 <th className="pb-2">Comprobantes</th>
                                                 <th className="pb-2 text-right">Facturación Bruta</th>
@@ -2336,7 +2336,7 @@ export default function Dashboard() {
                                                 <th className="pb-2 text-right">Facturación Neta</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-[#243041]">
+                                        <tbody className="divide-y divide-[#121a29]">
                                             {(completedMonthsSeries.length > 0 ? completedMonthsSeries : [
                                                 { label: "Jun 2026", facturasCount: 6, facturasTotal: 574578.28, ncCount: 1, ncTotal: 1.00, netTotal: 574577.28, isZeroActivity: false },
                                                 { label: "Jul 2026", facturasCount: 2, facturasTotal: 132021.89, ncCount: 0, ncTotal: 0, netTotal: 132021.89, isZeroActivity: false },
@@ -2354,7 +2354,7 @@ export default function Dashboard() {
                                             ))}
                                         </tbody>
                                         <tfoot>
-                                            <tr className="border-t-2 border-[#243041] font-bold text-white">
+                                            <tr className="border-t-2 border-[#121a29] font-bold text-white">
                                                 <td className="pt-2">Total Auditado</td>
                                                 <td className="pt-2 text-slate-400 font-sans">23 comprobantes</td>
                                                 <td className="pt-2 text-right text-slate-300 tabular-nums">$ 2.266.546,32</td>
@@ -2368,14 +2368,14 @@ export default function Dashboard() {
                         )}
 
                         {/* Pie del Hero */}
-                        <div className="flex items-center justify-between text-xs text-slate-400 font-mono border-t border-[#243041] pt-2.5">
+                        <div className="flex items-center justify-between text-xs text-slate-400 font-mono border-t border-[#121a29] pt-2.5">
                             <span>Fuente: Base de comprobantes AFIP/ARCA sincronizados</span>
                             <span>Modelo de Referencia · Serie continua</span>
                         </div>
                     </div>
 
                     {/* ACTIVIDAD RECIENTE DEL NEGOCIO (DEBAJO DEL PRONÓSTICO) */}
-                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-6 space-y-4 shadow-sm w-full">
+                    <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-6 space-y-4 shadow-sm w-full">
                         <div className="flex items-center justify-between pb-1">
                             <div className="flex items-center gap-2">
                                 <Activity className="h-4 w-4 text-[#ff5e00]" />
@@ -2406,7 +2406,7 @@ export default function Dashboard() {
                                 const tipoName = getVoucherName(cbteType);
 
                                 return (
-                                    <div key={idx} className="flex items-center justify-between gap-4 py-1 border-b border-[#243041] last:border-0 pb-2">
+                                    <div key={idx} className="flex items-center justify-between gap-4 py-1 border-b border-[#121a29] last:border-0 pb-2">
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[#ff5e00] shrink-0"></span>
                                             <span className="font-medium text-slate-200 truncate uppercase">
@@ -2426,9 +2426,9 @@ export default function Dashboard() {
                 <div className="lg:col-span-1 space-y-6 w-full min-w-0">
 
                     {/* CUENTAS BANCARIAS (ARRIBA) */}
-                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-6 space-y-4 shadow-sm text-center w-full">
+                    <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-6 space-y-4 shadow-sm text-center w-full">
                         <div className="flex items-center gap-2 text-left">
-                            <div className="h-6 w-6 rounded bg-[#141f36] border border-[#2B3648] flex items-center justify-center text-slate-300 shrink-0">
+                            <div className="h-6 w-6 rounded bg-[#141f36] border border-[#162238] flex items-center justify-center text-slate-300 shrink-0">
                                 <Landmark className="h-3.5 w-3.5" />
                             </div>
                             <h3 className="text-sm font-bold text-white tracking-tight">Cuentas Bancarias</h3>
@@ -2436,7 +2436,7 @@ export default function Dashboard() {
 
                         {/* Card graphic placeholder */}
                         <div className="py-4 space-y-3 flex flex-col items-center">
-                            <div className="h-16 w-24 rounded-xl border-2 border-dashed border-[#2B3648] flex items-center justify-center text-slate-400">
+                            <div className="h-16 w-24 rounded-xl border-2 border-dashed border-[#162238] flex items-center justify-center text-slate-400">
                                 <Wallet className="h-8 w-8 opacity-60 text-slate-400" />
                             </div>
                             <p className="text-xs text-slate-400 max-w-[220px]">
@@ -2454,7 +2454,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* PRÓXIMAS ACCIONES (DEBAJO) */}
-                    <div className="bg-[#0b1220] border border-[#334155] rounded-2xl p-6 space-y-4 shadow-sm w-full">
+                    <div className="bg-[#0b1220] border border-[#1e293b] rounded-2xl p-6 space-y-4 shadow-sm w-full">
                         <div className="flex items-center gap-2 pb-1">
                             <CheckCircle className="h-4 w-4 text-[#ff5e00]" />
                             <h3 className="text-sm font-bold text-white tracking-tight">Próximas Acciones</h3>
@@ -2464,7 +2464,7 @@ export default function Dashboard() {
                             {/* Acción 1: Compartir con tu contador */}
                             <div 
                                 onClick={() => setIsRemitModalOpen(true)}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#2B3648] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#162238] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-[#ff5e00] shrink-0">
@@ -2481,7 +2481,7 @@ export default function Dashboard() {
                             {/* Acción 2: Emitir comprobante ARCA */}
                             <div 
                                 onClick={() => router.push('/dashboard/facturacion')}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#2B3648] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#162238] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-slate-300 shrink-0">
@@ -2498,7 +2498,7 @@ export default function Dashboard() {
                             {/* Acción 3: Conciliar cuentas bancarias */}
                             <div 
                                 onClick={() => router.push('/dashboard/banco')}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#2B3648] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#162238] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-slate-300 shrink-0">
