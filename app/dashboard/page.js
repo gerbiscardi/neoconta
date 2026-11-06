@@ -1969,65 +1969,21 @@ export default function Dashboard() {
                     {/* HERO: PRONÓSTICO FINANCIERO (LIMPIO, SIN CURVAS DECORATIVAS FALSAS) */}
                     <div className="bg-[#0b1220] border border-[#162238] rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm relative">
                         
-                        {/* Header con Selector Desplegable de Período */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                                <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
-                                <h2 className="text-lg font-bold text-white tracking-tight">Pronóstico Financiero</h2>
-                            </div>
-
-                            <div className="flex items-center gap-2 text-xs text-slate-400 shrink-0">
-                                <span>Período:</span>
-                                <div className="relative">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-                                        className="px-3 py-1.5 rounded-lg bg-[#0e1626] border border-[#1b263b] text-white font-medium flex items-center gap-2 cursor-pointer shadow-sm hover:border-slate-600 transition-colors"
-                                    >
-                                        <span>
-                                            {(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"}
-                                            {projectedPeriods[selectedPeriodIndex]?.isCurrentMonth ? " · Mes en curso" : ""}
-                                        </span>
-                                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                                    </button>
-
-                                    {isPeriodDropdownOpen && (
-                                        <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#1b263b] shadow-2xl py-1 z-30 font-sans">
-                                            {(projectedPeriods.length > 0 ? projectedPeriods : [
-                                                { label: "Noviembre 2026", isCurrentMonth: true },
-                                                { label: "Diciembre 2026", isCurrentMonth: false }
-                                            ]).map((p, idx) => (
-                                                <button
-                                                    key={idx}
-                                                    type="button"
-                                                    onClick={() => { setSelectedPeriodIndex(idx); setIsPeriodDropdownOpen(false); }}
-                                                    className={`w-full text-left px-3.5 py-2 text-xs transition-colors flex items-center justify-between cursor-pointer ${
-                                                        selectedPeriodIndex === idx ? 'bg-[#ff5e00]/20 text-[#ff5e00] font-bold' : 'text-slate-300 hover:bg-[#141f36]'
-                                                    }`}
-                                                >
-                                                    <span>{p.label}</span>
-                                                    <span className="text-[10px] text-slate-400 font-mono">
-                                                        {p.isCurrentMonth ? "Mes en curso" : "$ 382.909"}
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Descripción Metodológica Real */}
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                            Estimación basada en el promedio de {forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses cerrados. Todavía no hay suficiente historial para identificar una tendencia o estacionalidad confiable.
-                        </p>
-
-                        {/* Grilla Principal del Pronóstico: Cifra + Gráfico de Evolución Real y Proyección Plana */}
-                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pt-1">
+                        {/* BLOQUE PRINCIPAL INTEGRADO: IZQUIERDA (Título, Explicación, Cifra, Badges) | DERECHA (Período, Leyenda, Gráfico Compacto) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                             
-                            {/* Sector Izquierdo: Cifra Monumental + Badges + Barra de Avance */}
-                            <div className="xl:col-span-5 space-y-4">
-                                <div>
+                            {/* SECTOR IZQUIERDO: Título + Explicación + Importe $382.909 + Badges */}
+                            <div className="lg:col-span-5 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
+                                    <h2 className="text-lg font-bold text-white tracking-tight">Pronóstico Financiero</h2>
+                                </div>
+
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                    Estimación basada en el promedio de {forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses cerrados. Todavía no hay suficiente historial para identificar una tendencia o estacionalidad confiable.
+                                </p>
+
+                                <div className="pt-1">
                                     <div className="flex items-baseline gap-3">
                                         <span className="text-4xl sm:text-5xl font-black text-white font-mono tracking-tight tabular-nums">
                                             {formatCurrency((projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.projectedCentral) || 382909)}
@@ -2049,71 +2005,74 @@ export default function Dashboard() {
                                         </span>
                                     </div>
                                 </div>
-
-                                {/* Barra de Avance Temporal */}
-                                {(() => {
-                                    const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex])
-                                        ? projectedPeriods[selectedPeriodIndex]
-                                        : { projectedCentral: 382909, currentActualInvoiced: clientStats.invoicedThisMonth || 0 };
-                                    const centralVal = curPeriod.projectedCentral || 382909;
-                                    const actualVal = curPeriod.currentActualInvoiced || 0;
-                                    const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
-
-                                    return (
-                                        <div className="space-y-1.5 pt-1">
-                                            <div className="flex justify-between text-xs font-mono">
-                                                <span className="text-slate-400">Facturado hasta hoy:</span>
-                                                <span className="font-bold text-white tabular-nums">
-                                                    {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}%)</span>
-                                                </span>
-                                            </div>
-                                            <div className="h-2 w-full bg-[#141f36] rounded-full overflow-hidden">
-                                                <div 
-                                                    className="h-full bg-white rounded-full transition-all duration-500" 
-                                                    style={{ width: `${Math.max(actualVal > 0 ? 5 : 2, progressPct)}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
                             </div>
 
-                            {/* Sector Derecho: Gráfico Combinado Real (Barras Históricas + Proyección Plana Nov-Dic) */}
-                            <div className="xl:col-span-7 bg-[#070d18] border border-[#162238] rounded-xl p-4 space-y-3 relative">
+                            {/* SECTOR DERECHO: Período + Leyenda + Gráfico Compacto de Evolución */}
+                            <div className="lg:col-span-7 bg-[#080e1a]/80 border border-[#162238]/80 rounded-xl p-3.5 space-y-2 relative">
                                 
-                                {/* Encabezado del gráfico y Leyenda */}
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-[#141d2e]">
-                                    <div>
-                                        <h4 className="text-xs font-bold text-white tracking-tight flex items-center gap-1.5">
-                                            <span>Evolución real y proyección</span>
-                                        </h4>
-                                        <p className="text-[10px] text-slate-400 font-sans mt-0.5">
-                                            La serie muestra meses cerrados auditados y la estimación prudente para próximos períodos.
-                                        </p>
+                                {/* Encabezado del sector derecho: Selector de Período y Leyenda */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-[#141f33]">
+                                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                                        <span>Período:</span>
+                                        <div className="relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
+                                                className="px-2.5 py-1 rounded-lg bg-[#0e1626] border border-[#1b263b] text-white text-[11px] font-medium flex items-center gap-1.5 cursor-pointer shadow-sm hover:border-slate-600 transition-colors"
+                                            >
+                                                <span>
+                                                    {(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"}
+                                                    {projectedPeriods[selectedPeriodIndex]?.isCurrentMonth ? " · Mes en curso" : ""}
+                                                </span>
+                                                <ChevronDown className="h-3 w-3 text-slate-400" />
+                                            </button>
+
+                                            {isPeriodDropdownOpen && (
+                                                <div className="absolute left-0 sm:right-0 sm:left-auto mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#1b263b] shadow-2xl py-1 z-30 font-sans">
+                                                    {(projectedPeriods.length > 0 ? projectedPeriods : [
+                                                        { label: "Noviembre 2026", isCurrentMonth: true },
+                                                        { label: "Diciembre 2026", isCurrentMonth: false }
+                                                    ]).map((p, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => { setSelectedPeriodIndex(idx); setIsPeriodDropdownOpen(false); }}
+                                                            className={`w-full text-left px-3.5 py-2 text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                                                                selectedPeriodIndex === idx ? 'bg-[#ff5e00]/20 text-[#ff5e00] font-bold' : 'text-slate-300 hover:bg-[#141f36]'
+                                                            }`}
+                                                        >
+                                                            <span>{p.label}</span>
+                                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                                {p.isCurrentMonth ? "Mes en curso" : "$ 382.909"}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {/* Leyenda visual visible */}
-                                    <div className="flex items-center gap-3 text-[11px] font-mono shrink-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-sm bg-sky-400/80 border border-sky-400 inline-block"></span>
-                                            <span className="text-slate-300">Histórico</span>
+                                    {/* Leyenda visual */}
+                                    <div className="flex items-center gap-3 text-[10px] font-mono">
+                                        <div className="flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-xs bg-sky-400 inline-block"></span>
+                                            <span className="text-slate-400">Histórico</span>
                                         </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-4 border-b-2 border-dashed border-[#ff5e00] inline-block"></span>
-                                            <span className="w-1.5 h-1.5 rounded-full bg-[#ff5e00] -ml-2 inline-block"></span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="w-3 border-b-2 border-dashed border-[#ff5e00] inline-block"></span>
                                             <span className="text-orange-400 font-semibold">Proyección</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Tooltip Dinámico / Estado Activo al Hover */}
-                                <div className="h-6 flex items-center justify-between px-2.5 py-1 rounded bg-[#0a1222] border border-[#1e2e4f]/70 text-[11px] font-mono">
+                                {/* Subtítulo y Tooltip dinámico al hover */}
+                                <div className="h-5 flex items-center justify-between px-2 py-0.5 rounded bg-[#0a1222]/80 text-[10px] font-mono">
                                     {chartTooltip ? (
                                         <div className="flex items-center justify-between w-full">
                                             <span className="text-slate-200 font-bold">{chartTooltip.month}:</span>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-amber-300 font-bold tabular-nums">{chartTooltip.amount}</span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-sans font-medium ${
+                                                <span className={`text-[9px] px-1 py-0.2 rounded font-sans font-medium ${
                                                     chartTooltip.isProjection ? 'bg-orange-500/20 text-[#ff5e00] border border-orange-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
                                                 }`}>
                                                     {chartTooltip.type}
@@ -2121,150 +2080,170 @@ export default function Dashboard() {
                                             </div>
                                         </div>
                                     ) : (
-                                        <span className="text-slate-400 text-[10px] italic">
-                                            Pasa el cursor sobre una barra o punto para ver el detalle de cada período
-                                        </span>
+                                        <div className="flex items-center justify-between w-full">
+                                            <span className="text-slate-300 font-semibold">Evolución real y proyección</span>
+                                            <span className="text-slate-400 italic text-[9.5px]">Pasa el cursor para ver el detalle mensual</span>
+                                        </div>
                                     )}
                                 </div>
 
-                                {/* Contenedor SVG Interactivo */}
-                                <div className="relative w-full aspect-[520/190] select-none">
-                                    <svg viewBox="0 0 520 190" className="w-full h-full overflow-visible font-mono text-[10px]">
+                                {/* SVG Compacto y Proporcionado */}
+                                <div className="relative w-full aspect-[400/120] select-none">
+                                    <svg viewBox="0 0 400 120" className="w-full h-full overflow-visible font-mono text-[9px]">
                                         <defs>
-                                            <linearGradient id="barGradReal" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.85"/>
-                                                <stop offset="100%" stopColor="#0284c7" stopOpacity="0.45"/>
+                                            <linearGradient id="barCompact" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.9"/>
+                                                <stop offset="100%" stopColor="#0284c7" stopOpacity="0.4"/>
                                             </linearGradient>
-                                            <linearGradient id="projGradReal" x1="0" y1="0" x2="0" y2="1">
+                                            <linearGradient id="projCompact" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="0%" stopColor="#ff5e00" stopOpacity="0.25"/>
                                                 <stop offset="100%" stopColor="#ff5e00" stopOpacity="0.05"/>
                                             </linearGradient>
                                         </defs>
 
-                                        {/* Líneas guía horizontales y etiquetas Y */}
-                                        <line x1="55" y1="20" x2="505" y2="20" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
-                                        <text x="47" y="23" fill="#64748b" textAnchor="end">$ 800k</text>
+                                        {/* Guías horizontales */}
+                                        <line x1="38" y1="16" x2="390" y2="16" stroke="#141f33" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="32" y="19" fill="#475569" textAnchor="end">$ 800k</text>
 
-                                        <line x1="55" y1="52.5" x2="505" y2="52.5" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
-                                        <text x="47" y="55.5" fill="#64748b" textAnchor="end">$ 600k</text>
+                                        <line x1="38" y1="52" x2="390" y2="52" stroke="#141f33" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="32" y="55" fill="#475569" textAnchor="end">$ 400k</text>
 
-                                        <line x1="55" y1="85" x2="505" y2="85" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
-                                        <text x="47" y="88" fill="#64748b" textAnchor="end">$ 400k</text>
+                                        <line x1="38" y1="88" x2="390" y2="88" stroke="#1e293b" strokeWidth="1"/>
+                                        <text x="32" y="91" fill="#475569" textAnchor="end">$ 0</text>
 
-                                        <line x1="55" y1="117.5" x2="505" y2="117.5" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
-                                        <text x="47" y="120.5" fill="#64748b" textAnchor="end">$ 200k</text>
+                                        {/* Línea divisoria vertical Histórico | Proyección */}
+                                        <line x1="288" y1="8" x2="288" y2="88" stroke="#1e293b" strokeDasharray="3 3" strokeWidth="1"/>
+                                        <text x="288" y="6" fill="#64748b" textAnchor="middle" fontSize="8">Auditado | Proy</text>
 
-                                        {/* Línea base $ 0 */}
-                                        <line x1="55" y1="150" x2="505" y2="150" stroke="#334155" strokeWidth="1.2"/>
-                                        <text x="47" y="153" fill="#64748b" textAnchor="end">$ 0</text>
-
-                                        {/* Divisoria entre Histórico y Proyección */}
-                                        <line x1="388" y1="15" x2="388" y2="150" stroke="#334155" strokeDasharray="3 3" strokeWidth="1"/>
-                                        <text x="388" y="11" fill="#94a3b8" textAnchor="middle" fontSize="9">Auditado | Proy</text>
-
-                                        {/* BARRAS HISTÓRICAS REALES AUDITADAS */}
-                                        {/* 1. Jun 2026: $ 574.577,28 */}
+                                        {/* 1. Jun 2026: $ 574.577,28 (h=51.7, y=36.3, x=58) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Junio 2026", amount: "$ 574.577,28", type: "Real auditado", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="73" y="56.6" width="24" height="93.4" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
-                                            <text x="85" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jun</text>
-                                            <text x="85" y="50" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 575k</text>
+                                            <rect x="48" y="36.3" width="20" height="51.7" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="58" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jun</text>
+                                            <text x="58" y="31" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 575k</text>
                                         </g>
 
-                                        {/* 2. Jul 2026: $ 132.021,89 */}
+                                        {/* 2. Jul 2026: $ 132.021,89 (h=11.9, y=76.1, x=106) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Julio 2026", amount: "$ 132.021,89", type: "Real auditado", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="136" y="128.5" width="24" height="21.5" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
-                                            <text x="148" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jul</text>
-                                            <text x="148" y="122" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 132k</text>
+                                            <rect x="96" y="76.1" width="20" height="11.9" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="106" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jul</text>
+                                            <text x="106" y="71" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 132k</text>
                                         </g>
 
-                                        {/* 3. Ago 2026: $ 715.822,54 */}
+                                        {/* 3. Ago 2026: $ 715.822,54 (h=64.4, y=23.6, x=154) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Agosto 2026", amount: "$ 715.822,54", type: "Real auditado (Mes pico)", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="199" y="33.7" width="24" height="116.3" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
-                                            <text x="211" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Ago</text>
-                                            <text x="211" y="27" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 716k</text>
+                                            <rect x="144" y="23.6" width="20" height="64.4" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="154" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Ago</text>
+                                            <text x="154" y="18" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 716k</text>
                                         </g>
 
-                                        {/* 4. Sep 2026: $ 0,00 (VISIBLE EXPLÍCITO EN CERO) */}
+                                        {/* 4. Sep 2026: $ 0,00 (VISIBLE EXPLÍCITO EN CERO) (x=202) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Septiembre 2026", amount: "$ 0,00", type: "Real auditado (Sin emisión)", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="262" y="147.5" width="24" height="2.5" rx="1" fill="#475569" stroke="#64748b" strokeWidth="1"/>
-                                            <circle cx="274" cy="150" r="3.5" fill="#64748b"/>
-                                            <text x="274" y="165" fill="#94a3b8" textAnchor="middle" fontWeight="600">Sep</text>
-                                            <text x="274" y="141" fill="#94a3b8" textAnchor="middle" fontSize="9" fontWeight="600">$ 0</text>
+                                            <rect x="192" y="86.5" width="20" height="2" rx="1" fill="#475569" stroke="#64748b" strokeWidth="0.8"/>
+                                            <circle cx="202" cy="88" r="2.5" fill="#64748b"/>
+                                            <text x="202" y="101" fill="#94a3b8" textAnchor="middle" fontWeight="600">Sep</text>
+                                            <text x="202" y="82" fill="#94a3b8" textAnchor="middle" fontWeight="600">$ 0</text>
                                         </g>
 
-                                        {/* 5. Oct 2026: $ 492.123,61 */}
+                                        {/* 5. Oct 2026: $ 492.123,61 (h=44.3, y=43.7, x=250) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Octubre 2026", amount: "$ 492.123,61", type: "Real auditado", isProjection: false })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="325" y="70.0" width="24" height="80.0" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
-                                            <text x="337" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Oct</text>
-                                            <text x="337" y="63" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 492k</text>
+                                            <rect x="240" y="43.7" width="20" height="44.3" rx="2.5" fill="url(#barCompact)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                            <text x="250" y="101" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Oct</text>
+                                            <text x="250" y="38" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 492k</text>
                                         </g>
 
-                                        {/* PROYECCIÓN ESTIMADA: Noviembre 2026 y Diciembre 2026 = $ 382.909,06 */}
-                                        {/* Nov 2026 */}
+                                        {/* PROYECCIÓN: Noviembre y Diciembre = $ 382.909,06 (h=34.5, y=53.5) */}
+                                        {/* Nov 2026 (x=315) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Noviembre 2026", amount: "$ 382.909,06", type: "Estimado (Mes en curso)", isProjection: true })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="406" y="87.8" width="24" height="62.2" rx="3" fill="url(#projGradReal)" stroke="#ff5e00" strokeWidth="1" strokeDasharray="3 2" className="transition-opacity hover:opacity-80"/>
-                                            <text x="418" y="165" fill="#ff7a29" textAnchor="middle" fontWeight="700">Nov</text>
+                                            <rect x="305" y="53.5" width="20" height="34.5" rx="2.5" fill="url(#projCompact)" stroke="#ff5e00" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
+                                            <text x="315" y="101" fill="#ff7a29" textAnchor="middle" fontWeight="700">Nov</text>
                                         </g>
 
-                                        {/* Dic 2026 */}
+                                        {/* Dic 2026 (x=362) */}
                                         <g 
                                             className="cursor-pointer group"
                                             onMouseEnter={() => setChartTooltip({ month: "Diciembre 2026", amount: "$ 382.909,06", type: "Estimado (Proyección)", isProjection: true })}
                                             onMouseLeave={() => setChartTooltip(null)}
                                         >
-                                            <rect x="468" y="87.8" width="24" height="62.2" rx="3" fill="url(#projGradReal)" stroke="#ff5e00" strokeWidth="1" strokeDasharray="3 2" className="transition-opacity hover:opacity-80"/>
-                                            <text x="480" y="165" fill="#ff7a29" textAnchor="middle" fontWeight="700">Dic</text>
+                                            <rect x="352" y="53.5" width="20" height="34.5" rx="2.5" fill="url(#projCompact)" stroke="#ff5e00" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
+                                            <text x="362" y="101" fill="#ff7a29" textAnchor="middle" fontWeight="700">Dic</text>
                                         </g>
 
-                                        {/* LÍNEA DE TRANSICIÓN Octubre -> Noviembre */}
-                                        <line x1="337" y1="70.0" x2="418" y2="87.8" stroke="#ff5e00" strokeDasharray="3 3" strokeWidth="1.5" strokeOpacity="0.6"/>
+                                        {/* Conector fino discontinuo Oct -> Nov */}
+                                        <line x1="250" y1="43.7" x2="315" y2="53.5" stroke="#ff5e00" strokeDasharray="2 2" strokeWidth="1.2" strokeOpacity="0.5"/>
 
-                                        {/* TRAMO PROYECTADO: RIGUROSAMENTE PLANO ENTRE NOVIEMBRE Y DICIEMBRE (y1=87.8, y2=87.8) */}
-                                        <line x1="418" y1="87.8" x2="480" y2="87.8" stroke="#ff5e00" strokeWidth="2.5" strokeDasharray="4 3"/>
+                                        {/* TRAMO RIGUROSAMENTE PLANO ENTRE NOVIEMBRE Y DICIEMBRE (y1=53.5, y2=53.5) */}
+                                        <line x1="315" y1="53.5" x2="362" y2="53.5" stroke="#ff5e00" strokeWidth="2" strokeDasharray="3 2"/>
 
-                                        {/* Puntos destacados */}
-                                        <circle cx="418" cy="87.8" r="4.5" fill="#ff5e00" stroke="#070d18" strokeWidth="1.5"/>
-                                        <circle cx="480" cy="87.8" r="4.5" fill="#ff5e00" stroke="#070d18" strokeWidth="1.5"/>
+                                        {/* Marcadores circulares */}
+                                        <circle cx="315" cy="53.5" r="3.5" fill="#ff5e00" stroke="#080e1a" strokeWidth="1.2"/>
+                                        <circle cx="362" cy="53.5" r="3.5" fill="#ff5e00" stroke="#080e1a" strokeWidth="1.2"/>
 
                                         {/* Etiqueta sobre el tramo plano */}
-                                        <text x="449" y="77" fill="#ff5e00" textAnchor="middle" fontSize="9" fontWeight="800">
+                                        <text x="338.5" y="47" fill="#ff5e00" textAnchor="middle" fontWeight="800" fontSize="8.5">
                                             $ 382.909 (plano)
                                         </text>
                                     </svg>
                                 </div>
 
-                                {/* Pie del Gráfico */}
-                                <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1 border-t border-[#141d2e]">
-                                    <span>5 meses auditados en ARCA</span>
-                                    <span className="text-emerald-400 font-semibold">• Promedio continuo sin sesgo</span>
+                                {/* Footer explicativo del gráfico */}
+                                <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono pt-0.5 border-t border-[#141f33]">
+                                    <span>Fuente: ARCA auditado</span>
+                                    <span className="text-emerald-400 font-semibold">• Proyección prudente continua</span>
                                 </div>
                             </div>
 
                         </div>
+
+                        {/* Barra de Avance Temporal (A TODO LO ANCHO DE LA TARJETA) */}
+                        {(() => {
+                            const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex])
+                                ? projectedPeriods[selectedPeriodIndex]
+                                : { projectedCentral: 382909, currentActualInvoiced: clientStats.invoicedThisMonth || 0 };
+                            const centralVal = curPeriod.projectedCentral || 382909;
+                            const actualVal = curPeriod.currentActualInvoiced || 0;
+                            const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
+
+                            return (
+                                <div className="space-y-1.5 pt-2">
+                                    <div className="flex justify-between text-xs font-mono">
+                                        <span className="text-slate-400">Facturado hasta hoy frente a la estimación mensual</span>
+                                        <span className="font-bold text-white tabular-nums">
+                                            {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la estimación)</span>
+                                        </span>
+                                    </div>
+                                    <div className="h-2 w-full bg-[#141f36] rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-white rounded-full transition-all duration-500" 
+                                            style={{ width: `${Math.max(actualVal > 0 ? 5 : 2, progressPct)}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         {/* Botones de Acordeón */}
                         <div className="flex items-center gap-3 pt-1 flex-wrap">
