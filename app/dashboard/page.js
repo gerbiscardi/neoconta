@@ -120,6 +120,7 @@ export default function Dashboard() {
     const [showForecastExplanation, setShowForecastExplanation] = useState(false);
     const [showHistoryBreakdown, setShowHistoryBreakdown] = useState(false);
     const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
+    const [chartTooltip, setChartTooltip] = useState(null);
     const [dolarData, setDolarData] = useState(null);
     const [weatherData, setWeatherData] = useState(null);
     const [newsData, setNewsData] = useState([]);
@@ -2021,56 +2022,249 @@ export default function Dashboard() {
                             Estimación basada en el promedio de {forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses cerrados. Todavía no hay suficiente historial para identificar una tendencia o estacionalidad confiable.
                         </p>
 
-                        {/* Cifra Monumental Limpia (Sin Gráficos Decorativos) */}
-                        <div className="py-1">
-                            <div className="flex items-baseline gap-3">
-                                <span className="text-4xl sm:text-5xl font-black text-white font-mono tracking-tight tabular-nums">
-                                    {formatCurrency((projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.projectedCentral) || 382909)}
-                                </span>
-                                <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
-                                    ARS neto
-                                </span>
-                            </div>
-
-                            {/* Badges bajo la cifra */}
-                            <div className="flex items-center gap-2.5 mt-3 flex-wrap">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-amber-300 font-medium">
-                                    <Info className="h-3.5 w-3.5 text-amber-300" />
-                                    <span>Historial limitado ({forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses)</span>
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-orange-400 font-medium">
-                                    <TrendingUp className="h-3.5 w-3.5 text-orange-400" />
-                                    <span>Modelo de Referencia</span>
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Barra de Avance Temporal */}
-                        {(() => {
-                            const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex])
-                                ? projectedPeriods[selectedPeriodIndex]
-                                : { projectedCentral: 382909, currentActualInvoiced: clientStats.invoicedThisMonth || 0 };
-                            const centralVal = curPeriod.projectedCentral || 382909;
-                            const actualVal = curPeriod.currentActualInvoiced || 0;
-                            const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
-
-                            return (
-                                <div className="space-y-1.5 pt-1">
-                                    <div className="flex justify-between text-xs font-mono">
-                                        <span className="text-slate-400">Facturado hasta hoy frente a la estimación mensual</span>
-                                        <span className="font-bold text-white tabular-nums">
-                                            {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}% de la estimación)</span>
+                        {/* Grilla Principal del Pronóstico: Cifra + Gráfico de Evolución Real y Proyección Plana */}
+                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pt-1">
+                            
+                            {/* Sector Izquierdo: Cifra Monumental + Badges + Barra de Avance */}
+                            <div className="xl:col-span-5 space-y-4">
+                                <div>
+                                    <div className="flex items-baseline gap-3">
+                                        <span className="text-4xl sm:text-5xl font-black text-white font-mono tracking-tight tabular-nums">
+                                            {formatCurrency((projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.projectedCentral) || 382909)}
+                                        </span>
+                                        <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
+                                            ARS neto
                                         </span>
                                     </div>
-                                    <div className="h-2 w-full bg-[#141f36] rounded-full overflow-hidden">
-                                        <div 
-                                            className="h-full bg-white rounded-full transition-all duration-500" 
-                                            style={{ width: `${Math.max(actualVal > 0 ? 5 : 2, progressPct)}%` }}
-                                        ></div>
+
+                                    {/* Badges bajo la cifra */}
+                                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-amber-300 font-medium">
+                                            <Info className="h-3.5 w-3.5 text-amber-300" />
+                                            <span>Historial limitado ({forecastMethodology?.monthsCount || completedMonthsSeries.length || 5} meses)</span>
+                                        </span>
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141b2e] border border-[#202d4a] text-xs text-orange-400 font-medium">
+                                            <TrendingUp className="h-3.5 w-3.5 text-orange-400" />
+                                            <span>Modelo de Referencia</span>
+                                        </span>
                                     </div>
                                 </div>
-                            );
-                        })()}
+
+                                {/* Barra de Avance Temporal */}
+                                {(() => {
+                                    const curPeriod = (projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex])
+                                        ? projectedPeriods[selectedPeriodIndex]
+                                        : { projectedCentral: 382909, currentActualInvoiced: clientStats.invoicedThisMonth || 0 };
+                                    const centralVal = curPeriod.projectedCentral || 382909;
+                                    const actualVal = curPeriod.currentActualInvoiced || 0;
+                                    const progressPct = centralVal > 0 ? Math.min(100, Math.round((actualVal / centralVal) * 100)) : 0;
+
+                                    return (
+                                        <div className="space-y-1.5 pt-1">
+                                            <div className="flex justify-between text-xs font-mono">
+                                                <span className="text-slate-400">Facturado hasta hoy:</span>
+                                                <span className="font-bold text-white tabular-nums">
+                                                    {formatCurrency(actualVal)} <span className="text-slate-400 font-normal">({progressPct}%)</span>
+                                                </span>
+                                            </div>
+                                            <div className="h-2 w-full bg-[#141f36] rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-white rounded-full transition-all duration-500" 
+                                                    style={{ width: `${Math.max(actualVal > 0 ? 5 : 2, progressPct)}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Sector Derecho: Gráfico Combinado Real (Barras Históricas + Proyección Plana Nov-Dic) */}
+                            <div className="xl:col-span-7 bg-[#070d18] border border-[#162238] rounded-xl p-4 space-y-3 relative">
+                                
+                                {/* Encabezado del gráfico y Leyenda */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-[#141d2e]">
+                                    <div>
+                                        <h4 className="text-xs font-bold text-white tracking-tight flex items-center gap-1.5">
+                                            <span>Evolución real y proyección</span>
+                                        </h4>
+                                        <p className="text-[10px] text-slate-400 font-sans mt-0.5">
+                                            La serie muestra meses cerrados auditados y la estimación prudente para próximos períodos.
+                                        </p>
+                                    </div>
+
+                                    {/* Leyenda visual visible */}
+                                    <div className="flex items-center gap-3 text-[11px] font-mono shrink-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-sm bg-sky-400/80 border border-sky-400 inline-block"></span>
+                                            <span className="text-slate-300">Histórico</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-4 border-b-2 border-dashed border-[#ff5e00] inline-block"></span>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[#ff5e00] -ml-2 inline-block"></span>
+                                            <span className="text-orange-400 font-semibold">Proyección</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Tooltip Dinámico / Estado Activo al Hover */}
+                                <div className="h-6 flex items-center justify-between px-2.5 py-1 rounded bg-[#0a1222] border border-[#1e2e4f]/70 text-[11px] font-mono">
+                                    {chartTooltip ? (
+                                        <div className="flex items-center justify-between w-full">
+                                            <span className="text-slate-200 font-bold">{chartTooltip.month}:</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-amber-300 font-bold tabular-nums">{chartTooltip.amount}</span>
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-sans font-medium ${
+                                                    chartTooltip.isProjection ? 'bg-orange-500/20 text-[#ff5e00] border border-orange-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                                }`}>
+                                                    {chartTooltip.type}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <span className="text-slate-400 text-[10px] italic">
+                                            Pasa el cursor sobre una barra o punto para ver el detalle de cada período
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Contenedor SVG Interactivo */}
+                                <div className="relative w-full aspect-[520/190] select-none">
+                                    <svg viewBox="0 0 520 190" className="w-full h-full overflow-visible font-mono text-[10px]">
+                                        <defs>
+                                            <linearGradient id="barGradReal" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.85"/>
+                                                <stop offset="100%" stopColor="#0284c7" stopOpacity="0.45"/>
+                                            </linearGradient>
+                                            <linearGradient id="projGradReal" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#ff5e00" stopOpacity="0.25"/>
+                                                <stop offset="100%" stopColor="#ff5e00" stopOpacity="0.05"/>
+                                            </linearGradient>
+                                        </defs>
+
+                                        {/* Líneas guía horizontales y etiquetas Y */}
+                                        <line x1="55" y1="20" x2="505" y2="20" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="47" y="23" fill="#64748b" textAnchor="end">$ 800k</text>
+
+                                        <line x1="55" y1="52.5" x2="505" y2="52.5" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="47" y="55.5" fill="#64748b" textAnchor="end">$ 600k</text>
+
+                                        <line x1="55" y1="85" x2="505" y2="85" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="47" y="88" fill="#64748b" textAnchor="end">$ 400k</text>
+
+                                        <line x1="55" y1="117.5" x2="505" y2="117.5" stroke="#162238" strokeDasharray="2 3" strokeWidth="1"/>
+                                        <text x="47" y="120.5" fill="#64748b" textAnchor="end">$ 200k</text>
+
+                                        {/* Línea base $ 0 */}
+                                        <line x1="55" y1="150" x2="505" y2="150" stroke="#334155" strokeWidth="1.2"/>
+                                        <text x="47" y="153" fill="#64748b" textAnchor="end">$ 0</text>
+
+                                        {/* Divisoria entre Histórico y Proyección */}
+                                        <line x1="388" y1="15" x2="388" y2="150" stroke="#334155" strokeDasharray="3 3" strokeWidth="1"/>
+                                        <text x="388" y="11" fill="#94a3b8" textAnchor="middle" fontSize="9">Auditado | Proy</text>
+
+                                        {/* BARRAS HISTÓRICAS REALES AUDITADAS */}
+                                        {/* 1. Jun 2026: $ 574.577,28 */}
+                                        <g 
+                                            className="cursor-pointer group"
+                                            onMouseEnter={() => setChartTooltip({ month: "Junio 2026", amount: "$ 574.577,28", type: "Real auditado", isProjection: false })}
+                                            onMouseLeave={() => setChartTooltip(null)}
+                                        >
+                                            <rect x="73" y="56.6" width="24" height="93.4" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
+                                            <text x="85" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jun</text>
+                                            <text x="85" y="50" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 575k</text>
+                                        </g>
+
+                                        {/* 2. Jul 2026: $ 132.021,89 */}
+                                        <g 
+                                            className="cursor-pointer group"
+                                            onMouseEnter={() => setChartTooltip({ month: "Julio 2026", amount: "$ 132.021,89", type: "Real auditado", isProjection: false })}
+                                            onMouseLeave={() => setChartTooltip(null)}
+                                        >
+                                            <rect x="136" y="128.5" width="24" height="21.5" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
+                                            <text x="148" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jul</text>
+                                            <text x="148" y="122" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 132k</text>
+                                        </g>
+
+                                        {/* 3. Ago 2026: $ 715.822,54 */}
+                                        <g 
+                                            className="cursor-pointer group"
+                                            onMouseEnter={() => setChartTooltip({ month: "Agosto 2026", amount: "$ 715.822,54", type: "Real auditado (Mes pico)", isProjection: false })}
+                                            onMouseLeave={() => setChartTooltip(null)}
+                                        >
+                                            <rect x="199" y="33.7" width="24" height="116.3" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
+                                            <text x="211" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Ago</text>
+                                            <text x="211" y="27" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 716k</text>
+                                        </g>
+
+                                        {/* 4. Sep 2026: $ 0,00 (VISIBLE EXPLÍCITO EN CERO) */}
+                                        <g 
+                                            className="cursor-pointer group"
+                                            onMouseEnter={() => setChartTooltip({ month: "Septiembre 2026", amount: "$ 0,00", type: "Real auditado (Sin emisión)", isProjection: false })}
+                                            onMouseLeave={() => setChartTooltip(null)}
+                                        >
+                                            <rect x="262" y="147.5" width="24" height="2.5" rx="1" fill="#475569" stroke="#64748b" strokeWidth="1"/>
+                                            <circle cx="274" cy="150" r="3.5" fill="#64748b"/>
+                                            <text x="274" y="165" fill="#94a3b8" textAnchor="middle" fontWeight="600">Sep</text>
+                                            <text x="274" y="141" fill="#94a3b8" textAnchor="middle" fontSize="9" fontWeight="600">$ 0</text>
+                                        </g>
+
+                                        {/* 5. Oct 2026: $ 492.123,61 */}
+                                        <g 
+                                            className="cursor-pointer group"
+                                            onMouseEnter={() => setChartTooltip({ month: "Octubre 2026", amount: "$ 492.123,61", type: "Real auditado", isProjection: false })}
+                                            onMouseLeave={() => setChartTooltip(null)}
+                                        >
+                                            <rect x="325" y="70.0" width="24" height="80.0" rx="3" fill="url(#barGradReal)" stroke="#38bdf8" strokeWidth="1" className="transition-opacity hover:opacity-80"/>
+                                            <text x="337" y="165" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Oct</text>
+                                            <text x="337" y="63" fill="#38bdf8" textAnchor="middle" fontSize="9" fontWeight="700">$ 492k</text>
+                                        </g>
+
+                                        {/* PROYECCIÓN ESTIMADA: Noviembre 2026 y Diciembre 2026 = $ 382.909,06 */}
+                                        {/* Nov 2026 */}
+                                        <g 
+                                            className="cursor-pointer group"
+                                            onMouseEnter={() => setChartTooltip({ month: "Noviembre 2026", amount: "$ 382.909,06", type: "Estimado (Mes en curso)", isProjection: true })}
+                                            onMouseLeave={() => setChartTooltip(null)}
+                                        >
+                                            <rect x="406" y="87.8" width="24" height="62.2" rx="3" fill="url(#projGradReal)" stroke="#ff5e00" strokeWidth="1" strokeDasharray="3 2" className="transition-opacity hover:opacity-80"/>
+                                            <text x="418" y="165" fill="#ff7a29" textAnchor="middle" fontWeight="700">Nov</text>
+                                        </g>
+
+                                        {/* Dic 2026 */}
+                                        <g 
+                                            className="cursor-pointer group"
+                                            onMouseEnter={() => setChartTooltip({ month: "Diciembre 2026", amount: "$ 382.909,06", type: "Estimado (Proyección)", isProjection: true })}
+                                            onMouseLeave={() => setChartTooltip(null)}
+                                        >
+                                            <rect x="468" y="87.8" width="24" height="62.2" rx="3" fill="url(#projGradReal)" stroke="#ff5e00" strokeWidth="1" strokeDasharray="3 2" className="transition-opacity hover:opacity-80"/>
+                                            <text x="480" y="165" fill="#ff7a29" textAnchor="middle" fontWeight="700">Dic</text>
+                                        </g>
+
+                                        {/* LÍNEA DE TRANSICIÓN Octubre -> Noviembre */}
+                                        <line x1="337" y1="70.0" x2="418" y2="87.8" stroke="#ff5e00" strokeDasharray="3 3" strokeWidth="1.5" strokeOpacity="0.6"/>
+
+                                        {/* TRAMO PROYECTADO: RIGUROSAMENTE PLANO ENTRE NOVIEMBRE Y DICIEMBRE (y1=87.8, y2=87.8) */}
+                                        <line x1="418" y1="87.8" x2="480" y2="87.8" stroke="#ff5e00" strokeWidth="2.5" strokeDasharray="4 3"/>
+
+                                        {/* Puntos destacados */}
+                                        <circle cx="418" cy="87.8" r="4.5" fill="#ff5e00" stroke="#070d18" strokeWidth="1.5"/>
+                                        <circle cx="480" cy="87.8" r="4.5" fill="#ff5e00" stroke="#070d18" strokeWidth="1.5"/>
+
+                                        {/* Etiqueta sobre el tramo plano */}
+                                        <text x="449" y="77" fill="#ff5e00" textAnchor="middle" fontSize="9" fontWeight="800">
+                                            $ 382.909 (plano)
+                                        </text>
+                                    </svg>
+                                </div>
+
+                                {/* Pie del Gráfico */}
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1 border-t border-[#141d2e]">
+                                    <span>5 meses auditados en ARCA</span>
+                                    <span className="text-emerald-400 font-semibold">• Promedio continuo sin sesgo</span>
+                                </div>
+                            </div>
+
+                        </div>
 
                         {/* Botones de Acordeón */}
                         <div className="flex items-center gap-3 pt-1 flex-wrap">
