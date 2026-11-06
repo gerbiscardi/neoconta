@@ -67,6 +67,20 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+/* Explicit NeoConta Dark Slate Border System (Never Falls Back to currentColor) */
+.border-main-dark {
+  border-color: #243041 !important;
+}
+.border-sec-dark {
+  border-color: #1E293B !important;
+}
+.border-subtle-dark {
+  border-color: #1A2332 !important;
+}
+.border-hover-dark:hover {
+  border-color: #2B374A !important;
+}
+
 .cache-bust-2026-07-28-01 {
   z-index: 9999;
 }

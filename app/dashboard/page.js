@@ -1800,7 +1800,7 @@ export default function Dashboard() {
 
                 <div className="flex items-center gap-3 flex-wrap">
                     {/* Empresa Selector */}
-                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-[#1E293B] text-xs font-mono text-slate-200 shadow-sm max-w-full">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0d1424] border border-sec-dark border-[#1E293B] text-xs font-mono text-slate-200 shadow-sm max-w-full" style={{ borderColor: "#1E293B" }}>
                         <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span className="truncate">Empresa: <strong className="text-white">{companyConfig.razonSocial || "GUERRERO RODOLFO MANUEL"}</strong> {companyConfig.cuit ? `(${companyConfig.cuit})` : "(20347467228)"}</span>
                         <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -1821,7 +1821,7 @@ export default function Dashboard() {
 
             {/* 2. TICKER BAR: NEOCONTA AL DÍA */}
             <div 
-                className="bg-[#0b1220] border border-[#243041] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none w-full"
+                className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-xl px-4 py-2 flex items-center justify-between text-xs overflow-hidden shadow-sm select-none w-full" style={{ borderColor: "#243041" }}
                 role="region"
                 aria-label="NeoConta al Día: Cotizaciones y noticias fiscales"
             >
@@ -1884,7 +1884,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                 
                 {/* Card 1: Facturado este mes */}
-                <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors">
+                <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
                             <TrendingUp className="h-4 w-4" />
@@ -1903,7 +1903,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 2: Pronóstico del mes (Destacada) */}
-                <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors">
+                <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-3">
                             <div className="h-8 w-8 rounded-lg bg-[#ff5e00]/15 border border-[#ff5e00]/30 flex items-center justify-center text-[#ff5e00] shrink-0">
@@ -1929,7 +1929,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 3: Facturación histórica acumulada */}
-                <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors">
+                <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
                             <DollarSign className="h-4 w-4" />
@@ -1948,7 +1948,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Card 4: Saldo bancario disponible */}
-                <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors">
+                <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                     <div className="flex items-start gap-3">
                         <div className="h-8 w-8 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-center justify-center text-slate-300 shrink-0">
                             <Landmark className="h-4 w-4" />
@@ -1980,7 +1980,7 @@ export default function Dashboard() {
                 <div className="lg:col-span-2 space-y-6 w-full min-w-0">
 
                     {/* HERO: PRONÓSTICO FINANCIERO (REFINADO, COMPACTO Y CON GRÁFICO INTEGRADO) */}
-                    <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm relative">
+                    <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm relative" style={{ borderColor: "#243041" }}>
                         
                         {/* Cabecera General: Título a la izquierda + Selector de Período a la derecha */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0.5 border-b border-[#1A2332]">
@@ -1996,7 +1996,7 @@ export default function Dashboard() {
                                     <button
                                         type="button"
                                         onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-                                        className="px-3 py-1.5 rounded-lg bg-[#0e1626] border border-[#1E293B] hover:border-[#2B374A] focus:border-[#ff5e00] focus:ring-1 focus:ring-[#ff5e00] text-white text-xs font-medium flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
+                                        className="px-3 py-1.5 rounded-lg bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#2B374A] focus:border-[#ff5e00] focus:ring-1 focus:ring-[#ff5e00] text-white text-xs font-medium flex items-center gap-2 cursor-pointer shadow-sm transition-colors" style={{ borderColor: "#1E293B" }}
                                     >
                                         <span>
                                             {(projectedPeriods.length > 0 && projectedPeriods[selectedPeriodIndex]?.label) || "Noviembre 2026"}
@@ -2006,7 +2006,7 @@ export default function Dashboard() {
                                     </button>
 
                                     {isPeriodDropdownOpen && (
-                                        <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0e1626] border border-[#1E293B] shadow-2xl py-1 z-30 font-sans">
+                                        <div className="absolute right-0 mt-1 w-56 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] shadow-2xl py-1 z-30 font-sans" style={{ borderColor: "#1E293B" }}>
                                             {(projectedPeriods.length > 0 ? projectedPeriods : [
                                                 { label: "Noviembre 2026", isCurrentMonth: true },
                                                 { label: "Diciembre 2026", isCurrentMonth: false }
@@ -2086,7 +2086,7 @@ export default function Dashboard() {
                                 </div>
 
                                 {/* Tooltip dinámico en franja compacta */}
-                                <div className="h-5 flex items-center justify-between px-2.5 py-0.5 rounded bg-[#0a1222]/90 border border-[#1A2332] text-[10.5px] font-mono">
+                                <div className="h-5 flex items-center justify-between px-2.5 py-0.5 rounded bg-[#0a1222]/90 border border-subtle-dark border-[#1A2332] text-[10.5px] font-mono" style={{ borderColor: "#1A2332" }}>
                                     {chartTooltip ? (
                                         <div className="flex items-center justify-between w-full">
                                             <span className="text-slate-200 font-bold">{chartTooltip.month}:</span>
@@ -2272,7 +2272,7 @@ export default function Dashboard() {
                             <button 
                                 type="button"
                                 onClick={() => setShowForecastExplanation(!showForecastExplanation)}
-                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#1E293B] hover:border-[#2B374A] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#2B374A] text-xs font-semibold text-slate-200 transition-colors cursor-pointer" style={{ borderColor: "#1E293B" }}
                             >
                                 <Calculator className="h-3.5 w-3.5 text-[#ff5e00]" />
                                 <span>{showForecastExplanation ? "Ocultar metodología" : "¿Cómo se calculó esta proyección?"}</span>
@@ -2282,7 +2282,7 @@ export default function Dashboard() {
                             <button 
                                 type="button"
                                 onClick={() => setShowHistoryBreakdown(!showHistoryBreakdown)}
-                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-[#1E293B] hover:border-[#2B374A] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#2B374A] text-xs font-semibold text-slate-200 transition-colors cursor-pointer" style={{ borderColor: "#1E293B" }}
                             >
                                 <History className="h-3.5 w-3.5 text-slate-400" />
                                 <span>{showHistoryBreakdown ? "Ocultar comprobantes" : "Ver historial de comprobantes (5 meses)"}</span>
@@ -2292,7 +2292,7 @@ export default function Dashboard() {
 
                         {/* Desglose 1: Metodología Matemática */}
                         {showForecastExplanation && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1E293B] text-xs space-y-3 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-sec-dark border-[#1E293B] text-xs space-y-3 animate-fade-in-up" style={{ borderColor: "#1E293B" }}>
                                 <div className="font-bold text-white flex items-center gap-2">
                                     <Calculator className="h-4 w-4 text-[#ff5e00]" /> Metodología Matemática y Contable
                                 </div>
@@ -2318,7 +2318,7 @@ export default function Dashboard() {
 
                         {/* Desglose 2: Historial Mensual Cerrado */}
                         {showHistoryBreakdown && (
-                            <div className="p-4 bg-[#070d18] rounded-xl border border-[#1E293B] text-xs space-y-3 animate-fade-in-up">
+                            <div className="p-4 bg-[#070d18] rounded-xl border border-sec-dark border-[#1E293B] text-xs space-y-3 animate-fade-in-up" style={{ borderColor: "#1E293B" }}>
                                 <div className="font-bold text-white flex items-center justify-between">
                                     <span className="flex items-center gap-2">
                                         <History className="h-4 w-4 text-[#ff5e00]" /> Historial Mensual Cerrado (Base Auditada)
@@ -2375,7 +2375,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* ACTIVIDAD RECIENTE DEL NEGOCIO (DEBAJO DEL PRONÓSTICO) */}
-                    <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm w-full">
+                    <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm w-full" style={{ borderColor: "#243041" }}>
                         <div className="flex items-center justify-between pb-1">
                             <div className="flex items-center gap-2">
                                 <Activity className="h-4 w-4 text-[#ff5e00]" />
@@ -2426,7 +2426,7 @@ export default function Dashboard() {
                 <div className="lg:col-span-1 space-y-6 w-full min-w-0">
 
                     {/* CUENTAS BANCARIAS (ARRIBA) */}
-                    <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm text-center w-full">
+                    <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm text-center w-full" style={{ borderColor: "#243041" }}>
                         <div className="flex items-center gap-2 text-left">
                             <div className="h-6 w-6 rounded bg-[#141f36] border border-[#1E293B] flex items-center justify-center text-slate-300 shrink-0">
                                 <Landmark className="h-3.5 w-3.5" />
@@ -2436,7 +2436,7 @@ export default function Dashboard() {
 
                         {/* Card graphic placeholder */}
                         <div className="py-4 space-y-3 flex flex-col items-center">
-                            <div className="h-16 w-24 rounded-xl border-2 border-dashed border-[#1E293B] flex items-center justify-center text-slate-400">
+                            <div className="h-16 w-24 rounded-xl border-2 border-dashed border-sec-dark border-[#1E293B] flex items-center justify-center text-slate-400" style={{ borderColor: "#1E293B" }}>
                                 <Wallet className="h-8 w-8 opacity-60 text-slate-400" />
                             </div>
                             <p className="text-xs text-slate-400 max-w-[220px]">
@@ -2454,7 +2454,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* PRÓXIMAS ACCIONES (DEBAJO) */}
-                    <div className="bg-[#0b1220] border border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm w-full">
+                    <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm w-full" style={{ borderColor: "#243041" }}>
                         <div className="flex items-center gap-2 pb-1">
                             <CheckCircle className="h-4 w-4 text-[#ff5e00]" />
                             <h3 className="text-sm font-bold text-white tracking-tight">Próximas Acciones</h3>
@@ -2464,7 +2464,7 @@ export default function Dashboard() {
                             {/* Acción 1: Compartir con tu contador */}
                             <div 
                                 onClick={() => setIsRemitModalOpen(true)}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#1E293B] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer" style={{ borderColor: "#1E293B" }}
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-[#ff5e00] shrink-0">
@@ -2481,7 +2481,7 @@ export default function Dashboard() {
                             {/* Acción 2: Emitir comprobante ARCA */}
                             <div 
                                 onClick={() => router.push('/dashboard/facturacion')}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#1E293B] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer" style={{ borderColor: "#1E293B" }}
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-slate-300 shrink-0">
@@ -2498,7 +2498,7 @@ export default function Dashboard() {
                             {/* Acción 3: Conciliar cuentas bancarias */}
                             <div 
                                 onClick={() => router.push('/dashboard/banco')}
-                                className="p-3.5 rounded-xl bg-[#0e1626] border border-[#1E293B] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="p-3.5 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#ff5e00]/50 transition-colors flex items-center justify-between group cursor-pointer" style={{ borderColor: "#1E293B" }}
                             >
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="mt-0.5 text-slate-300 shrink-0">
