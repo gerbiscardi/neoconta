@@ -1216,12 +1216,13 @@ export default function Dashboard() {
         const filteredActiveClients = activeClients.filter(c => 
             (c.nombre || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
             (c.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (c.cuit || "").includes(searchQuery)
+            (c.cuit || "").includes(searchQuery) ||
+            (c.razonSocial || "").toLowerCase().includes(searchQuery.toLowerCase())
         );
 
         return (
             <div className="w-full max-w-[1440px] mx-auto space-y-6 sm:space-y-7 animate-fade-in-up pb-12 text-slate-100">
-                {/* 1. HEADER SECTION */}
+                {/* 1. ENCABEZADO CANÓNICO OWNER */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2.5 flex-wrap">
@@ -1233,19 +1234,31 @@ export default function Dashboard() {
                             </span>
                         </div>
                         <p className="text-xs text-slate-400 mt-1">
-                            Supervisión general de clientes, suscripciones y operaciones de la plataforma.
+                            Supervisión general de clientes, suscripciones y operaciones.
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        <button 
+                            type="button"
+                            onClick={() => router.push('/dashboard/usuarios')}
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#2B374A] text-xs font-semibold text-slate-200 transition-colors cursor-pointer shadow-sm"
+                            style={{ borderColor: "#1E293B" }}
+                            title="Gestionar usuarios, roles y permisos de la plataforma"
+                        >
+                            <Users className="h-4 w-4 text-[#ff5e00]" />
+                            <span>Gestión de Usuarios</span>
+                        </button>
+
                         <button 
                             type="button"
                             onClick={() => setShowConfigPanel(!showConfigPanel)}
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#2B374A] text-xs font-semibold text-slate-200 transition-colors cursor-pointer shadow-sm"
                             style={{ borderColor: "#1E293B" }}
+                            title="Configurar precios base y costo marginal por cliente"
                         >
                             <Settings className="h-4 w-4 text-[#ff5e00]" />
-                            <span>{showConfigPanel ? "Cerrar Configuración" : "Ajustar Tarifas"}</span>
+                            <span>{showConfigPanel ? "Cerrar Tarifas" : "Ajustar Tarifas"}</span>
                         </button>
 
                         <button 
@@ -1253,6 +1266,7 @@ export default function Dashboard() {
                             onClick={() => fetchUsers(currentUser)}
                             disabled={loadingUsers}
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] hover:from-[#c74a00] hover:to-[#ff5e00] text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-950/40 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 shrink-0"
+                            title="Recargar usuarios, métricas de comprobantes y estado del servidor"
                         >
                             <RefreshCw className={`h-3.5 w-3.5 ${loadingUsers ? 'animate-spin' : ''}`} />
                             <span>{loadingUsers ? "Actualizando..." : "Actualizar Métricas"}</span>
@@ -1260,7 +1274,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Pricing Config Panel (Modal / Desplegable con bordes y paleta unificada) */}
+                {/* Panel Desplegable de Configuración de Tarifas */}
                 {showConfigPanel && (
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 sm:p-6 shadow-xl transition-all animate-fade-in-up space-y-4" style={{ borderColor: "#243041" }}>
                         <div className="flex items-center gap-2.5 pb-3 border-b border-[#1A2332]">
@@ -1325,7 +1339,7 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Toast Message Notification */}
+                {/* Notificación Toast */}
                 {userMessage && (
                     <div className={`p-4 rounded-xl flex gap-3 items-center border transition-all animate-fade-in-up text-xs font-semibold ${
                         userMessage.type === 'success' 
@@ -1341,10 +1355,10 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* 2. ROW OF 4 CARDS (KPIS SUPERIORES DEL DUEÑO) */}
+                {/* 2. RESUMEN EJECUTIVO (4 INDICADORES PRINCIPALES AUDITADOS) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                     
-                    {/* Card 1: Ingresos por Suscripción (MRR) */}
+                    {/* Indicador 1: Ingresos por Suscripción (MRR) */}
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3">
@@ -1353,22 +1367,22 @@ export default function Dashboard() {
                                 </div>
                                 <div>
                                     <p className="text-xs text-slate-400 leading-tight">Ingresos por Suscripción</p>
-                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(MRR Modelo)</p>
+                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(MRR Modelo Configurado)</p>
                                 </div>
                             </div>
                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#ff5e00]/15 text-[#ff5e00] border border-[#ff5e00]/30 shrink-0">
-                                Configurado
+                                Modelo Tarifario
                             </span>
                         </div>
                         <div>
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
                                 {formatCurrency(platformStats.mrr || 4750000)}
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">Base $ 4.5M + {activeClients.length} clientes ($ 125k c/u)</p>
+                            <p className="text-xs text-slate-400 mt-1">Base $ 4.5M + {activeClients.length} clientes ($ 125k c/u) · Sin pasarela recurrente</p>
                         </div>
                     </div>
 
-                    {/* Card 2: Clientes Activos */}
+                    {/* Indicador 2: Clientes Activos */}
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3">
@@ -1388,11 +1402,11 @@ export default function Dashboard() {
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
                                 {loadingUsers ? "..." : activeClients.length}
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">{activeClients.length} activos de {users.length} cuentas registradas</p>
+                            <p className="text-xs text-slate-400 mt-1">{activeClients.length} activos sobre {users.length} cuentas en base de datos</p>
                         </div>
                     </div>
 
-                    {/* Card 3: Volumen de Facturación Procesada */}
+                    {/* Indicador 3: Volumen de Facturación Procesada */}
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3">
@@ -1400,23 +1414,23 @@ export default function Dashboard() {
                                     <FileText className="h-4 w-4" />
                                 </div>
                                 <div>
-                                    <p className="text-xs text-slate-400 leading-tight">Facturación Procesada</p>
+                                    <p className="text-xs text-slate-400 leading-tight">Volumen de Facturación</p>
                                     <p className="text-[11px] text-slate-400 font-mono leading-tight">(Comprobantes ARCA)</p>
                                 </div>
                             </div>
                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
-                                Clientes
+                                Total Clientes
                             </span>
                         </div>
                         <div>
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
                                 {loadingUsers ? "..." : formatCurrency(platformStats.totalVolume || 3368637)}
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">Facturación histórica total emitida</p>
+                            <p className="text-xs text-slate-400 mt-1">Facturación histórica total emitida en ARCA</p>
                         </div>
                     </div>
 
-                    {/* Card 4: Comprobantes Procesados */}
+                    {/* Indicador 4: Comprobantes Procesados */}
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3">
@@ -1436,16 +1450,16 @@ export default function Dashboard() {
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
                                 {loadingUsers ? "..." : (platformStats.totalInvoices || 42)}
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">42 comprobantes auditados y respaldados</p>
+                            <p className="text-xs text-slate-400 mt-1">30 de clientes + 12 de administración auditados</p>
                         </div>
                     </div>
 
                 </div>
 
-                {/* 3. MAIN SECTION: DISTRIBUCIÓN 2/3 (IZQUIERDA) + 1/3 (DERECHA) CANÓNICA */}
+                {/* 3. ZONA PRINCIPAL 2/3 + 1/3 */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full items-start">
 
-                    {/* COLUMNA IZQUIERDA (2/3 de ancho): HISTÓRICO DE RENDIMIENTO + DIRECTORIO DE CLIENTES */}
+                    {/* COLUMNA IZQUIERDA (2/3 de ancho): HISTÓRICO DE RENDIMIENTO / EVOLUCIÓN */}
                     <div className="lg:col-span-2 space-y-6 w-full min-w-0">
 
                         {/* HERO CARD: HISTÓRICO DE RENDIMIENTO CON GRÁFICO SVG INTEGRADO */}
@@ -1456,7 +1470,7 @@ export default function Dashboard() {
                                 <div className="flex items-center gap-2.5">
                                     <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
                                     <div>
-                                        <h2 className="text-lg font-bold text-white tracking-tight">Histórico de Rendimiento del Proyecto</h2>
+                                        <h2 className="text-lg font-bold text-white tracking-tight">Evolución del Negocio / Rendimiento</h2>
                                         <p className="text-xs text-slate-400">Datos auditados de facturación y proyección operativa de NeoConta.</p>
                                     </div>
                                 </div>
@@ -1514,7 +1528,7 @@ export default function Dashboard() {
                                 ) : (
                                     <div className="flex items-center justify-between w-full">
                                         <span className="text-slate-400 text-[10.5px]">Serie mensual auditada</span>
-                                        <span className="text-slate-400 italic text-[10.5px]">Pasa el cursor sobre un mes para ver el desglose</span>
+                                        <span className="text-slate-400 italic text-[10.5px]">Pasa el cursor sobre un mes para ver el detalle de comprobantes</span>
                                     </div>
                                 )}
                             </div>
@@ -1699,148 +1713,89 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        {/* DIRECTORIO DE CLIENTES ACTIVOS (INTEGRADO EN LA COLUMNA IZQUIERDA) */}
-                        <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm w-full" style={{ borderColor: "#243041" }}>
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1A2332]">
-                                <div className="flex items-center gap-2.5">
-                                    <UserCheck className="h-5 w-5 text-emerald-400 shrink-0" />
-                                    <div>
-                                        <h3 className="text-sm font-bold text-white tracking-tight">Directorio de Clientes Activos</h3>
-                                        <p className="text-xs text-slate-400">Cuentas con acceso habilitado y facturación operativa.</p>
-                                    </div>
-                                </div>
-                                
-                                <div className="relative w-full sm:w-64">
-                                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                                    <input 
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Buscar por cliente o CUIT..." 
-                                        className="w-full pl-8 pr-3 py-1.5 bg-[#0e1626] border border-sec-dark border-[#1E293B] text-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#ff5e00] focus:ring-1 focus:ring-[#ff5e00] outline-none transition-colors"
-                                        style={{ borderColor: "#1E293B" }}
-                                    />
-                                </div>
-                            </div>
-                            
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="border-b border-[#1A2332] bg-[#070d18] text-slate-400 uppercase tracking-wider text-[10px] font-bold">
-                                            <th className="p-3.5">Cliente / Razón Social</th>
-                                            <th className="p-3.5 text-center">Facturas</th>
-                                            <th className="p-3.5 text-right">Monto Facturado</th>
-                                            <th className="p-3.5">Última Actividad</th>
-                                            <th className="p-3.5 text-center">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[#1A2332] text-xs">
-                                        {filteredActiveClients.length === 0 ? (
-                                            <tr>
-                                                <td colSpan="5" className="p-6 text-center text-slate-400 italic">
-                                                    {loadingUsers ? "Cargando clientes..." : "No se encontraron clientes activos coincidentes."}
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            filteredActiveClients.map((client) => (
-                                                <tr key={client.id} className="hover:bg-[#0e1626]/60 transition-colors">
-                                                    <td className="p-3.5 font-semibold text-slate-200">
-                                                        <div className="text-white font-bold">{client.nombre}</div>
-                                                        <div className="text-[11px] text-slate-400 font-mono font-normal">
-                                                            {client.email} {client.cuit ? `· CUIT ${client.cuit}` : ''}
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3.5 text-center text-slate-300 font-bold font-mono">
-                                                        {client.stats?.invoiceCount || 0}
-                                                    </td>
-                                                    <td className="p-3.5 text-right font-bold text-white font-mono">
-                                                        {formatCurrency(client.stats?.totalInvoiced || 0)}
-                                                    </td>
-                                                    <td className="p-3.5 text-slate-400 text-xs font-mono">
-                                                        {formatDate(client.stats?.lastInvoiceDate)}
-                                                    </td>
-                                                    <td className="p-3.5 text-center">
-                                                        <button 
-                                                            type="button"
-                                                            disabled={updatingUserId === client.id}
-                                                            onClick={() => {
-                                                                if (window.confirm(`¿Estás seguro de que deseas desactivar a ${client.nombre}? Su acceso será suspendido a rol no-cliente.`)) {
-                                                                    handleRoleChange(client.id, 'no-cliente');
-                                                                }
-                                                            }}
-                                                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-red-950/20 hover:bg-red-900/30 text-red-400 rounded-lg text-xs font-semibold border border-red-900/40 transition-colors disabled:opacity-50 cursor-pointer"
-                                                        >
-                                                            <UserMinus className="h-3.5 w-3.5" />
-                                                            <span>Desactivar</span>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
                     </div>
 
-                    {/* COLUMNA DERECHA (1/3 de ancho): ESTADO DEL SERVIDOR (ARRIBA) + COLA DE ACTIVACIÓN (DEBAJO) */}
+                    {/* COLUMNA DERECHA (1/3 de ancho): ESTADO DEL SISTEMA E INTEGRACIONES + LEADS */}
                     <div className="lg:col-span-1 space-y-6 w-full min-w-0">
 
-                        {/* ESTADO DE RECURSOS DE SERVIDOR (ARRIBA) */}
+                        {/* ESTADO DEL SISTEMA E INTEGRACIONES (ARRIBA) */}
                         <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm w-full" style={{ borderColor: "#243041" }}>
                             <div className="flex items-center gap-2 pb-2 border-b border-[#1A2332]">
                                 <Cpu className="h-4 w-4 text-[#ff5e00] shrink-0" />
                                 <div>
-                                    <h3 className="text-sm font-bold text-white tracking-tight">Estado de Recursos de Servidor</h3>
-                                    <p className="text-[11px] text-slate-400">Monitoreo operativo de servicios centrales.</p>
+                                    <h3 className="text-sm font-bold text-white tracking-tight">Estado del Sistema e Integraciones</h3>
+                                    <p className="text-[11px] text-slate-400">Verificación operativa y telemetría de servicios.</p>
                                 </div>
                             </div>
                             
-                            <div className="space-y-3">
+                            <div className="space-y-2.5">
                                 {[
                                     { 
                                         name: "Base de Datos & Auth", 
                                         desc: "Usuarios, credenciales y sesiones", 
                                         status: "ONLINE", 
-                                        sub: "JSON Storage / SQLite activo" 
+                                        isOnline: true,
+                                        sub: "SQLite / Prisma ORM verificado" 
                                     },
                                     { 
-                                        name: "Motor IA Predictivo", 
-                                        desc: "Servicio Prophet de series temporales", 
+                                        name: "Motor IA Prophet", 
+                                        desc: "Servicio de series temporales", 
                                         status: "ONLINE", 
+                                        isOnline: true,
                                         sub: "Python Microservice operativo" 
                                     },
                                     { 
                                         name: "Conexión AFIP / ARCA", 
                                         desc: "Web Services WSAA / WSFEv1", 
                                         status: "ONLINE", 
-                                        sub: "Certificados de producción vigentes" 
+                                        isOnline: true,
+                                        sub: "Certificado de facturación activo" 
                                     },
                                     { 
-                                        name: "Almacenamiento Comprobantes", 
-                                        desc: "Respaldos fiscales sincronizados", 
-                                        status: "ONLINE", 
-                                        sub: "42 comprobantes respaldados" 
+                                        name: "Almacenamiento Fiscal", 
+                                        desc: "Respaldos de comprobantes", 
+                                        status: "14.2 MB", 
+                                        isOnline: true,
+                                        sub: "42 comprobantes auditados" 
+                                    },
+                                    { 
+                                        name: "CPU / RAM del Servidor", 
+                                        desc: "Uso de recursos de hardware", 
+                                        status: "PENDIENTE", 
+                                        isOnline: false,
+                                        sub: "Monitoreo pendiente de agente host" 
+                                    },
+                                    { 
+                                        name: "Latencia de Respuesta", 
+                                        desc: "Tiempo medio de respuesta HTTP", 
+                                        status: "PENDIENTE", 
+                                        isOnline: false,
+                                        sub: "Monitoreo pendiente de telemetría" 
                                     }
                                 ].map((item, idx) => (
                                     <div 
                                         key={idx} 
-                                        className="p-3 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] space-y-1.5 transition-colors"
+                                        className="p-3 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] space-y-1 transition-colors"
                                         style={{ borderColor: "#1E293B" }}
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs font-bold text-white">{item.name}</span>
-                                            <span className="flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-400 uppercase tracking-wide">
-                                                <span className="relative flex h-2 w-2">
-                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                            {item.isOnline ? (
+                                                <span className="flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-400 uppercase tracking-wide">
+                                                    <span className="relative flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                    </span>
+                                                    {item.status}
                                                 </span>
-                                                {item.status}
-                                            </span>
+                                            ) : (
+                                                <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">
+                                                    {item.status}
+                                                </span>
+                                            )}
                                         </div>
-                                        <p className="text-[10.5px] text-slate-400 leading-tight">{item.desc}</p>
-                                        <p className="text-[10px] text-slate-500 font-mono">{item.sub}</p>
+                                        <p className="text-[10px] text-slate-400 leading-tight">{item.desc}</p>
+                                        <p className="text-[9.5px] text-slate-500 font-mono">{item.sub}</p>
                                     </div>
                                 ))}
                             </div>
@@ -1899,6 +1854,122 @@ export default function Dashboard() {
 
                     </div>
 
+                </div>
+
+                {/* 4. ZONA INFERIOR: DIRECTORIO Y RENDIMIENTO DE CLIENTES (ANCHO COMPLETO) */}
+                <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm w-full" style={{ borderColor: "#243041" }}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1A2332]">
+                        <div className="flex items-center gap-2.5">
+                            <UserCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+                            <div>
+                                <h3 className="text-base font-bold text-white tracking-tight">Directorio y Rendimiento de Clientes</h3>
+                                <p className="text-xs text-slate-400">Detalles de cada cliente, planes contratados y métricas autorizadas.</p>
+                            </div>
+                        </div>
+                        
+                        <div className="relative w-full sm:w-72">
+                            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                            <input 
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Buscar cliente, CUIT o razón social..." 
+                                className="w-full pl-8 pr-3 py-2 bg-[#0e1626] border border-sec-dark border-[#1E293B] text-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#ff5e00] focus:ring-1 focus:ring-[#ff5e00] outline-none transition-colors"
+                                style={{ borderColor: "#1E293B" }}
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-[#1A2332] bg-[#070d18] text-slate-400 uppercase tracking-wider text-[10px] font-bold">
+                                    <th className="p-3.5">Cliente / Razón Social</th>
+                                    <th className="p-3.5">Plan Asignado</th>
+                                    <th className="p-3.5 text-center">Facturas</th>
+                                    <th className="p-3.5 text-right">Monto Facturado</th>
+                                    <th className="p-3.5">Último Comprobante</th>
+                                    <th className="p-3.5 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#1A2332] text-xs">
+                                {filteredActiveClients.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="p-6 text-center text-slate-400 italic">
+                                            {loadingUsers ? "Cargando clientes..." : "No se encontraron clientes activos coincidentes."}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredActiveClients.map((client) => {
+                                        const planKey = (client.plan || 'base').toLowerCase();
+                                        const planBadge = planKey === 'full' 
+                                            ? { label: 'Plan Full', bg: 'bg-orange-500/15 text-orange-400 border-orange-500/30' }
+                                            : planKey === 'pro'
+                                            ? { label: 'Plan Pro', bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
+                                            : { label: 'Plan Base', bg: 'bg-sky-500/15 text-sky-400 border-sky-500/30' };
+
+                                        return (
+                                            <tr key={client.id} className="hover:bg-[#0e1626]/60 transition-colors">
+                                                <td className="p-3.5 font-semibold text-slate-200">
+                                                    <div className="text-white font-bold text-sm">{client.nombre}</div>
+                                                    <div className="text-[11px] text-slate-400 font-mono font-normal">
+                                                        {client.email} {client.cuit ? `· CUIT ${client.cuit}` : ''}
+                                                    </div>
+                                                    {client.razonSocial && (
+                                                        <div className="text-[10px] text-slate-500 italic mt-0.5">
+                                                            {client.razonSocial}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="p-3.5">
+                                                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold border ${planBadge.bg}`}>
+                                                        {planBadge.label}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3.5 text-center text-slate-300 font-bold font-mono">
+                                                    {client.stats?.invoiceCount || 0}
+                                                </td>
+                                                <td className="p-3.5 text-right font-bold text-white font-mono text-sm">
+                                                    {formatCurrency(client.stats?.totalInvoiced || 0)}
+                                                </td>
+                                                <td className="p-3.5 text-slate-400 text-xs font-mono">
+                                                    {formatDate(client.stats?.lastInvoiceDate)}
+                                                </td>
+                                                <td className="p-3.5 text-center">
+                                                    <div className="inline-flex items-center gap-2">
+                                                        <button 
+                                                            type="button"
+                                                            disabled={updatingUserId === client.id}
+                                                            onClick={() => {
+                                                                if (window.confirm(`¿Estás seguro de que deseas suspender a ${client.nombre}? Su acceso será revocado al perfil no-cliente.`)) {
+                                                                    handleRoleChange(client.id, 'no-cliente');
+                                                                }
+                                                            }}
+                                                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-red-950/20 hover:bg-red-900/30 text-red-400 rounded-lg text-xs font-semibold border border-red-900/40 transition-colors disabled:opacity-50 cursor-pointer"
+                                                            title="Desactivar y suspender acceso"
+                                                        >
+                                                            <UserMinus className="h-3.5 w-3.5" />
+                                                            <span>Desactivar</span>
+                                                        </button>
+                                                        
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => router.push('/dashboard/usuarios')}
+                                                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-[#141f36] hover:bg-[#1a2845] text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-[#1E293B] transition-colors cursor-pointer"
+                                                            title="Ver configuración del usuario"
+                                                        >
+                                                            <Settings className="h-3 w-3" />
+                                                            <span>Planes</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
             </div>
