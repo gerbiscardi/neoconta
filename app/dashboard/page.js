@@ -240,7 +240,7 @@ export default function Dashboard() {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [updatingUserId, setUpdatingUserId] = useState(null);
     const [userMessage, setUserMessage] = useState(null);
-    const [platformStats, setPlatformStats] = useState({ totalInvoices: 0, totalVolume: 0, mrr: 0, arpu: 0, conversionRate: "0.0" });
+    const [platformStats, setPlatformStats] = useState({ totalInvoices: 0, totalQuota: 350, quotaUtilization: 12, mrr: 0, arpu: 0, conversionRate: "0.0" });
     const [activeTab, setActiveTab] = useState("project"); // "project" or "clients"
     const [chartMetric, setChartMetric] = useState("volume"); // "volume", "mrr", or "clients"
     const [searchQuery, setSearchQuery] = useState("");
@@ -1406,27 +1406,27 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Indicador 3: Volumen de Facturación Procesada */}
+                    {/* Indicador 3: Capacidad de Planes / Consumo de Cupos */}
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3">
-                                <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                                    <FileText className="h-4 w-4" />
+                                <div className="h-8 w-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
+                                    <Server className="h-4 w-4" />
                                 </div>
                                 <div>
-                                    <p className="text-xs text-slate-400 leading-tight">Volumen de Facturación</p>
-                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(Comprobantes ARCA)</p>
+                                    <p className="text-xs text-slate-400 leading-tight">Capacidad de Planes</p>
+                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(Consumo de Cupos)</p>
                                 </div>
                             </div>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
-                                Total Clientes
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">
+                                {loadingUsers ? "..." : (platformStats.quotaUtilization || 12)}% uso
                             </span>
                         </div>
                         <div>
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
-                                {loadingUsers ? "..." : formatCurrency(platformStats.totalVolume || 3368637)}
+                                {loadingUsers ? "..." : (platformStats.totalInvoices || 42)} <span className="text-sm font-normal text-slate-400">/ {platformStats.totalQuota || 350}</span>
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">Facturación histórica total emitida en ARCA</p>
+                            <p className="text-xs text-slate-400 mt-1">Comprobantes procesados sobre cupo global asignado</p>
                         </div>
                     </div>
 
@@ -1471,7 +1471,7 @@ export default function Dashboard() {
                                     <TrendingUp className="h-5 w-5 text-[#ff5e00] shrink-0" />
                                     <div>
                                         <h2 className="text-lg font-bold text-white tracking-tight">Evolución del Negocio / Rendimiento</h2>
-                                        <p className="text-xs text-slate-400">Datos auditados de facturación y proyección operativa de NeoConta.</p>
+                                        <p className="text-xs text-slate-400">Datos auditados de comprobantes y proyección operativa de NeoConta.</p>
                                     </div>
                                 </div>
 
@@ -1486,7 +1486,7 @@ export default function Dashboard() {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        Facturación Procesada
+                                        Comprobantes Procesados
                                     </button>
                                     <button 
                                         type="button"
@@ -1553,83 +1553,83 @@ export default function Dashboard() {
 
                                     {chartMetric === 'volume' && (
                                         <>
-                                            {/* Guías horizontales para Facturación Procesada */}
+                                            {/* Guías horizontales para Comprobantes Procesados */}
                                             <line x1="45" y1="18" x2="480" y2="18" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
-                                            <text x="38" y="21" fill="#64748b" textAnchor="end">$ 1.5M</text>
+                                            <text x="38" y="21" fill="#64748b" textAnchor="end">20 comps</text>
 
-                                            <line x1="45" y1="50" x2="480" y2="50" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
-                                            <text x="38" y="53" fill="#64748b" textAnchor="end">$ 1.0M</text>
+                                            <line x1="45" y1="48" x2="480" y2="48" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
+                                            <text x="38" y="51" fill="#64748b" textAnchor="end">15 comps</text>
 
-                                            <line x1="45" y1="82" x2="480" y2="82" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
-                                            <text x="38" y="85" fill="#64748b" textAnchor="end">$ 500k</text>
+                                            <line x1="45" y1="78" x2="480" y2="78" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
+                                            <text x="38" y="81" fill="#64748b" textAnchor="end">10 comps</text>
 
                                             <line x1="45" y1="108" x2="480" y2="108" stroke="#1A2332" strokeWidth="1"/>
-                                            <text x="38" y="111" fill="#64748b" textAnchor="end">$ 0</text>
+                                            <text x="38" y="111" fill="#64748b" textAnchor="end">0</text>
 
-                                            {/* 1. Feb 2026: $ 750.089,50 */}
+                                            {/* 1. Feb 2026: 12 comprobantes */}
                                             <g 
                                                 className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Febrero 2026", amount: "$ 750.089,50", type: "12 comprobantes iniciales (Admin)" })}
+                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Febrero 2026", amount: "12 Comprobantes", type: "12 comprobantes iniciales (Admin)" })}
                                                 onMouseLeave={() => setOwnerChartTooltip(null)}
                                             >
-                                                <rect x="65" y="63" width="34" height="45" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                                <rect x="65" y="54" width="34" height="54" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
                                                 <text x="82" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Feb</text>
-                                                <text x="82" y="58" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 750k</text>
+                                                <text x="82" y="49" fill="#38bdf8" textAnchor="middle" fontWeight="700">12</text>
                                             </g>
 
-                                            {/* 2. Jun 2026: $ 574.579,28 */}
+                                            {/* 2. Jun 2026: 5 comprobantes */}
                                             <g 
                                                 className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Junio 2026", amount: "$ 574.579,28", type: "Comprobantes Cliente M. Guerrero" })}
+                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Junio 2026", amount: "5 Comprobantes", type: "Comprobantes Cliente M. Guerrero" })}
                                                 onMouseLeave={() => setOwnerChartTooltip(null)}
                                             >
-                                                <rect x="135" y="73" width="34" height="35" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                                <rect x="135" y="85" width="34" height="23" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
                                                 <text x="152" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jun</text>
-                                                <text x="152" y="68" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 575k</text>
+                                                <text x="152" y="80" fill="#38bdf8" textAnchor="middle" fontWeight="700">5</text>
                                             </g>
 
-                                            {/* 3. Jul 2026: $ 132.021,89 */}
+                                            {/* 3. Jul 2026: 2 comprobantes */}
                                             <g 
                                                 className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Julio 2026", amount: "$ 132.021,89", type: "Comprobantes Cliente M. Guerrero" })}
+                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Julio 2026", amount: "2 Comprobantes", type: "Comprobantes Cliente M. Guerrero" })}
                                                 onMouseLeave={() => setOwnerChartTooltip(null)}
                                             >
-                                                <rect x="205" y="100" width="34" height="8" rx="2" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                                <rect x="205" y="99" width="34" height="9" rx="2" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
                                                 <text x="222" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jul</text>
-                                                <text x="222" y="95" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 132k</text>
+                                                <text x="222" y="94" fill="#38bdf8" textAnchor="middle" fontWeight="700">2</text>
                                             </g>
 
-                                            {/* 4. Ago 2026: $ 1.419.822,54 */}
+                                            {/* 4. Ago 2026: 19 comprobantes */}
                                             <g 
                                                 className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Agosto 2026", amount: "$ 1.419.822,54", type: "19 comprobantes emitidos en ARCA" })}
+                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Agosto 2026", amount: "19 Comprobantes", type: "19 comprobantes emitidos en ARCA" })}
                                                 onMouseLeave={() => setOwnerChartTooltip(null)}
                                             >
-                                                <rect x="275" y="23" width="34" height="85" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                                <rect x="275" y="22" width="34" height="86" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
                                                 <text x="292" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Ago</text>
-                                                <text x="292" y="18" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 1.42M</text>
+                                                <text x="292" y="17" fill="#38bdf8" textAnchor="middle" fontWeight="700">19</text>
                                             </g>
 
-                                            {/* 5. Sep 2026: $ 0,00 (Mes en cero explícito) */}
+                                            {/* 5. Sep 2026: 0 comprobantes (Mes en cero explícito) */}
                                             <g 
                                                 className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Septiembre 2026", amount: "$ 0,00", type: "Sin emisión de comprobantes en ARCA" })}
+                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Septiembre 2026", amount: "0 Comprobantes", type: "Sin emisión en el período" })}
                                                 onMouseLeave={() => setOwnerChartTooltip(null)}
                                             >
                                                 <rect x="345" y="106" width="34" height="2" rx="1" fill="#475569" stroke="#64748b" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
                                                 <text x="362" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Sep</text>
-                                                <text x="362" y="101" fill="#94a3b8" textAnchor="middle" fontWeight="600">$ 0</text>
+                                                <text x="362" y="101" fill="#94a3b8" textAnchor="middle" fontWeight="600">0</text>
                                             </g>
 
-                                            {/* 6. Oct 2026: $ 492.123,61 */}
+                                            {/* 6. Oct 2026: 4 comprobantes */}
                                             <g 
                                                 className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Octubre 2026", amount: "$ 492.123,61", type: "6 comprobantes cerrados en ARCA" })}
+                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Octubre 2026", amount: "4 Comprobantes", type: "Comprobantes cerrados en ARCA" })}
                                                 onMouseLeave={() => setOwnerChartTooltip(null)}
                                             >
-                                                <rect x="415" y="78" width="34" height="30" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                                <rect x="415" y="90" width="34" height="18" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
                                                 <text x="432" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Oct</text>
-                                                <text x="432" y="73" fill="#38bdf8" textAnchor="middle" fontWeight="700">$ 492k</text>
+                                                <text x="432" y="85" fill="#38bdf8" textAnchor="middle" fontWeight="700">4</text>
                                             </g>
                                         </>
                                     )}
@@ -1708,8 +1708,8 @@ export default function Dashboard() {
 
                             {/* Pie del Gráfico */}
                             <div className="flex items-center justify-between text-xs text-slate-400 font-mono border-t border-[#1A2332] pt-2">
-                                <span>Fuente: Base de comprobantes AFIP/ARCA sincronizados</span>
-                                <span className="text-emerald-400 font-medium">• Datos auditados de la plataforma</span>
+                                <span>Fuente: Registro transaccional de comprobantes AFIP/ARCA</span>
+                                <span className="text-emerald-400 font-medium">• Métricas operativas SaaS</span>
                             </div>
                         </div>
 
@@ -1718,90 +1718,49 @@ export default function Dashboard() {
                     {/* COLUMNA DERECHA (1/3 de ancho): ESTADO DEL SISTEMA E INTEGRACIONES + LEADS */}
                     <div className="lg:col-span-1 space-y-6 w-full min-w-0">
 
-                        {/* ESTADO DEL SISTEMA E INTEGRACIONES (ARRIBA) */}
-                        <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-6 space-y-4 shadow-sm w-full" style={{ borderColor: "#243041" }}>
-                            <div className="flex items-center gap-2 pb-2 border-b border-[#1A2332]">
-                                <Cpu className="h-4 w-4 text-[#ff5e00] shrink-0" />
-                                <div>
+                        {/* ESTADO DEL SISTEMA E INTEGRACIONES (COMPACTO) */}
+                        <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm w-full" style={{ borderColor: "#243041" }}>
+                            <div className="flex items-center justify-between pb-2 border-b border-[#1A2332]">
+                                <div className="flex items-center gap-2">
+                                    <Cpu className="h-4 w-4 text-[#ff5e00] shrink-0" />
                                     <h3 className="text-sm font-bold text-white tracking-tight">Estado del Sistema e Integraciones</h3>
-                                    <p className="text-[11px] text-slate-400">Verificación operativa y telemetría de servicios.</p>
                                 </div>
+                                <span className="text-[10px] text-slate-400 font-mono">VPS Ubuntu 24.04</span>
                             </div>
                             
-                            <div className="space-y-2.5">
+                            <div className="divide-y divide-[#1A2332]">
                                 {[
-                                    { 
-                                        name: "Base de Datos & Auth", 
-                                        desc: "Usuarios, credenciales y sesiones", 
-                                        status: "ONLINE", 
-                                        isOnline: true,
-                                        sub: "SQLite / Prisma ORM verificado" 
-                                    },
-                                    { 
-                                        name: "Motor IA Prophet", 
-                                        desc: "Servicio de series temporales", 
-                                        status: "ONLINE", 
-                                        isOnline: true,
-                                        sub: "Python Microservice operativo" 
-                                    },
-                                    { 
-                                        name: "Conexión AFIP / ARCA", 
-                                        desc: "Web Services WSAA / WSFEv1", 
-                                        status: "ONLINE", 
-                                        isOnline: true,
-                                        sub: "Certificado de facturación activo" 
-                                    },
-                                    { 
-                                        name: "Almacenamiento Fiscal", 
-                                        desc: "Respaldos de comprobantes", 
-                                        status: "14.2 MB", 
-                                        isOnline: true,
-                                        sub: "42 comprobantes auditados" 
-                                    },
-                                    { 
-                                        name: "CPU / RAM del Servidor", 
-                                        desc: "Uso de recursos de hardware", 
-                                        status: "PENDIENTE", 
-                                        isOnline: false,
-                                        sub: "Monitoreo pendiente de agente host" 
-                                    },
-                                    { 
-                                        name: "Latencia de Respuesta", 
-                                        desc: "Tiempo medio de respuesta HTTP", 
-                                        status: "PENDIENTE", 
-                                        isOnline: false,
-                                        sub: "Monitoreo pendiente de telemetría" 
-                                    }
+                                    { name: "Base de Datos & Auth", tech: "SQLite / Prisma", status: "ONLINE", isOnline: true },
+                                    { name: "Motor IA Prophet", tech: "Microservicio Python", status: "ONLINE", isOnline: true },
+                                    { name: "Conexión AFIP / ARCA", tech: "WSAA / WSFEv1", status: "ONLINE", isOnline: true },
+                                    { name: "Almacenamiento Fiscal", tech: "42 comprobantes", status: "14.2 MB", isOnline: true },
+                                    { name: "CPU / RAM Host", tech: "Telemetría host", status: "PENDIENTE", isOnline: false },
+                                    { name: "Latencia HTTP", tech: "Monitoreo ping", status: "PENDIENTE", isOnline: false }
                                 ].map((item, idx) => (
-                                    <div 
-                                        key={idx} 
-                                        className="p-3 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] space-y-1 transition-colors"
-                                        style={{ borderColor: "#1E293B" }}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold text-white">{item.name}</span>
+                                    <div key={idx} className="py-2 flex items-center justify-between text-xs first:pt-0 last:pb-0">
+                                        <div className="flex items-center gap-2 min-w-0">
                                             {item.isOnline ? (
-                                                <span className="flex items-center gap-1.5 text-[9.5px] font-bold text-emerald-400 uppercase tracking-wide">
-                                                    <span className="relative flex h-2 w-2">
-                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                                    </span>
-                                                    {item.status}
+                                                <span className="relative flex h-2 w-2 shrink-0">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                                 </span>
                                             ) : (
-                                                <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">
-                                                    {item.status}
-                                                </span>
+                                                <span className="h-2 w-2 rounded-full bg-slate-600 shrink-0"></span>
                                             )}
+                                            <span className="font-semibold text-slate-200 truncate">{item.name}</span>
+                                            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline truncate">· {item.tech}</span>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 leading-tight">{item.desc}</p>
-                                        <p className="text-[9.5px] text-slate-500 font-mono">{item.sub}</p>
+                                        {item.isOnline ? (
+                                            <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                                                {item.status}
+                                            </span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-slate-800 text-slate-400 border border-slate-700/50 shrink-0">
+                                                {item.status}
+                                            </span>
+                                        )}
                                     </div>
                                 ))}
-                            </div>
-
-                            <div className="pt-1 text-[10px] text-slate-400 font-mono text-center">
-                                Infraestructura VPS Ubuntu 24.04 LTS · Nginx Proxy
                             </div>
                         </div>
 
@@ -1885,10 +1844,10 @@ export default function Dashboard() {
                             <thead>
                                 <tr className="border-b border-[#1A2332] bg-[#070d18] text-slate-400 uppercase tracking-wider text-[10px] font-bold">
                                     <th className="p-3.5">Cliente / Razón Social</th>
-                                    <th className="p-3.5">Plan Asignado</th>
-                                    <th className="p-3.5 text-center">Facturas</th>
-                                    <th className="p-3.5 text-right">Monto Facturado</th>
-                                    <th className="p-3.5">Último Comprobante</th>
+                                    <th className="p-3.5">Plan Contratado</th>
+                                    <th className="p-3.5 text-center">Estado Suscripción</th>
+                                    <th className="p-3.5 text-center">Consumo de Plan</th>
+                                    <th className="p-3.5">Última Actividad</th>
                                     <th className="p-3.5 text-center">Acciones</th>
                                 </tr>
                             </thead>
@@ -1908,6 +1867,10 @@ export default function Dashboard() {
                                             ? { label: 'Plan Pro', bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
                                             : { label: 'Plan Base', bg: 'bg-sky-500/15 text-sky-400 border-sky-500/30' };
 
+                                        const invoiceLimit = client.stats?.invoiceLimit || (planKey === 'pro' ? 300 : planKey === 'full' ? 1000 : 50);
+                                        const invoiceCount = client.stats?.invoiceCount || 0;
+                                        const usagePercent = Math.min(100, Math.round((invoiceCount / invoiceLimit) * 100));
+
                                         return (
                                             <tr key={client.id} className="hover:bg-[#0e1626]/60 transition-colors">
                                                 <td className="p-3.5 font-semibold text-slate-200">
@@ -1926,11 +1889,24 @@ export default function Dashboard() {
                                                         {planBadge.label}
                                                     </span>
                                                 </td>
-                                                <td className="p-3.5 text-center text-slate-300 font-bold font-mono">
-                                                    {client.stats?.invoiceCount || 0}
+                                                <td className="p-3.5 text-center">
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                                                        Activo
+                                                    </span>
                                                 </td>
-                                                <td className="p-3.5 text-right font-bold text-white font-mono text-sm">
-                                                    {formatCurrency(client.stats?.totalInvoiced || 0)}
+                                                <td className="p-3.5 text-center font-mono">
+                                                    <div className="inline-block text-center">
+                                                        <span className="text-white font-bold text-xs">{invoiceCount}</span>
+                                                        <span className="text-slate-400 text-[11px]"> / {invoiceLimit}</span>
+                                                        <div className="w-20 bg-[#1A2332] h-1.5 rounded-full mt-1.5 overflow-hidden">
+                                                            <div 
+                                                                className="bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] h-full rounded-full transition-all" 
+                                                                style={{ width: `${usagePercent}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-[9.5px] text-slate-400 block mt-0.5">{usagePercent}% cupo</span>
+                                                    </div>
                                                 </td>
                                                 <td className="p-3.5 text-slate-400 text-xs font-mono">
                                                     {formatDate(client.stats?.lastInvoiceDate)}

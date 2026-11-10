@@ -48,6 +48,7 @@ next-env.d.ts
 *.sqlite*
 prisma/*.db
 *.bak*
+.tmp_*
 
 *.zip
 INSTRUCCIONES.txt

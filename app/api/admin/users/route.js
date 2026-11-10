@@ -119,20 +119,12 @@ export async function GET(request) {
             // Ignore missing config files and use default
         }
 
-        // Remove password from response and calculate individual client stats
+        // Remove password from response and calculate individual client operational stats
         const sanitizedUsers = [];
         let totalInvoices = 0;
-        let totalVolume = 0;
 
         for (const user of users) {
             const { password, ...userInfo } = user;
-            
-            // Default individual stats
-            userInfo.stats = {
-                totalInvoiced: 0,
-                invoiceCount: 0,
-                lastInvoiceDate: null
-            };
 
             // Load CUIT, Razón Social, Plan and Features from config.json if they exist
             userInfo.cuit = "";
@@ -150,6 +142,13 @@ export async function GET(request) {
             } catch (e) {
                 // Ignore missing config files
             }
+            
+            // Default individual operational stats (MINIMIZACIÓN DE DATOS: sin montos financieros privados de clientes)
+            userInfo.stats = {
+                invoiceCount: 0,
+                invoiceLimit: userInfo.features?.limiteComprobantes || 50,
+                lastInvoiceDate: null
+            };
 
             try {
                 const historyFile = join(invoicesDir, `${user.id}_history.json`);
@@ -157,12 +156,8 @@ export async function GET(request) {
                 const invoices = JSON.parse(fileContent);
                 if (Array.isArray(invoices) && invoices.length > 0) {
                     userInfo.stats.invoiceCount = invoices.length;
-                    let clientVol = 0;
                     let latestDate = null;
                     for (const inv of invoices) {
-                        const amount = Number(inv.Total || inv.Importe || 0);
-                        clientVol += amount;
-                        
                         // Parse date
                         const invDateStr = inv.created_at || (inv.afip_response?.response?.FeCabResp?.FchProceso ? 
                             `${inv.afip_response.response.FeCabResp.FchProceso.substring(0,4)}-${inv.afip_response.response.FeCabResp.FchProceso.substring(4,6)}-${inv.afip_response.response.FeCabResp.FchProceso.substring(6,8)}` : null);
@@ -175,12 +170,10 @@ export async function GET(request) {
                             }
                         }
                     }
-                    userInfo.stats.totalInvoiced = clientVol;
                     userInfo.stats.lastInvoiceDate = latestDate ? latestDate.toISOString() : null;
 
                     // Accumulate to global totals
                     totalInvoices += invoices.length;
-                    totalVolume += clientVol;
                 }
             } catch (e) {
                 // Ignore errors from missing history files
@@ -194,9 +187,14 @@ export async function GET(request) {
         const conversionRate = totalUsers > 0 ? ((activeClients / totalUsers) * 100).toFixed(1) : "0.0";
         const arpu = activeClients > 0 ? Math.round(((activeClients * costPerClient) + baseSubscription) / activeClients) : 0;
 
+        // Total quota across all active clients
+        const totalQuota = sanitizedUsers.filter(u => u.role === 'cliente').reduce((acc, u) => acc + (u.stats.invoiceLimit || 50), 0);
+        const quotaUtilization = totalQuota > 0 ? Math.round((totalInvoices / totalQuota) * 100) : 0;
+
         const stats = {
             totalInvoices,
-            totalVolume,
+            totalQuota,
+            quotaUtilization,
             mrr: (activeClients * costPerClient) + baseSubscription,
             arpu,
             conversionRate
