@@ -138,6 +138,17 @@ export default function ValidarRecetaPage({ params }) {
                                 </div>
                             </div>
 
+                            {/* Transitory Legacy Link Notice */}
+                            {data.legacyMode && (
+                                <div className="p-3.5 rounded-2xl border border-amber-500/40 bg-amber-950/30 text-amber-200 text-xs space-y-1">
+                                    <p className="font-bold uppercase tracking-wide text-amber-300">Validación Transitoria (Enlace Heredado)</p>
+                                    <p className="opacity-90">
+                                        Por privacidad sanitaria, los enlaces sin firma QR solo muestran autenticidad del emisor, iniciales del paciente y conteo de ítems.
+                                        {data.legacySunsetAt ? ` Vigencia transitoria hasta el ${new Date(data.legacySunsetAt).toLocaleDateString('es-AR')}.` : ''}
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Prescription Details Grid */}
                             <div className="space-y-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 text-xs">
                                 <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -160,9 +171,20 @@ export default function ValidarRecetaPage({ params }) {
                                             <User className="h-3.5 w-3.5 text-teal-400" /> Paciente
                                         </p>
                                         <p className="font-bold text-slate-100 text-sm mt-0.5">{data.prescription.patientName}</p>
-                                        <p className="text-slate-400">DNI: {data.prescription.patientDni || 'S/D'}</p>
+                                        {data.prescription.patientDni && (
+                                            <p className="text-slate-400">DNI: {data.prescription.patientDni}</p>
+                                        )}
                                     </div>
                                 </div>
+
+                                {data.legacyMode && (
+                                    <div className="border-t border-slate-800 pt-3 flex items-center justify-between text-slate-300">
+                                        <span className="text-slate-400 font-bold uppercase">Detalle clínico protegido</span>
+                                        <span>
+                                            {data.prescription.medicationsCount || 0} medicamento(s) &bull; {data.prescription.studiesCount || 0} estudio(s)
+                                        </span>
+                                    </div>
+                                )}
 
                                 {data.prescription.medications && data.prescription.medications.length > 0 && (
                                     <div className="border-t border-slate-800 pt-3">

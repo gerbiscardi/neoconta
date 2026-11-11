@@ -3,11 +3,12 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 
 const CLINICAL_ROLES = ['cliente', 'admin', 'user', 'owner', 'vitacore-professional'];
 
 function getFilePath(userId) {
-    return path.join(process.cwd(), 'data', 'users', userId, 'vitacore', 'patients.json');
+    return path.join(getUserDataDir(userId), 'vitacore', 'patients.json');
 }
 
 export async function POST(request) {

@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import forge from 'node-forge';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { saveEncryptedUserFile } from '@/lib/crypto';
 
 export async function POST(request) {
@@ -28,7 +29,7 @@ export async function POST(request) {
         }
 
         // Directory: data/users/{userId}
-        const userDir = join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         await mkdir(userDir, { recursive: true });
 
         // 1. Generate Private Key

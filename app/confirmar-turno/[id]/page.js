@@ -191,6 +191,15 @@ export default function ConfirmarTurnoPage({ params }) {
                             <h2 className="text-lg font-black text-slate-900 dark:text-white">¿Confirmás tu asistencia al turno?</h2>
                         </div>
 
+                        {appointment.legacyMode && (
+                            <div className="p-3 rounded-2xl border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 text-[11px] space-y-1">
+                                <p className="font-bold uppercase tracking-wide">Enlace Transitorio Sin Firma</p>
+                                <p>
+                                    Por privacidad, este acceso heredado oculta el motivo y especialidad médica. Podés solicitar al consultorio la reemisión de un enlace firmado actualizado.
+                                </p>
+                            </div>
+                        )}
+
                         {/* Appointment Details */}
                         <div className="p-4 bg-slate-50 dark:bg-zinc-950 rounded-2xl border border-slate-200 dark:border-zinc-800 space-y-3 text-xs">
                             <div className="flex items-center gap-2.5">

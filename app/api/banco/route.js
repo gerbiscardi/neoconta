@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 
 // GET: Retrieve all bank transactions
 export async function GET(request) {
@@ -13,7 +14,7 @@ export async function GET(request) {
         }
         const targetUserId = auth.tenantId;
 
-        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', targetUserId, 'banco', '_transactions.json');
+        const transactionsFilePath = path.join(getUserDataDir(targetUserId), 'banco', '_transactions.json');
 
         try {
             const data = await fs.readFile(transactionsFilePath, 'utf-8');
@@ -49,7 +50,7 @@ export async function POST(request) {
             return new Response(JSON.stringify({ error: 'transaction object required' }), { status: 400 });
         }
 
-        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         const bancoDir = path.join(userDir, 'banco');
 
         try {

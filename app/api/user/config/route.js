@@ -4,6 +4,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import prisma from '@/lib/db';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { saveEncryptedUserFile, userHasCert } from '@/lib/crypto';
 
 const PLAN_DEFAULTS = {
@@ -93,7 +94,7 @@ export async function GET(request) {
         }
         const targetUserId = auth.tenantId;
 
-        const userDir = join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         const configPath = join(userDir, 'config.json');
         const certPath = join(userDir, 'cert.crt');
 
@@ -183,8 +184,7 @@ export async function POST(request) {
         }
         const targetUserId = auth.tenantId;
 
-        // Directory: data/users/{targetUserId}
-        const userDir = join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
 
         // Ensure directory exists
         await mkdir(userDir, { recursive: true });

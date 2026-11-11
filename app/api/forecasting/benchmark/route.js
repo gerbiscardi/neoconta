@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getInvoicesDir } from '@/lib/dataPaths';
 import { 
     runSimpleMean, 
     runHistoricalMedian, 
@@ -50,7 +51,7 @@ export async function GET(request) {
         }
         const targetUserId = auth.tenantId;
 
-        const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
+        const invoicesDir = getInvoicesDir();
         const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);
 
         let history = [];

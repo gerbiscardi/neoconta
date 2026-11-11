@@ -4,6 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import prisma from '@/lib/db';
 import { getServerSession, authorizeTenantAccess, hashPassword, getUsersJsonPath } from '@/lib/auth';
+import { writeJsonAtomic } from '@/lib/dataPaths';
 
 const SUB_USER_ROLES = new Set(['vitacore-professional', 'vitacore-receptionist']);
 const ADMIN_ROLES = ['cliente', 'admin', 'user', 'owner'];
@@ -19,9 +20,7 @@ async function readUsersJson() {
 }
 
 async function writeUsersJson(users) {
-    const targetPath = getUsersJsonPath();
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    await fs.writeFile(targetPath, JSON.stringify(users, null, 2), 'utf-8');
+    await writeJsonAtomic(getUsersJsonPath(), users);
 }
 
 function sanitizeSubUser(u) {
@@ -153,7 +152,13 @@ export async function POST(request) {
         };
 
         usersJson.push(newSubUser);
-        await writeUsersJson(usersJson);
+        try {
+            await writeUsersJson(usersJson);
+        } catch (jsonErr) {
+            console.error('Error writing users.json in /api/vitacore/professionals POST, rolling back Prisma:', jsonErr);
+            await prisma.user.delete({ where: { id: newId } }).catch(() => {});
+            return NextResponse.json({ error: 'Error al persistir usuario en almacenamiento secundario; se revirtió la operación.' }, { status: 500 });
+        }
 
         return NextResponse.json({ success: true, professional: sanitizeSubUser(newSubUser) }, { status: 201 });
     } catch (error) {
@@ -264,7 +269,25 @@ export async function PUT(request) {
         } else {
             usersJson.push(updatedRecord);
         }
-        await writeUsersJson(usersJson);
+        try {
+            await writeUsersJson(usersJson);
+        } catch (jsonErr) {
+            console.error('Error writing users.json in /api/vitacore/professionals PUT, compensating Prisma:', jsonErr);
+            if (existingPrisma) {
+                await prisma.user.update({
+                    where: { id: existingPrisma.id },
+                    data: {
+                        nombre: existingPrisma.nombre,
+                        email: existingPrisma.email,
+                        password: existingPrisma.password,
+                        role: existingPrisma.role
+                    }
+                }).catch(() => {});
+            } else {
+                await prisma.user.delete({ where: { id: String(professionalId) } }).catch(() => {});
+            }
+            return NextResponse.json({ error: 'Error al persistir actualización; se revirtió la operación.' }, { status: 500 });
+        }
 
         return NextResponse.json({ success: true, professional: sanitizeSubUser(updatedRecord) });
     } catch (error) {
@@ -308,7 +331,26 @@ export async function DELETE(request) {
         }
         if (index !== -1) {
             usersJson.splice(index, 1);
-            await writeUsersJson(usersJson);
+            try {
+                await writeUsersJson(usersJson);
+            } catch (jsonErr) {
+                console.error('Error writing users.json in /api/vitacore/professionals DELETE, restoring Prisma:', jsonErr);
+                if (existingPrisma) {
+                    await prisma.user.create({
+                        data: {
+                            id: existingPrisma.id,
+                            nombre: existingPrisma.nombre,
+                            email: existingPrisma.email,
+                            password: existingPrisma.password,
+                            role: existingPrisma.role,
+                            parentId: existingPrisma.parentId,
+                            status: existingPrisma.status,
+                            mustChangePassword: existingPrisma.mustChangePassword
+                        }
+                    }).catch(() => {});
+                }
+                return NextResponse.json({ error: 'Error al eliminar usuario en almacenamiento secundario; se revirtió la operación.' }, { status: 500 });
+            }
         }
 
         return NextResponse.json({ success: true, message: 'Usuario eliminado de la base de datos' });

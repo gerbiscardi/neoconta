@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import prisma from '@/lib/db';
 import { getServerSession, sanitizeUserId } from '@/lib/auth';
 import { signAppointmentToken } from '@/lib/publicTokens';
+import { getUsersRootDir } from '@/lib/dataPaths';
 
 let isCronRunning = false;
 
@@ -100,7 +101,7 @@ export async function GET(request) {
         }
 
         // 2. Legacy JSON fallback
-        const usersDir = path.join(process.cwd(), 'data', 'users');
+        const usersDir = getUsersRootDir();
         try {
             const userFolders = await fs.readdir(usersDir);
             for (const userId of userFolders) {

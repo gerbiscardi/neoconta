@@ -3,12 +3,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { signValidationToken } from '@/lib/publicTokens';
 
 const PRESCRIPTION_ROLES = ['cliente', 'admin', 'user', 'owner', 'vitacore-professional'];
 
 function getPrescriptionsFilePath(userId) {
-    return path.join(process.cwd(), 'data', 'users', userId, 'vitacore', 'prescriptions.json');
+    return path.join(getUserDataDir(userId), 'vitacore', 'prescriptions.json');
 }
 
 async function ensureDirectoryExists(filePath) {

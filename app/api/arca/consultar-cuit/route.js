@@ -3,6 +3,7 @@ import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir, getTicketsDir } from '@/lib/dataPaths';
 import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
 import { getClientIp, arcaQueryLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
@@ -67,7 +68,7 @@ export async function POST(request) {
             return NextResponse.json({ error: "Documento inválido (debe tener 7, 8 o 11 dígitos)" }, { status: 400 });
         }
 
-        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         const configPath = path.join(userDir, 'config.json');
 
         const credentials = loadDecryptedUserCredentialsSync(targetUserId);
@@ -87,7 +88,7 @@ export async function POST(request) {
         // Initialize AFIP SDK
         let afip;
         try {
-            const ticketsDir = path.join(process.cwd(), 'data', 'tickets');
+            const ticketsDir = getTicketsDir();
             if (!fs.existsSync(ticketsDir)) {
                 fs.mkdirSync(ticketsDir, { recursive: true });
             }

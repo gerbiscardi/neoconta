@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { aiOperationLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 async function fetchGoogleSearchResultsReal(query) {
@@ -187,7 +188,7 @@ export async function POST(request) {
             excludedSources: []
         };
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         await mkdir(userDir, { recursive: true });
         const historyPath = join(userDir, 'reviews_analysis.json');
         let history = [];

@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 
 export async function POST(request) {
     try {
@@ -20,7 +21,7 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Faltan datos requeridos (reportId, urlToExclude)' }, { status: 400 });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', userId);
+        const userDir = getUserDataDir(userId);
         const historyPath = join(userDir, 'reviews_analysis.json');
         
         let history = [];

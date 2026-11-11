@@ -1,9 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 
 const getWidgetsFilePath = (userId) => {
-    return path.join(process.cwd(), 'data', 'users', userId, 'widgets.json');
+    return path.join(getUserDataDir(userId), 'widgets.json');
 };
 
 const defaultWidgets = [

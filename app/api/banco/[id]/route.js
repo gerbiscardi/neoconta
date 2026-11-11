@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir, getInvoiceHistoryPath } from '@/lib/dataPaths';
 
 // GET: Retrieve a specific transaction and its details by ID
 export async function GET(request, { params }) {
@@ -16,7 +17,7 @@ export async function GET(request, { params }) {
         }
         const targetUserId = auth.tenantId;
 
-        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         const transactionsFilePath = path.join(userDir, 'banco', '_transactions.json');
 
         let transactions = [];
@@ -34,8 +35,7 @@ export async function GET(request, { params }) {
 
         // To mimic the Starbase behavior exactly, we also need to return the invoices that it's linked to.
         // We will read the history.json to map the linked_invoices array to actual invoice objects
-        const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
-        const invoicesFilePath = path.join(invoicesDir, `${targetUserId}_history.json`);
+        const invoicesFilePath = getInvoiceHistoryPath(targetUserId);
         let allInvoices = [];
         try {
             const historyData = await fs.readFile(invoicesFilePath, 'utf-8');
@@ -84,7 +84,7 @@ export async function PUT(request, { params }) {
             return new Response(JSON.stringify({ error: 'updates object required' }), { status: 400 });
         }
 
-        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', targetUserId, 'banco', '_transactions.json');
+        const transactionsFilePath = path.join(getUserDataDir(targetUserId), 'banco', '_transactions.json');
 
         let transactions = [];
         try {
@@ -130,7 +130,7 @@ export async function DELETE(request, { params }) {
         }
         const targetUserId = auth.tenantId;
 
-        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', targetUserId, 'banco', '_transactions.json');
+        const transactionsFilePath = path.join(getUserDataDir(targetUserId), 'banco', '_transactions.json');
 
         let transactions = [];
         try {

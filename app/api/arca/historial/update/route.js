@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getInvoicesDir } from '@/lib/dataPaths';
 
 export async function PATCH(request) {
     try {
@@ -19,7 +20,7 @@ export async function PATCH(request) {
             return NextResponse.json({ error: 'Missing invoiceId parameter' }, { status: 400 });
         }
 
-        const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
+        const invoicesDir = getInvoicesDir();
         const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);
 
         let history = [];

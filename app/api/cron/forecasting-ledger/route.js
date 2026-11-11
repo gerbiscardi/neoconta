@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { getInvoicesDir } from '@/lib/dataPaths';
 import { recordShadowForecasts, reconcileMonthInLedger } from '@/lib/forecasting/shadowLedger';
 
 const getCbteTipo = (invoice) => {
@@ -51,7 +52,7 @@ export async function GET(request) {
     };
 
     try {
-        const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
+        const invoicesDir = getInvoicesDir();
         let files = [];
         try {
             files = await fs.readdir(invoicesDir);

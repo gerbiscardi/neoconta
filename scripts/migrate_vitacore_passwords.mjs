@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 
@@ -16,8 +17,30 @@ function resolveUsersJsonPath() {
     return path.join(process.cwd(), 'data', 'users.json');
 }
 
+function getArgValue(flag) {
+    const idx = process.argv.indexOf(flag);
+    if (idx !== -1 && process.argv[idx + 1]) {
+        return process.argv[idx + 1];
+    }
+    return null;
+}
+
 function isBcryptHash(val) {
     return typeof val === 'string' && (val.startsWith('$2a$') || val.startsWith('$2b$') || val.startsWith('$2y$'));
+}
+
+async function writeJsonAtomic(filePath, data) {
+    const resolved = path.resolve(filePath);
+    const dir = path.dirname(resolved);
+    await fs.mkdir(dir, { recursive: true });
+    const tempPath = path.join(dir, `.${path.basename(resolved)}.tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`);
+    try {
+        await fs.writeFile(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+        await fs.rename(tempPath, resolved);
+    } catch (err) {
+        await fs.unlink(tempPath).catch(() => {});
+        throw err;
+    }
 }
 
 function redactPlaintextPasswords(users) {
@@ -32,9 +55,108 @@ function redactPlaintextPasswords(users) {
     });
 }
 
+async function restoreFromBackup(backupFileArg, usersJsonPath, dryRun) {
+    const backupPath = path.resolve(backupFileArg);
+    const raw = await fs.readFile(backupPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+        throw new Error(`El respaldo en ${backupPath} no contiene un array válido de usuarios.`);
+    }
+
+    const restoredUsers = [];
+    let preservedBcryptCount = 0;
+    let adoptedPrismaHashCount = 0;
+    let lockedColdRestoreCount = 0;
+
+    for (const entry of parsed) {
+        if (!entry || typeof entry !== 'object') continue;
+        const cleanEmail = entry.email ? String(entry.email).trim().toLowerCase() : null;
+        const userId = entry.id ? String(entry.id) : null;
+
+        let existingPrisma = null;
+        if (userId) {
+            existingPrisma = await prisma.user.findUnique({ where: { id: userId } });
+        }
+        if (!existingPrisma && cleanEmail) {
+            existingPrisma = await prisma.user.findUnique({ where: { email: cleanEmail } });
+        }
+
+        const nextEntry = { ...entry };
+        delete nextEntry.legacyPlaintextRedacted;
+
+        if (isBcryptHash(entry.password)) {
+            preservedBcryptCount++;
+        } else if (existingPrisma && isBcryptHash(existingPrisma.password)) {
+            // Preserve active bcrypt hash from Prisma without ever restoring plaintext
+            nextEntry.password = existingPrisma.password;
+            nextEntry.mustChangePassword = Boolean(existingPrisma.mustChangePassword);
+            adoptedPrismaHashCount++;
+        } else {
+            // Cold restore of a redacted account: generate high-entropy locked bcrypt hash
+            // and flag mustChangePassword so admin can issue a reset safely via /api/admin/users PUT.
+            const lockedSecret = crypto.randomBytes(32).toString('hex');
+            nextEntry.password = await bcrypt.hash(lockedSecret, 10);
+            nextEntry.mustChangePassword = true;
+            nextEntry.recoveryPasswordResetRequired = true;
+            nextEntry.restoredFromRedactedBackup = true;
+            lockedColdRestoreCount++;
+        }
+
+        restoredUsers.push(nextEntry);
+
+        if (!dryRun && userId && cleanEmail && isBcryptHash(nextEntry.password)) {
+            await prisma.user.upsert({
+                where: { id: userId },
+                update: {
+                    nombre: String(nextEntry.nombre || 'Usuario'),
+                    email: cleanEmail,
+                    password: nextEntry.password,
+                    role: String(nextEntry.role || 'cliente'),
+                    parentId: nextEntry.parentId || null,
+                    status: nextEntry.status || 'active',
+                    mustChangePassword: Boolean(nextEntry.mustChangePassword)
+                },
+                create: {
+                    id: userId,
+                    nombre: String(nextEntry.nombre || 'Usuario'),
+                    email: cleanEmail,
+                    password: nextEntry.password,
+                    role: String(nextEntry.role || 'cliente'),
+                    parentId: nextEntry.parentId || null,
+                    status: nextEntry.status || 'active',
+                    mustChangePassword: Boolean(nextEntry.mustChangePassword)
+                }
+            });
+        }
+    }
+
+    if (!dryRun) {
+        await writeJsonAtomic(usersJsonPath, restoredUsers);
+    }
+
+    console.log(JSON.stringify({
+        success: true,
+        mode: 'restore-backup',
+        dryRun,
+        backupPath,
+        usersJsonPath,
+        restoredTotal: restoredUsers.length,
+        preservedBcryptCount,
+        adoptedPrismaHashCount,
+        lockedColdRestoreCount
+    }, null, 2));
+}
+
 async function run() {
     const usersJsonPath = resolveUsersJsonPath();
     const dryRun = process.argv.includes('--dry-run');
+    const restoreBackupArg = getArgValue('--restore-backup');
+
+    if (restoreBackupArg) {
+        await restoreFromBackup(restoreBackupArg, usersJsonPath, dryRun);
+        return;
+    }
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     let jsonUsers = [];
     let jsonChanged = false;
@@ -49,7 +171,7 @@ async function run() {
             // so a rollback can never restore cleartext credentials.
             backupPath = `${usersJsonPath}.bak-${timestamp}`;
             const redacted = redactPlaintextPasswords(jsonUsers);
-            await fs.writeFile(backupPath, JSON.stringify(redacted, null, 2), 'utf-8');
+            await writeJsonAtomic(backupPath, redacted);
             console.log(`Redacted backup created at: ${backupPath}`);
         }
     } catch (err) {
@@ -127,7 +249,7 @@ async function run() {
     }
 
     if (jsonChanged && !dryRun) {
-        await fs.writeFile(usersJsonPath, JSON.stringify(jsonUsers, null, 2), 'utf-8');
+        await writeJsonAtomic(usersJsonPath, jsonUsers);
     }
 
     const prismaUsers = await prisma.user.findMany();
@@ -146,6 +268,7 @@ async function run() {
 
     console.log(JSON.stringify({
         success: true,
+        mode: 'migrate',
         dryRun,
         usersJsonPath,
         backupPath,

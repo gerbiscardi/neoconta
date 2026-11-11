@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { verifyOAuthState } from '@/lib/publicTokens';
 import { encryptOAuthToken, decryptOAuthToken } from '@/lib/tokenCrypto';
 
@@ -51,7 +52,7 @@ export async function GET(request) {
             throw new Error(data.error_description || data.error || 'Error al obtener tokens de Google');
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         await mkdir(userDir, { recursive: true });
         const connFilePath = join(userDir, 'connections.json');
 

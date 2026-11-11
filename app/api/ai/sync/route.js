@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { aiOperationLimiter, rateLimitResponse } from '@/lib/rateLimit';
 import { decryptOAuthToken, encryptOAuthToken, isEncryptedOAuthToken } from '@/lib/tokenCrypto';
 
@@ -121,7 +122,7 @@ export async function POST(request) {
             return rateLimitResponse(limitCheck, 'Has alcanzado el límite temporal de sincronizaciones en Commentor.');
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         const connFilePath = join(userDir, 'connections.json');
 
         let connections = {};

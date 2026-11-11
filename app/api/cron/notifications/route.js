@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { getInvoicesDir } from '@/lib/dataPaths';
 // import nodemailer from 'nodemailer'; // For later implementation once SMTP credentials are provided
 
 export async function GET(request) {
@@ -18,7 +19,7 @@ export async function GET(request) {
     }
 
     try {
-        const dataDir = path.join(process.cwd(), 'data', 'invoices');
+        const dataDir = getInvoicesDir();
         let files = [];
         try {
             files = await fs.readdir(dataDir);

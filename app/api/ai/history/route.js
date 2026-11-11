@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 
 // GET: Retrieve all audit reports for a user
 export async function GET(request) {
@@ -13,7 +14,7 @@ export async function GET(request) {
             return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         const historyPath = join(userDir, 'reviews_analysis.json');
 
         let history = [];
@@ -47,7 +48,7 @@ export async function DELETE(request) {
             return NextResponse.json({ error: "Falta reportId requerido" }, { status: 400 });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         const historyPath = join(userDir, 'reviews_analysis.json');
 
         let history = [];

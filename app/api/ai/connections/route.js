@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { decryptOAuthToken, encryptOAuthToken, isEncryptedOAuthToken } from '@/lib/tokenCrypto';
 
 export async function GET(request) {
@@ -13,7 +14,7 @@ export async function GET(request) {
             return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         const connFilePath = join(userDir, 'connections.json');
 
         let connections = {
@@ -127,7 +128,7 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Proveedor no válido' }, { status: 400 });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         const connFilePath = join(userDir, 'connections.json');
 
         let connections = {};

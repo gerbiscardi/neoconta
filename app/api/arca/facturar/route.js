@@ -3,6 +3,7 @@ import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir, getTicketsDir, getInvoicesDir } from '@/lib/dataPaths';
 import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
 
 export async function POST(request) {
@@ -17,7 +18,7 @@ export async function POST(request) {
         const targetUserId = auth.tenantId;
 
         // Path to user specific certificates and config
-        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         const configPath = path.join(userDir, 'config.json');
 
         const credentials = loadDecryptedUserCredentialsSync(targetUserId);
@@ -39,7 +40,7 @@ export async function POST(request) {
         // Initialize AFIP SDK
         let afip;
         try {
-            const ticketsDir = path.join(process.cwd(), 'data', 'tickets');
+            const ticketsDir = getTicketsDir();
             if (!fs.existsSync(ticketsDir)) {
                 fs.mkdirSync(ticketsDir, { recursive: true });
             }
@@ -250,7 +251,7 @@ export async function POST(request) {
 
         // Save the successful invoices to persistent storage
         if (results.some(r => r.status === 'aprobado')) {
-            const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
+            const invoicesDir = getInvoicesDir();
 
             try {
                 // Ensure directory exists

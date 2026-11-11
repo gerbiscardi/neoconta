@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import * as xlsx from 'xlsx';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 
 export async function POST(request) {
     try {
@@ -21,7 +22,7 @@ export async function POST(request) {
         }
 
         // Validate user folder
-        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         const bancoDir = path.join(userDir, 'banco');
 
         try {

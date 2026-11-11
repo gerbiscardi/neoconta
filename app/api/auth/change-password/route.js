@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { getServerSession, sanitizeUserId, verifyPassword, hashPassword, getUsersJsonPath } from '@/lib/auth';
+import { writeJsonAtomic } from '@/lib/dataPaths';
 import prisma from '@/lib/db';
 
 async function getUsers() {
@@ -17,7 +18,7 @@ async function getUsers() {
 }
 
 async function saveUsers(users) {
-    await writeFile(getUsersJsonPath(), JSON.stringify(users, null, 2), 'utf-8');
+    await writeJsonAtomic(getUsersJsonPath(), users);
 }
 
 export async function POST(request) {
@@ -66,6 +67,12 @@ export async function POST(request) {
 
         const hashedPassword = await hashPassword(newPassword);
 
+        // Snapshot pre-mutation Prisma state for compensating rollback
+        const previousPrisma = prismaUser
+            ? { id: prismaUser.id, password: prismaUser.password, mustChangePassword: prismaUser.mustChangePassword }
+            : null;
+        let createdPrismaId = null;
+
         // Synchronize authoritative Prisma DB first
         if (prismaUser) {
             await prisma.user.update({
@@ -77,30 +84,51 @@ export async function POST(request) {
             });
         } else {
             const jsonRecord = users[userIndex];
-            await prisma.user.upsert({
-                where: { email: String(jsonRecord.email).trim().toLowerCase() },
-                update: {
-                    password: hashedPassword,
-                    mustChangePassword: false
-                },
-                create: {
-                    id: selfUserId,
-                    nombre: jsonRecord.nombre || 'Usuario',
-                    email: String(jsonRecord.email).trim().toLowerCase(),
-                    password: hashedPassword,
-                    role: jsonRecord.role || 'cliente',
-                    parentId: jsonRecord.parentId || null,
-                    status: jsonRecord.status || 'active',
-                    mustChangePassword: false
-                }
-            });
+            const cleanEmail = String(jsonRecord.email).trim().toLowerCase();
+            const existingByEmail = await prisma.user.findUnique({ where: { email: cleanEmail } });
+            if (existingByEmail) {
+                await prisma.user.update({
+                    where: { id: existingByEmail.id },
+                    data: { password: hashedPassword, mustChangePassword: false }
+                });
+            } else {
+                const created = await prisma.user.create({
+                    data: {
+                        id: selfUserId,
+                        nombre: jsonRecord.nombre || 'Usuario',
+                        email: cleanEmail,
+                        password: hashedPassword,
+                        role: jsonRecord.role || 'cliente',
+                        parentId: jsonRecord.parentId || null,
+                        status: jsonRecord.status || 'active',
+                        mustChangePassword: false
+                    }
+                });
+                createdPrismaId = created.id;
+            }
         }
 
-        // Synchronize users.json mirror if record exists there
+        // Synchronize users.json mirror if record exists there; compensate Prisma on partial failure
         if (userIndex !== -1) {
             users[userIndex].password = hashedPassword;
             users[userIndex].mustChangePassword = false;
-            await saveUsers(users);
+            try {
+                await saveUsers(users);
+            } catch (jsonErr) {
+                console.error("Error writing users.json in change-password, rolling back Prisma:", jsonErr);
+                if (previousPrisma) {
+                    await prisma.user.update({
+                        where: { id: previousPrisma.id },
+                        data: {
+                            password: previousPrisma.password,
+                            mustChangePassword: previousPrisma.mustChangePassword
+                        }
+                    }).catch(() => {});
+                } else if (createdPrismaId) {
+                    await prisma.user.delete({ where: { id: createdPrismaId } }).catch(() => {});
+                }
+                return NextResponse.json({ error: "Error al persistir cambio de contraseña; se revirtió la operación." }, { status: 500 });
+            }
         }
 
         return NextResponse.json({ success: true, message: "Contraseña cambiada con éxito." });

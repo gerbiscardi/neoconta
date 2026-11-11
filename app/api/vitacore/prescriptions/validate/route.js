@@ -3,7 +3,8 @@ import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { sanitizeUserId } from '@/lib/auth';
-import { verifyValidationToken } from '@/lib/publicTokens';
+import { getUsersRootDir, getUserDataDir } from '@/lib/dataPaths';
+import { verifyValidationToken, getLegacyLinksPolicy, maskInitials } from '@/lib/publicTokens';
 import { getClientIp, prescriptionsValidateLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 function maskDni(dni) {
@@ -23,7 +24,7 @@ function timingSafeHexMatch(a, b) {
 }
 
 async function findLegacyDocumentByHash(docId, providedHash) {
-    const usersRoot = path.join(process.cwd(), 'data', 'users');
+    const usersRoot = getUsersRootDir();
     let tenantDirs = [];
     try {
         tenantDirs = await fs.readdir(usersRoot);
@@ -35,7 +36,7 @@ async function findLegacyDocumentByHash(docId, providedHash) {
         const cleanDir = sanitizeUserId(dir);
         if (!cleanDir) continue;
         for (const [docType, fileName] of [['prescription', 'prescriptions.json'], ['order', 'orders.json']]) {
-            const filePath = path.join(usersRoot, cleanDir, 'vitacore', fileName);
+            const filePath = path.join(getUserDataDir(cleanDir), 'vitacore', fileName);
             try {
                 const raw = await fs.readFile(filePath, 'utf-8');
                 const items = JSON.parse(raw);
@@ -71,6 +72,8 @@ export async function GET(request) {
 
         let foundDoc = null;
         let docType = 'prescription';
+        let isLegacyMode = false;
+        let legacySunsetAt = null;
 
         if (token) {
             const verified = verifyValidationToken(token, docId);
@@ -89,7 +92,7 @@ export async function GET(request) {
 
             docType = verified.docType;
             const fileName = docType === 'order' ? 'orders.json' : 'prescriptions.json';
-            const filePath = path.join(process.cwd(), 'data', 'users', tenantId, 'vitacore', fileName);
+            const filePath = path.join(getUserDataDir(tenantId), 'vitacore', fileName);
 
             try {
                 const data = await fs.readFile(filePath, 'utf-8');
@@ -99,6 +102,17 @@ export async function GET(request) {
                 foundDoc = null;
             }
         } else if (legacyHash) {
+            const policy = getLegacyLinksPolicy();
+            if (!policy.active) {
+                return NextResponse.json({
+                    success: false,
+                    isValid: false,
+                    legacySunset: true,
+                    legacySunsetAt: policy.sunsetAt,
+                    error: 'El período transitorio de enlaces heredados por hash ha finalizado. Solicitá la reemisión de un enlace QR firmado al consultorio.'
+                }, { status: 410 });
+            }
+
             if (!/^[a-f0-9]{64}$/i.test(legacyHash.trim())) {
                 return NextResponse.json({
                     success: false,
@@ -110,6 +124,8 @@ export async function GET(request) {
             if (legacyMatch) {
                 foundDoc = legacyMatch.foundDoc;
                 docType = legacyMatch.docType;
+                isLegacyMode = true;
+                legacySunsetAt = policy.sunsetAt;
             }
         } else {
             return NextResponse.json({
@@ -131,10 +147,37 @@ export async function GET(request) {
         const isExpired = foundDoc.expiresAt ? new Date(foundDoc.expiresAt) < new Date() : false;
         const isValid = foundDoc.status !== 'anulada' && !isExpired;
 
+        // Minimización estricta de información sanitaria en validación heredada (?hash=):
+        // solo confirma autenticidad del emisor, vigencia, iniciales del paciente y conteo de ítems.
+        if (isLegacyMode) {
+            return NextResponse.json({
+                success: true,
+                isValid,
+                docType,
+                legacyMode: true,
+                legacySunsetAt,
+                prescription: {
+                    id: foundDoc.id,
+                    hash: foundDoc.hash,
+                    status: foundDoc.status,
+                    issuedAt: foundDoc.issuedAt,
+                    expiresAt: foundDoc.expiresAt,
+                    patientName: maskInitials(foundDoc.patientName),
+                    professionalName: foundDoc.professionalName,
+                    professionalMatricula: foundDoc.professionalMatricula,
+                    professionalSpecialty: foundDoc.professionalSpecialty,
+                    medicationsCount: Array.isArray(foundDoc.medications) ? foundDoc.medications.length : 0,
+                    studiesCount: Array.isArray(foundDoc.studies) ? foundDoc.studies.length : 0,
+                    useDigitalSignature: foundDoc.useDigitalSignature === true
+                }
+            });
+        }
+
         return NextResponse.json({
             success: true,
             isValid,
             docType,
+            legacyMode: false,
             prescription: {
                 id: foundDoc.id,
                 hash: foundDoc.hash,
@@ -148,6 +191,7 @@ export async function GET(request) {
                 professionalSpecialty: foundDoc.professionalSpecialty,
                 medications: foundDoc.medications || [],
                 studies: foundDoc.studies || [],
+                diagnosis: foundDoc.diagnosis || null,
                 category: foundDoc.category || null,
                 useDigitalSignature: foundDoc.useDigitalSignature === true
             }

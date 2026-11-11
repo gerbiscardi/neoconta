@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir } from '@/lib/dataPaths';
 import { verifyOAuthState } from '@/lib/publicTokens';
 import { encryptOAuthToken } from '@/lib/tokenCrypto';
 
@@ -60,7 +61,7 @@ export async function GET(request) {
             throw new Error(longData.error?.message || 'Error al obtener token de larga duración de Meta');
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
+        const userDir = getUserDataDir(auth.tenantId);
         await mkdir(userDir, { recursive: true });
         const connFilePath = join(userDir, 'connections.json');
 

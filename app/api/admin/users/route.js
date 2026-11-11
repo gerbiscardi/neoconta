@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, hashPassword, getUsersJsonPath } from '@/lib/auth';
+import { getInvoicesDir, getPlatformConfigPath, getUserDataDir, writeJsonAtomic } from '@/lib/dataPaths';
 import prisma from '@/lib/db';
 
 const getDbPath = () => getUsersJsonPath();
@@ -92,7 +93,7 @@ async function getUsers() {
 }
 
 async function saveUsers(users) {
-    await writeFile(getDbPath(), JSON.stringify(users, null, 2), 'utf-8');
+    await writeJsonAtomic(getDbPath(), users);
 }
 
 // GET: List all users with stats and config (For owner only)
@@ -104,8 +105,8 @@ export async function GET(request) {
         }
 
         const users = await getUsers();
-        const invoicesDir = join(process.cwd(), 'data', 'invoices');
-        const configPath = join(process.cwd(), 'data', 'platform_config.json');
+        const invoicesDir = getInvoicesDir();
+        const configPath = getPlatformConfigPath();
 
         // Load Platform Configuration (Parámetros del Simulador Comercial Hipotético)
         let baseSubscription = 4500000;
@@ -151,7 +152,7 @@ export async function GET(request) {
             userInfo.plan = "base";
             userInfo.features = PLAN_DEFAULTS.base;
             try {
-                const configJsonPath = join(process.cwd(), 'data', 'users', user.id, 'config.json');
+                const configJsonPath = join(getUserDataDir(user.id), 'config.json');
                 const configData = await readFile(configJsonPath, 'utf-8');
                 const userConfig = JSON.parse(configData);
                 userInfo.cuit = userConfig.cuit || "";
@@ -390,7 +391,7 @@ export async function POST(request) {
 
         // Save config.json for clients
         if (role === 'cliente' || cuit || razonSocial) {
-            const userDir = join(process.cwd(), 'data', 'users', userId);
+            const userDir = getUserDataDir(userId);
             await mkdir(userDir, { recursive: true });
             const configPath = join(userDir, 'config.json');
             
@@ -408,7 +409,7 @@ export async function POST(request) {
                 plan: assignedPlan,
                 features: features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base
             };
-            await writeFile(configPath, JSON.stringify(updatedConfig, null, 2), 'utf-8');
+            await writeJsonAtomic(configPath, updatedConfig);
         }
 
         return NextResponse.json({ success: true, message: "Usuario creado exitosamente.", userId });
@@ -464,6 +465,8 @@ export async function PUT(request) {
             users[userIndex].mustChangePassword = true; // Force password change if reset by admin
         }
 
+        const previousPrisma = await prisma.user.findUnique({ where: { id: userId } });
+
         // Synchronize authoritative Prisma DB first
         await prisma.user.upsert({
             where: { id: userId },
@@ -484,11 +487,30 @@ export async function PUT(request) {
             }
         });
 
-        await saveUsers(users);
+        try {
+            await saveUsers(users);
+        } catch (saveErr) {
+            console.error("Error writing users.json in admin PUT, compensating Prisma:", saveErr);
+            if (previousPrisma) {
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        nombre: previousPrisma.nombre,
+                        email: previousPrisma.email,
+                        password: previousPrisma.password,
+                        role: previousPrisma.role,
+                        mustChangePassword: previousPrisma.mustChangePassword
+                    }
+                }).catch(() => {});
+            } else {
+                await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+            }
+            throw saveErr;
+        }
 
         // Update config.json (CUIT/Razón Social/Plan/Features)
         if (role === 'cliente' || cuit || razonSocial) {
-            const userDir = join(process.cwd(), 'data', 'users', userId);
+            const userDir = getUserDataDir(userId);
             await mkdir(userDir, { recursive: true });
             const configPath = join(userDir, 'config.json');
 
@@ -506,7 +528,7 @@ export async function PUT(request) {
                 plan: assignedPlan,
                 features: features || existingConfig.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base
             };
-            await writeFile(configPath, JSON.stringify(updatedConfig, null, 2), 'utf-8');
+            await writeJsonAtomic(configPath, updatedConfig);
         }
 
         return NextResponse.json({ success: true, message: "Usuario actualizado exitosamente." });
@@ -544,14 +566,35 @@ export async function DELETE(request) {
             return NextResponse.json({ error: "No se puede eliminar la cuenta del dueño de NeoConta." }, { status: 400 });
         }
 
+        const previousPrisma = await prisma.user.findUnique({ where: { id: userId } });
+
         // Synchronize with Prisma DB first
         await prisma.user.deleteMany({
             where: { id: userId }
         });
 
-        // Filter out and save JSON mirror
+        // Filter out and save JSON mirror; restore Prisma record on JSON write failure
         const filteredUsers = users.filter(u => u.id !== userId);
-        await saveUsers(filteredUsers);
+        try {
+            await saveUsers(filteredUsers);
+        } catch (saveErr) {
+            console.error("Error writing users.json in admin DELETE, restoring Prisma user:", saveErr);
+            if (previousPrisma) {
+                await prisma.user.create({
+                    data: {
+                        id: previousPrisma.id,
+                        nombre: previousPrisma.nombre,
+                        email: previousPrisma.email,
+                        password: previousPrisma.password,
+                        role: previousPrisma.role,
+                        parentId: previousPrisma.parentId,
+                        status: previousPrisma.status,
+                        mustChangePassword: previousPrisma.mustChangePassword
+                    }
+                }).catch(() => {});
+            }
+            throw saveErr;
+        }
 
         return NextResponse.json({ success: true, message: "Usuario dado de baja exitosamente." });
 
@@ -592,12 +635,25 @@ export async function PATCH(request) {
             return NextResponse.json({ error: "No se puede modificar la categoría del dueño de NeoConta." }, { status: 400 });
         }
 
+        const previousPrisma = await prisma.user.findUnique({ where: { id: userId } });
+
         users[userIndex].role = newRole;
         await prisma.user.updateMany({
             where: { id: userId },
             data: { role: newRole }
         });
-        await saveUsers(users);
+        try {
+            await saveUsers(users);
+        } catch (saveErr) {
+            console.error("Error writing users.json in admin PATCH, compensating Prisma:", saveErr);
+            if (previousPrisma) {
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { role: previousPrisma.role }
+                }).catch(() => {});
+            }
+            throw saveErr;
+        }
 
         return NextResponse.json({ success: true, message: `Usuario actualizado a ${newRole} exitosamente.` });
 

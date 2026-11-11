@@ -3,6 +3,7 @@ import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir, getTicketsDir, getInvoicesDir } from '@/lib/dataPaths';
 import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
 
 export async function POST(request) {
@@ -25,7 +26,7 @@ export async function POST(request) {
             return NextResponse.json({ error: "El monto de la Nota de Débito debe ser mayor a 0" }, { status: 400 });
         }
 
-        const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
+        const invoicesDir = getInvoicesDir();
         const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);
 
         // 1. Load History and find original invoice
@@ -47,7 +48,7 @@ export async function POST(request) {
         }
 
         // 2. Load User Configuration and Certificates
-        const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
+        const userDir = getUserDataDir(targetUserId);
         const configPath = path.join(userDir, 'config.json');
 
         const credentials = loadDecryptedUserCredentialsSync(targetUserId);
@@ -63,7 +64,7 @@ export async function POST(request) {
         // 3. Initialize AFIP SDK
         let afip;
         try {
-            const ticketsDir = path.join(process.cwd(), 'data', 'tickets');
+            const ticketsDir = getTicketsDir();
             if (!fs.existsSync(ticketsDir)) {
                 fs.mkdirSync(ticketsDir, { recursive: true });
             }

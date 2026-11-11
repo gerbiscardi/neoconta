@@ -8,6 +8,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import nodemailer from 'nodemailer';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getInvoiceHistoryPath, getUserDataDir } from '@/lib/dataPaths';
 
 // Helper: Normalize date to YYYY-MM-DD
 function normalizeDateStr(d) {
@@ -64,8 +65,7 @@ function getVoucherName(type) {
 
 // Fetch invoices from history.json or DB
 async function getInvoicesForUser(userId, fechaDesde, fechaHasta) {
-    const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
-    const historyFile = path.join(invoicesDir, `${userId}_history.json`);
+    const historyFile = getInvoiceHistoryPath(userId);
     let invoices = [];
 
     if (existsSync(historyFile)) {
@@ -125,7 +125,7 @@ async function getInvoicesForUser(userId, fechaDesde, fechaHasta) {
 
 // Fetch bank transactions from _transactions.json or DB
 async function getBankTransactionsForUser(userId, fechaDesde, fechaHasta) {
-    const txFilePath = path.join(process.cwd(), 'data', 'users', userId, 'banco', '_transactions.json');
+    const txFilePath = path.join(getUserDataDir(userId), 'banco', '_transactions.json');
     let transactions = [];
 
     if (existsSync(txFilePath)) {
@@ -195,7 +195,7 @@ async function getUserProfile(userId) {
         }
     } catch (e) {}
 
-    const cfgPath = path.join(process.cwd(), 'data', 'users', userId, 'config.json');
+    const cfgPath = path.join(getUserDataDir(userId), 'config.json');
     if (existsSync(cfgPath)) {
         try {
             const raw = await fs.readFile(cfgPath, 'utf8');

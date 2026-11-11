@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir, getInvoiceHistoryPath } from '@/lib/dataPaths';
 
 // Helper to resolve AFIP voucher type
 const getCbteTipo = (invoice) => {
@@ -91,8 +92,8 @@ export async function GET(request) {
         }
         const userId = auth.tenantId;
 
-        const invoicesFilePath = path.join(process.cwd(), 'data', 'invoices', `${userId}_history.json`);
-        const transactionsFilePath = path.join(process.cwd(), 'data', 'users', userId, 'banco', '_transactions.json');
+        const invoicesFilePath = getInvoiceHistoryPath(userId);
+        const transactionsFilePath = path.join(getUserDataDir(userId), 'banco', '_transactions.json');
 
         // Load files safely
         let invoices = [];

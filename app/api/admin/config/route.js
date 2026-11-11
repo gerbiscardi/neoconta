@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession } from '@/lib/auth';
-
-const CONFIG_PATH = join(process.cwd(), 'data', 'platform_config.json');
+import { getPlatformConfigPath, writeJsonAtomic } from '@/lib/dataPaths';
 
 async function getPlatformConfig() {
     try {
-        const data = await readFile(CONFIG_PATH, 'utf-8');
+        const data = await readFile(getPlatformConfigPath(), 'utf-8');
         return JSON.parse(data);
     } catch (err) {
         // Return default values if config file doesn't exist
@@ -49,7 +48,7 @@ export async function POST(request) {
             costPerClient: Number(costPerClient) || 125000
         };
 
-        await writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+        await writeJsonAtomic(getPlatformConfigPath(), config);
         return NextResponse.json({ success: true, config });
     } catch (error) {
         console.error("Error in POST platform config:", error);

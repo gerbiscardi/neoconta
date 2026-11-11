@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import prisma from '@/lib/db';
 import { hashPassword, getUsersJsonPath } from '@/lib/auth';
+import { writeJsonAtomic } from '@/lib/dataPaths';
 import { getClientIp, registerLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(request) {
@@ -74,7 +75,7 @@ export async function POST(request) {
 
         try {
             users.push(newUser);
-            await writeFile(dbPath, JSON.stringify(users, null, 2), 'utf-8');
+            await writeJsonAtomic(dbPath, users);
         } catch (err) {
             console.error("Error writing to users db, rolling back Prisma user:", err);
             await prisma.user.delete({ where: { id: userId } }).catch(() => {});

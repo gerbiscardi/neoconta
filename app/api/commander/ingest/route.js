@@ -2,10 +2,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { getUserDataDir, getInvoiceHistoryPath } from '@/lib/dataPaths';
 
 const getPaths = (userId) => {
-    const invoicesFilePath = path.join(process.cwd(), 'data', 'invoices', `${userId}_history.json`);
-    const userDir = path.join(process.cwd(), 'data', 'users', userId);
+    const invoicesFilePath = getInvoiceHistoryPath(userId);
+    const userDir = getUserDataDir(userId);
     const transactionsFilePath = path.join(userDir, 'banco', '_transactions.json');
     const ingestionsFilePath = path.join(userDir, 'ingestions.json');
     return { invoicesFilePath, transactionsFilePath, ingestionsFilePath, userDir };
