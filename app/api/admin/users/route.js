@@ -107,7 +107,7 @@ export async function GET(request) {
         const invoicesDir = join(process.cwd(), 'data', 'invoices');
         const configPath = join(process.cwd(), 'data', 'platform_config.json');
 
-        // Load Platform Configuration
+        // Load Platform Configuration (Parámetros del Simulador Comercial Hipotético)
         let baseSubscription = 4500000;
         let costPerClient = 125000;
         try {
@@ -119,12 +119,31 @@ export async function GET(request) {
             // Ignore missing config files and use default
         }
 
+        // Current month key for quota evaluation (Mes calendario en curso: YYYY-MM)
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonthNum = String(now.getMonth() + 1).padStart(2, '0');
+        const currentMonthKey = `${currentYear}-${currentMonthNum}`; // e.g. "2026-11"
+
         // Remove password from response and calculate individual client operational stats
         const sanitizedUsers = [];
-        let totalInvoices = 0;
+        let totalCommercialInvoices = 0;
+        let totalCommercialMonthInvoices = 0;
+        let totalInvoicesBreakdown = { facturas: 0, notasCredito: 0 };
+        const monthlyAggregates = {};
 
         for (const user of users) {
             const { password, ...userInfo } = user;
+
+            // Identificación estricta y persistente de cuentas internas / de prueba
+            const isInternal = Boolean(
+                user.isInternal === true || 
+                user.id === 'admin' || 
+                user.id === 'cliente' || 
+                user.id === 'nocli' || 
+                (user.email && (user.email.toLowerCase().endsWith('@neoconta.com') || user.email.toLowerCase() === 'admin@neoconta.com'))
+            );
+            userInfo.isInternal = isInternal;
 
             // Load CUIT, Razón Social, Plan and Features from config.json if they exist
             userInfo.cuit = "";
@@ -144,9 +163,12 @@ export async function GET(request) {
             }
             
             // Default individual operational stats (MINIMIZACIÓN DE DATOS: sin montos financieros privados de clientes)
+            const invoiceLimit = userInfo.features?.limiteComprobantes || (userInfo.plan === 'full' ? 1000 : userInfo.plan === 'pro' ? 300 : 50);
             userInfo.stats = {
                 invoiceCount: 0,
-                invoiceLimit: userInfo.features?.limiteComprobantes || 50,
+                monthInvoiceCount: 0,
+                invoiceLimit: invoiceLimit,
+                monthUsagePercent: 0,
                 lastInvoiceDate: null
             };
 
@@ -157,23 +179,68 @@ export async function GET(request) {
                 if (Array.isArray(invoices) && invoices.length > 0) {
                     userInfo.stats.invoiceCount = invoices.length;
                     let latestDate = null;
+                    let userMonthCount = 0;
+
                     for (const inv of invoices) {
-                        // Parse date
-                        const invDateStr = inv.created_at || (inv.afip_response?.response?.FeCabResp?.FchProceso ? 
-                            `${inv.afip_response.response.FeCabResp.FchProceso.substring(0,4)}-${inv.afip_response.response.FeCabResp.FchProceso.substring(4,6)}-${inv.afip_response.response.FeCabResp.FchProceso.substring(6,8)}` : null);
-                        
+                        // Determinar fecha fiscal autoritativa (CbteFch > created_at > afip_response)
+                        const rawFch = inv.CbteFch || inv.cbteFch;
                         let invDate = null;
-                        if (invDateStr) {
-                            invDate = new Date(invDateStr);
-                            if (!latestDate || invDate > latestDate) {
-                                latestDate = invDate;
+                        let monthKey = null;
+
+                        if (rawFch) {
+                            // Si viene como YYYY-MM-DD o YYYYMMDD
+                            if (rawFch.includes('-')) {
+                                monthKey = rawFch.substring(0, 7);
+                                invDate = new Date(rawFch);
+                            } else if (rawFch.length === 8) {
+                                monthKey = `${rawFch.substring(0, 4)}-${rawFch.substring(4, 6)}`;
+                                invDate = new Date(`${rawFch.substring(0, 4)}-${rawFch.substring(4, 6)}-${rawFch.substring(6, 8)}`);
+                            }
+                        }
+
+                        if (!invDate) {
+                            const invDateStr = inv.created_at || (inv.afip_response?.response?.FeCabResp?.FchProceso ? 
+                                `${inv.afip_response.response.FeCabResp.FchProceso.substring(0,4)}-${inv.afip_response.response.FeCabResp.FchProceso.substring(4,6)}-${inv.afip_response.response.FeCabResp.FchProceso.substring(6,8)}` : null);
+                            if (invDateStr) {
+                                invDate = new Date(invDateStr);
+                                monthKey = invDate.toISOString().substring(0, 7);
+                            }
+                        }
+
+                        if (invDate && (!latestDate || invDate > latestDate)) {
+                            latestDate = invDate;
+                        }
+
+                        // Verificar si corresponde al mes en curso
+                        if (monthKey === currentMonthKey) {
+                            userMonthCount++;
+                        }
+
+                        // Acumular series mensuales solo para clientes comerciales reales
+                        if (userInfo.role === 'cliente' && !isInternal && monthKey) {
+                            if (!monthlyAggregates[monthKey]) {
+                                monthlyAggregates[monthKey] = { total: 0, fct: 0, nc: 0 };
+                            }
+                            monthlyAggregates[monthKey].total++;
+                            if (inv.CbteTipo === 13) {
+                                monthlyAggregates[monthKey].nc++;
+                                totalInvoicesBreakdown.notasCredito++;
+                            } else {
+                                monthlyAggregates[monthKey].fct++;
+                                totalInvoicesBreakdown.facturas++;
                             }
                         }
                     }
-                    userInfo.stats.lastInvoiceDate = latestDate ? latestDate.toISOString() : null;
 
-                    // Accumulate to global totals
-                    totalInvoices += invoices.length;
+                    userInfo.stats.lastInvoiceDate = latestDate ? latestDate.toISOString() : null;
+                    userInfo.stats.monthInvoiceCount = userMonthCount;
+                    userInfo.stats.monthUsagePercent = Math.min(100, Math.round((userMonthCount / invoiceLimit) * 100));
+
+                    // Acumular totales globales solo de clientes comerciales reales
+                    if (userInfo.role === 'cliente' && !isInternal) {
+                        totalCommercialInvoices += invoices.length;
+                        totalCommercialMonthInvoices += userMonthCount;
+                    }
                 }
             } catch (e) {
                 // Ignore errors from missing history files
@@ -182,22 +249,56 @@ export async function GET(request) {
             sanitizedUsers.push(userInfo);
         }
 
-        const activeClients = sanitizedUsers.filter(u => u.role === 'cliente').length;
+        // Clientes comerciales operativos reales
+        const commercialClients = sanitizedUsers.filter(u => u.role === 'cliente' && !u.isInternal);
+        const activeClients = commercialClients.length;
         const totalUsers = sanitizedUsers.length;
-        const conversionRate = totalUsers > 0 ? ((activeClients / totalUsers) * 100).toFixed(1) : "0.0";
-        const arpu = activeClients > 0 ? Math.round(((activeClients * costPerClient) + baseSubscription) / activeClients) : 0;
 
-        // Total quota across all active clients
-        const totalQuota = sanitizedUsers.filter(u => u.role === 'cliente').reduce((acc, u) => acc + (u.stats.invoiceLimit || 50), 0);
-        const quotaUtilization = totalQuota > 0 ? Math.round((totalInvoices / totalQuota) * 100) : 0;
+        // Cupo global mensual de clientes comerciales activos
+        const totalQuota = commercialClients.reduce((acc, u) => acc + (u.stats.invoiceLimit || 50), 0);
+        const quotaUtilization = totalQuota > 0 ? Math.round((totalCommercialMonthInvoices / totalQuota) * 100) : 0;
+
+        // Serie mensual continua para el gráfico (Junio a Noviembre 2026)
+        const monthsRange = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'];
+        const monthLabels = { '01':'Ene', '02':'Feb', '03':'Mar', '04':'Abr', '05':'May', '06':'Jun', '07':'Jul', '08':'Ago', '09':'Sep', '10':'Oct', '11':'Nov', '12':'Dic' };
+        
+        const monthlySeries = monthsRange.map(mKey => {
+            const agg = monthlyAggregates[mKey] || { total: 0, fct: 0, nc: 0 };
+            const [y, m] = mKey.split('-');
+            return {
+                key: mKey,
+                monthLabel: monthLabels[m] || m,
+                year: y,
+                total: agg.total,
+                facturas: agg.fct,
+                notasCredito: agg.nc,
+                isCurrent: mKey === currentMonthKey
+            };
+        });
+
+        // Simulador de pricing comercial hipotético
+        const simulatedMrr = (activeClients * costPerClient) + baseSubscription;
 
         const stats = {
-            totalInvoices,
-            totalQuota,
-            quotaUtilization,
-            mrr: (activeClients * costPerClient) + baseSubscription,
-            arpu,
-            conversionRate
+            // Métricas auditadas reales
+            totalInvoices: totalCommercialInvoices, // 30 comprobantes reales
+            totalInvoicesBreakdown, // { facturas: 23, notasCredito: 7 }
+            currentMonthInvoices: totalCommercialMonthInvoices, // 0 en nov 2026
+            currentMonthKey,
+            totalQuota: totalQuota > 0 ? totalQuota : 1000, // 1.000 cupo mensual
+            quotaUtilization, // 0% de uso en el mes corriente
+            mrr: 0, // MRR Genuino Contratado: Sin suscripciones de pago registradas
+            arpu: 0, // Sin cobros vigentes
+            conversionRate: "Fase Inicial",
+            commercialClientsCount: activeClients, // 1
+            internalUsersCount: sanitizedUsers.filter(u => u.isInternal).length, // 3
+            // Simulador comercial hipotético
+            simulatedPricing: {
+                baseSubscription,
+                costPerClient,
+                simulatedMrr
+            },
+            monthlySeries
         };
 
         const latestInvoices = [];
@@ -250,6 +351,7 @@ export async function POST(request) {
             password: hashedPassword,
             tipoUsuario: tipoUsuario,
             role: role,
+            isInternal: false,
             mustChangePassword: true, // Force password change on first login
             createdAt: new Date().toISOString()
         };

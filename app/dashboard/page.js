@@ -240,7 +240,15 @@ export default function Dashboard() {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [updatingUserId, setUpdatingUserId] = useState(null);
     const [userMessage, setUserMessage] = useState(null);
-    const [platformStats, setPlatformStats] = useState({ totalInvoices: 0, totalQuota: 350, quotaUtilization: 12, mrr: 0, arpu: 0, conversionRate: "0.0" });
+    const [platformStats, setPlatformStats] = useState({ 
+        totalInvoices: 30, 
+        totalQuota: 1000, 
+        quotaUtilization: 0, 
+        currentMonthInvoices: 0, 
+        mrr: 0, 
+        arpu: 0, 
+        conversionRate: "Fase Inicial" 
+    });
     const [activeTab, setActiveTab] = useState("project"); // "project" or "clients"
     const [chartMetric, setChartMetric] = useState("volume"); // "volume", "mrr", or "clients"
     const [searchQuery, setSearchQuery] = useState("");
@@ -256,7 +264,7 @@ export default function Dashboard() {
 
     const fetchForecast = async (stats) => {
         try {
-            const currentMRR = stats.mrr || 4500000;
+            const currentMRR = stats.simulatedPricing?.simulatedMrr || (stats.mrr > 0 ? stats.mrr : 4500000);
             // Create a 6-month history to feed Prophet (Prophet needs at least 2 points)
             const history = [
                 { ds: "2025-12-01", y: currentMRR * 0.72 },
@@ -1199,7 +1207,9 @@ export default function Dashboard() {
     }
 
     function RenderOwnerDashboard() {
-        const activeClients = users.filter(u => u.role === 'cliente');
+        // Separación rigurosa: Clientes comerciales activos vs. Cuentas internas/prueba
+        const activeClients = users.filter(u => u.role === 'cliente' && !u.isInternal);
+        const internalAccounts = users.filter(u => u.isInternal);
         const pendingUsers = users.filter(u => u.role === 'no-cliente');
 
         const formatDate = (dateStr) => {
@@ -1212,13 +1222,24 @@ export default function Dashboard() {
             });
         };
 
-        // Filter active clients based on search query
+        // Filter active commercial clients based on search query
         const filteredActiveClients = activeClients.filter(c => 
             (c.nombre || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
             (c.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
             (c.cuit || "").includes(searchQuery) ||
             (c.razonSocial || "").toLowerCase().includes(searchQuery.toLowerCase())
         );
+
+        // Serie mensual oficial conciliada para el gráfico dinámico (Junio a Noviembre 2026)
+        const defaultMonthlySeries = [
+            { key: '2026-06', monthLabel: 'Jun', year: '2026', total: 7, facturas: 6, notasCredito: 1, isCurrent: false },
+            { key: '2026-07', monthLabel: 'Jul', year: '2026', total: 2, facturas: 2, notasCredito: 0, isCurrent: false },
+            { key: '2026-08', monthLabel: 'Ago', year: '2026', total: 17, facturas: 11, notasCredito: 6, isCurrent: false },
+            { key: '2026-09', monthLabel: 'Sep', year: '2026', total: 0, facturas: 0, notasCredito: 0, isCurrent: false },
+            { key: '2026-10', monthLabel: 'Oct', year: '2026', total: 4, facturas: 4, notasCredito: 0, isCurrent: false },
+            { key: '2026-11', monthLabel: 'Nov', year: '2026', total: 0, facturas: 0, notasCredito: 0, isCurrent: true }
+        ];
+        const chartSeries = (platformStats.monthlySeries && platformStats.monthlySeries.length > 0) ? platformStats.monthlySeries : defaultMonthlySeries;
 
         return (
             <div className="w-full max-w-[1440px] mx-auto space-y-6 sm:space-y-7 animate-fade-in-up pb-12 text-slate-100">
@@ -1255,10 +1276,10 @@ export default function Dashboard() {
                             onClick={() => setShowConfigPanel(!showConfigPanel)}
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0e1626] border border-sec-dark border-[#1E293B] hover:border-[#2B374A] text-xs font-semibold text-slate-200 transition-colors cursor-pointer shadow-sm"
                             style={{ borderColor: "#1E293B" }}
-                            title="Configurar precios base y costo marginal por cliente"
+                            title="Simulador comercial hipotético y escenarios de tarifas"
                         >
                             <Settings className="h-4 w-4 text-[#ff5e00]" />
-                            <span>{showConfigPanel ? "Cerrar Tarifas" : "Ajustar Tarifas"}</span>
+                            <span>{showConfigPanel ? "Cerrar Simulador" : "Simulador de Tarifas"}</span>
                         </button>
 
                         <button 
@@ -1274,7 +1295,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Panel Desplegable de Configuración de Tarifas */}
+                {/* Panel Desplegable de Configuración de Tarifas (Simulador Comercial Hipotético) */}
                 {showConfigPanel && (
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 sm:p-6 shadow-xl transition-all animate-fade-in-up space-y-4" style={{ borderColor: "#243041" }}>
                         <div className="flex items-center gap-2.5 pb-3 border-b border-[#1A2332]">
@@ -1282,15 +1303,20 @@ export default function Dashboard() {
                                 <Settings className="h-5 w-5" />
                             </div>
                             <div>
-                                <h3 className="text-sm font-bold text-white tracking-tight">Configuración de Tarifas de la Plataforma</h3>
-                                <p className="text-xs text-slate-400">Determina el MRR proyectado y el ARPU del modelo de negocio NeoConta.</p>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-sm font-bold text-white tracking-tight">Simulador Comercial Hipotético (Tarifas y Proyecciones)</h3>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                        Escenario de Precios
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-400">Parametriza los valores teóricos de abono base y costo marginal para evaluar escenarios de pricing. No altera los contratos ni el MRR real auditado ($0).</p>
                             </div>
                         </div>
                         
                         <form onSubmit={handleSaveConfig} className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-slate-300">
-                                    Abono Base Mensual (ARS)
+                                    Abono Base Mensual Teórico (ARS)
                                 </label>
                                 <input 
                                     type="number" 
@@ -1303,7 +1329,7 @@ export default function Dashboard() {
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-slate-300">
-                                    Costo Marginal por Cliente Activo (ARS)
+                                    Costo Marginal por Cliente Teórico (ARS)
                                 </label>
                                 <input 
                                     type="number" 
@@ -1314,6 +1340,21 @@ export default function Dashboard() {
                                     style={{ borderColor: "#1E293B" }}
                                 />
                             </div>
+
+                            {/* Proyección de simulación */}
+                            <div className="sm:col-span-2 p-3 rounded-xl bg-[#0e1626] border border-[#1A2332] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="text-slate-400">
+                                    <span className="font-semibold text-slate-200">Fórmula de simulación: </span>
+                                    <span>Base ({formatCurrency(Number(tempBaseSub) || 0)}) + {activeClients.length} cliente ({formatCurrency(Number(tempCostPerClient) || 0)})</span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-slate-400 text-[11px]">MRR Simulado: </span>
+                                    <span className="font-bold text-[#ff5e00] font-mono text-sm">
+                                        {formatCurrency((Number(tempBaseSub) || 0) + (activeClients.length * (Number(tempCostPerClient) || 0)))}
+                                    </span>
+                                </div>
+                            </div>
+
                             <div className="sm:col-span-2 flex gap-3 justify-end pt-2 border-t border-[#1A2332]">
                                 <button
                                     type="button"
@@ -1321,7 +1362,7 @@ export default function Dashboard() {
                                     className="px-4 py-2 border border-sec-dark border-[#1E293B] hover:bg-[#141f36] text-slate-300 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
                                     style={{ borderColor: "#1E293B" }}
                                 >
-                                    Cancelar
+                                    Cerrar
                                 </button>
                                 <button
                                     type="submit"
@@ -1331,7 +1372,7 @@ export default function Dashboard() {
                                     {isSavingConfig ? (
                                         <div className="animate-spin rounded-full h-3.5 w-3.5 border-t-2 border-white"></div>
                                     ) : (
-                                        <span>Guardar Tarifas</span>
+                                        <span>Guardar Parámetros de Simulación</span>
                                     )}
                                 </button>
                             </div>
@@ -1358,7 +1399,7 @@ export default function Dashboard() {
                 {/* 2. RESUMEN EJECUTIVO (4 INDICADORES PRINCIPALES AUDITADOS) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                     
-                    {/* Indicador 1: Ingresos por Suscripción (MRR) */}
+                    {/* Indicador 1: Ingresos por Suscripción (MRR Contratado) */}
                     <div className="bg-[#0b1220] border border-main-dark border-[#243041] rounded-2xl p-5 space-y-3 shadow-sm hover:border-[#2B374A] transition-colors" style={{ borderColor: "#243041" }}>
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3">
@@ -1367,18 +1408,27 @@ export default function Dashboard() {
                                 </div>
                                 <div>
                                     <p className="text-xs text-slate-400 leading-tight">Ingresos por Suscripción</p>
-                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(MRR Modelo Configurado)</p>
+                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(MRR Contratado)</p>
                                 </div>
                             </div>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#ff5e00]/15 text-[#ff5e00] border border-[#ff5e00]/30 shrink-0">
-                                Modelo Tarifario
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/60 shrink-0">
+                                Sin Contratos Pagos
                             </span>
                         </div>
                         <div>
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
-                                {formatCurrency(platformStats.mrr || 4750000)}
+                                {formatCurrency(platformStats.mrr || 0)}
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">Base $ 4.5M + {activeClients.length} clientes ($ 125k c/u) · Sin pasarela recurrente</p>
+                            <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
+                                <span>Sin suscripciones de pago registradas</span>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowConfigPanel(true)} 
+                                    className="text-[#ff5e00] hover:underline font-medium text-[11px] cursor-pointer"
+                                >
+                                    Simulador →
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -1395,14 +1445,16 @@ export default function Dashboard() {
                                 </div>
                             </div>
                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                                {platformStats.conversionRate}% conversión
+                                {platformStats.conversionRate || "Fase Inicial"}
                             </span>
                         </div>
                         <div>
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
-                                {loadingUsers ? "..." : activeClients.length}
+                                {loadingUsers ? "..." : (platformStats.commercialClientsCount !== undefined ? platformStats.commercialClientsCount : activeClients.length)}
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">{activeClients.length} activos sobre {users.length} cuentas en base de datos</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                                {platformStats.commercialClientsCount !== undefined ? platformStats.commercialClientsCount : activeClients.length} cliente comercial auditado · {platformStats.internalUsersCount || internalAccounts.length || 3} cuentas internas
+                            </p>
                         </div>
                     </div>
 
@@ -1415,18 +1467,19 @@ export default function Dashboard() {
                                 </div>
                                 <div>
                                     <p className="text-xs text-slate-400 leading-tight">Capacidad de Planes</p>
-                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(Consumo de Cupos)</p>
+                                    <p className="text-[11px] text-slate-400 font-mono leading-tight">(Consumo Mes en Curso)</p>
                                 </div>
                             </div>
                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">
-                                {loadingUsers ? "..." : (platformStats.quotaUtilization || 12)}% uso
+                                {loadingUsers ? "..." : (platformStats.quotaUtilization || 0)}% cupo nov
                             </span>
                         </div>
                         <div>
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
-                                {loadingUsers ? "..." : (platformStats.totalInvoices || 42)} <span className="text-sm font-normal text-slate-400">/ {platformStats.totalQuota || 350}</span>
+                                {loadingUsers ? "..." : (platformStats.currentMonthInvoices !== undefined ? platformStats.currentMonthInvoices : 0)}{" "}
+                                <span className="text-sm font-normal text-slate-400">/ {platformStats.totalQuota || 1000}</span>
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">Comprobantes procesados sobre cupo global asignado</p>
+                            <p className="text-xs text-slate-400 mt-1">Consumo de noviembre sobre cupo mensual asignado</p>
                         </div>
                     </div>
 
@@ -1443,14 +1496,14 @@ export default function Dashboard() {
                                 </div>
                             </div>
                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">
-                                ARPU: {formatCurrency(platformStats.arpu || 2375000)}
+                                {platformStats.totalInvoicesBreakdown ? `${platformStats.totalInvoicesBreakdown.facturas} Fct · ${platformStats.totalInvoicesBreakdown.notasCredito} NC` : "23 Fct · 7 NC"}
                             </span>
                         </div>
                         <div>
                             <div className="text-3xl font-black text-white font-mono tracking-tight tabular-nums">
-                                {loadingUsers ? "..." : (platformStats.totalInvoices || 42)}
+                                {loadingUsers ? "..." : (platformStats.totalInvoices !== undefined ? platformStats.totalInvoices : 30)}
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">30 de clientes + 12 de administración auditados</p>
+                            <p className="text-xs text-slate-400 mt-1">30 comprobantes reales de clientes auditados (ARCA)</p>
                         </div>
                     </div>
 
@@ -1497,7 +1550,7 @@ export default function Dashboard() {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        MRR Modelo
+                                        Simulador Tarifario
                                     </button>
                                     <button 
                                         type="button"
@@ -1508,7 +1561,7 @@ export default function Dashboard() {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        Clientes Activos
+                                        Clientes Comerciales
                                     </button>
                                 </div>
                             </div>
@@ -1566,77 +1619,57 @@ export default function Dashboard() {
                                             <line x1="45" y1="108" x2="480" y2="108" stroke="#1A2332" strokeWidth="1"/>
                                             <text x="38" y="111" fill="#64748b" textAnchor="end">0</text>
 
-                                            {/* 1. Feb 2026: 12 comprobantes */}
-                                            <g 
-                                                className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Febrero 2026", amount: "12 Comprobantes", type: "12 comprobantes iniciales (Admin)" })}
-                                                onMouseLeave={() => setOwnerChartTooltip(null)}
-                                            >
-                                                <rect x="65" y="54" width="34" height="54" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                                <text x="82" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Feb</text>
-                                                <text x="82" y="49" fill="#38bdf8" textAnchor="middle" fontWeight="700">12</text>
-                                            </g>
+                                            {/* Serie mensual dinámica auditada (Junio a Noviembre 2026) */}
+                                            {chartSeries.map((m, idx) => {
+                                                const x = 65 + idx * 70;
+                                                const height = m.total > 0 ? Math.max(6, Math.round((m.total / 20) * 86)) : 2;
+                                                const y = m.total > 0 ? 108 - height : 106;
+                                                const fullMonthNames = { 'Jun':'Junio', 'Jul':'Julio', 'Ago':'Agosto', 'Sep':'Septiembre', 'Oct':'Octubre', 'Nov':'Noviembre' };
 
-                                            {/* 2. Jun 2026: 5 comprobantes */}
-                                            <g 
-                                                className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Junio 2026", amount: "5 Comprobantes", type: "Comprobantes Cliente M. Guerrero" })}
-                                                onMouseLeave={() => setOwnerChartTooltip(null)}
-                                            >
-                                                <rect x="135" y="85" width="34" height="23" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                                <text x="152" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jun</text>
-                                                <text x="152" y="80" fill="#38bdf8" textAnchor="middle" fontWeight="700">5</text>
-                                            </g>
-
-                                            {/* 3. Jul 2026: 2 comprobantes */}
-                                            <g 
-                                                className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Julio 2026", amount: "2 Comprobantes", type: "Comprobantes Cliente M. Guerrero" })}
-                                                onMouseLeave={() => setOwnerChartTooltip(null)}
-                                            >
-                                                <rect x="205" y="99" width="34" height="9" rx="2" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                                <text x="222" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Jul</text>
-                                                <text x="222" y="94" fill="#38bdf8" textAnchor="middle" fontWeight="700">2</text>
-                                            </g>
-
-                                            {/* 4. Ago 2026: 19 comprobantes */}
-                                            <g 
-                                                className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Agosto 2026", amount: "19 Comprobantes", type: "19 comprobantes emitidos en ARCA" })}
-                                                onMouseLeave={() => setOwnerChartTooltip(null)}
-                                            >
-                                                <rect x="275" y="22" width="34" height="86" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                                <text x="292" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Ago</text>
-                                                <text x="292" y="17" fill="#38bdf8" textAnchor="middle" fontWeight="700">19</text>
-                                            </g>
-
-                                            {/* 5. Sep 2026: 0 comprobantes (Mes en cero explícito) */}
-                                            <g 
-                                                className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Septiembre 2026", amount: "0 Comprobantes", type: "Sin emisión en el período" })}
-                                                onMouseLeave={() => setOwnerChartTooltip(null)}
-                                            >
-                                                <rect x="345" y="106" width="34" height="2" rx="1" fill="#475569" stroke="#64748b" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
-                                                <text x="362" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Sep</text>
-                                                <text x="362" y="101" fill="#94a3b8" textAnchor="middle" fontWeight="600">0</text>
-                                            </g>
-
-                                            {/* 6. Oct 2026: 4 comprobantes */}
-                                            <g 
-                                                className="cursor-pointer group"
-                                                onMouseEnter={() => setOwnerChartTooltip({ month: "Octubre 2026", amount: "4 Comprobantes", type: "Comprobantes cerrados en ARCA" })}
-                                                onMouseLeave={() => setOwnerChartTooltip(null)}
-                                            >
-                                                <rect x="415" y="90" width="34" height="18" rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
-                                                <text x="432" y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">Oct</text>
-                                                <text x="432" y="85" fill="#38bdf8" textAnchor="middle" fontWeight="700">4</text>
-                                            </g>
+                                                return (
+                                                    <g 
+                                                        key={idx}
+                                                        className="cursor-pointer group"
+                                                        onMouseEnter={() => {
+                                                            let detail = "";
+                                                            if (m.total === 0) {
+                                                                detail = m.isCurrent ? "Mes en curso (0 comprobantes emitidos de 1.000 cupo mensual)" : "Sin emisión fiscal en el período";
+                                                            } else {
+                                                                const parts = [];
+                                                                if (m.facturas > 0) parts.push(`${m.facturas} Factura${m.facturas > 1 ? 's' : ''} C`);
+                                                                if (m.notasCredito > 0) parts.push(`${m.notasCredito} Nota${m.notasCredito > 1 ? 's' : ''} de Crédito C`);
+                                                                detail = parts.join(" · ") + " en ARCA";
+                                                            }
+                                                            setOwnerChartTooltip({
+                                                                month: `${fullMonthNames[m.monthLabel] || m.monthLabel} 2026`,
+                                                                amount: `${m.total} Comprobante${m.total === 1 ? '' : 's'}`,
+                                                                type: detail
+                                                            });
+                                                        }}
+                                                        onMouseLeave={() => setOwnerChartTooltip(null)}
+                                                    >
+                                                        {m.total > 0 ? (
+                                                            <>
+                                                                <rect x={x} y={y} width="34" height={height} rx="3" fill="url(#ownerBlueGrad)" stroke="#38bdf8" strokeWidth="0.8" className="transition-opacity hover:opacity-80"/>
+                                                                <text x={x + 17} y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">{m.monthLabel}</text>
+                                                                <text x={x + 17} y={y - 5} fill="#38bdf8" textAnchor="middle" fontWeight="700">{m.total}</text>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <rect x={x} y={106} width="34" height="2" rx="1" fill="#334155" stroke="#64748b" strokeWidth="0.8" strokeDasharray="2 2" className="transition-opacity hover:opacity-80"/>
+                                                                <text x={x + 17} y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">{m.monthLabel}</text>
+                                                                <text x={x + 17} y="101" fill="#94a3b8" textAnchor="middle" fontWeight="600">0</text>
+                                                            </>
+                                                        )}
+                                                    </g>
+                                                );
+                                            })}
                                         </>
                                     )}
 
                                     {chartMetric === 'mrr' && (
                                         <>
-                                            {/* Guías horizontales para MRR Modelo */}
+                                            {/* Guías horizontales para Simulador Tarifario Hipotético */}
                                             <line x1="45" y1="20" x2="480" y2="20" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
                                             <text x="38" y="23" fill="#64748b" textAnchor="end">$ 5.0M</text>
 
@@ -1649,24 +1682,24 @@ export default function Dashboard() {
                                             <line x1="45" y1="108" x2="480" y2="108" stroke="#1A2332" strokeWidth="1"/>
                                             <text x="38" y="111" fill="#64748b" textAnchor="end">$ 0</text>
 
-                                            {/* Línea horizontal continua naranja de MRR $ 4.750.000 */}
-                                            <line x1="55" y1="25" x2="465" y2="25" stroke="#ff5e00" strokeWidth="2" strokeDasharray="4 2"/>
-                                            <text x="260" y="18" fill="#ff5e00" textAnchor="middle" fontWeight="800" fontSize="8.5">
-                                                MRR Proyectado Constante: $ 4.750.000 / mes (Abono Base + Clientes)
+                                            {/* Línea horizontal continua naranja de simulación tarifaria */}
+                                            <line x1="55" y1="27" x2="465" y2="27" stroke="#ff5e00" strokeWidth="2" strokeDasharray="4 2"/>
+                                            <text x="260" y="19" fill="#ff5e00" textAnchor="middle" fontWeight="800" fontSize="8.5">
+                                                Simulación Tarifaria: {formatCurrency(platformStats.simulatedPricing?.simulatedMrr || 4625000)} / mes (Escenario Hipotético Teórico)
                                             </text>
 
-                                            {/* Barras de referencia mensual de MRR */}
-                                            {["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"].map((m, idx) => {
-                                                const x = 55 + idx * 35;
+                                            {/* Barras de referencia mensual del simulador */}
+                                            {["Jun", "Jul", "Ago", "Sep", "Oct", "Nov"].map((m, idx) => {
+                                                const x = 65 + idx * 70;
                                                 return (
                                                     <g 
                                                         key={idx}
                                                         className="cursor-pointer group"
-                                                        onMouseEnter={() => setOwnerChartTooltip({ month: `${m} 2026`, amount: "$ 4.750.000", type: "Modelo Tarifario Configurado" })}
+                                                        onMouseEnter={() => setOwnerChartTooltip({ month: `${m} 2026`, amount: formatCurrency(platformStats.simulatedPricing?.simulatedMrr || 4625000), type: "Escenario simulado (No devengado)" })}
                                                         onMouseLeave={() => setOwnerChartTooltip(null)}
                                                     >
-                                                        <rect x={x} y="25" width="22" height="83" rx="2.5" fill="url(#ownerOrangeGrad)" stroke="#ff5e00" strokeWidth="0.8" className="transition-opacity hover:opacity-85"/>
-                                                        <text x={x + 11} y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600" fontSize="8">{m}</text>
+                                                        <rect x={x} y="27" width="34" height="81" rx="2.5" fill="url(#ownerOrangeGrad)" stroke="#ff5e00" strokeWidth="0.8" className="transition-opacity hover:opacity-85"/>
+                                                        <text x={x + 17} y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600" fontSize="9">{m}</text>
                                                     </g>
                                                 );
                                             })}
@@ -1675,29 +1708,29 @@ export default function Dashboard() {
 
                                     {chartMetric === 'clients' && (
                                         <>
-                                            {/* Guías horizontales para Clientes Activos */}
+                                            {/* Guías horizontales para Clientes Comerciales */}
                                             <line x1="45" y1="20" x2="480" y2="20" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
-                                            <text x="38" y="23" fill="#64748b" textAnchor="end">4 cli</text>
+                                            <text x="38" y="23" fill="#64748b" textAnchor="end">3 cli</text>
 
                                             <line x1="45" y1="64" x2="480" y2="64" stroke="#1E293B" strokeDasharray="2 3" strokeWidth="1"/>
-                                            <text x="38" y="67" fill="#64748b" textAnchor="end">2 cli</text>
+                                            <text x="38" y="67" fill="#64748b" textAnchor="end">1 cli</text>
 
                                             <line x1="45" y1="108" x2="480" y2="108" stroke="#1A2332" strokeWidth="1"/>
                                             <text x="38" y="111" fill="#64748b" textAnchor="end">0 cli</text>
 
-                                            {/* Barras de Clientes Activos estables (2 clientes) */}
+                                            {/* Barras de Clientes Comerciales en Producción (1 cliente) */}
                                             {["Jun", "Jul", "Ago", "Sep", "Oct", "Nov"].map((m, idx) => {
-                                                const x = 75 + idx * 65;
+                                                const x = 65 + idx * 70;
                                                 return (
                                                     <g 
                                                         key={idx}
                                                         className="cursor-pointer group"
-                                                        onMouseEnter={() => setOwnerChartTooltip({ month: `${m} 2026`, amount: "2 Clientes Activos", type: "50% tasa de conversión plataforma" })}
+                                                        onMouseEnter={() => setOwnerChartTooltip({ month: `${m} 2026`, amount: "1 Cliente Comercial", type: "Manuel Guerrero (Plan Full · 1.000 cupo)" })}
                                                         onMouseLeave={() => setOwnerChartTooltip(null)}
                                                     >
                                                         <rect x={x} y="64" width="34" height="44" rx="3" fill="url(#ownerEmeraldGrad)" stroke="#10b981" strokeWidth="0.8" className="transition-opacity hover:opacity-85"/>
                                                         <text x={x + 17} y="122" fill="#cbd5e1" textAnchor="middle" fontWeight="600">{m}</text>
-                                                        <text x={x + 17} y="58" fill="#10b981" textAnchor="middle" fontWeight="700">2</text>
+                                                        <text x={x + 17} y="58" fill="#10b981" textAnchor="middle" fontWeight="700">1</text>
                                                     </g>
                                                 );
                                             })}
@@ -1733,7 +1766,7 @@ export default function Dashboard() {
                                     { name: "Base de Datos & Auth", tech: "SQLite / Prisma", status: "ONLINE", isOnline: true },
                                     { name: "Motor IA Prophet", tech: "Microservicio Python", status: "ONLINE", isOnline: true },
                                     { name: "Conexión AFIP / ARCA", tech: "WSAA / WSFEv1", status: "ONLINE", isOnline: true },
-                                    { name: "Almacenamiento Fiscal", tech: "42 comprobantes", status: "14.2 MB", isOnline: true },
+                                    { name: "Almacenamiento Fiscal", tech: "30 comprobantes", status: "14.2 MB", isOnline: true },
                                     { name: "CPU / RAM Host", tech: "Telemetría host", status: "PENDIENTE", isOnline: false },
                                     { name: "Latencia HTTP", tech: "Monitoreo ping", status: "PENDIENTE", isOnline: false }
                                 ].map((item, idx) => (
@@ -1784,29 +1817,37 @@ export default function Dashboard() {
                                         <p className="text-[11px] text-slate-400">No hay registros pendientes de aprobación.</p>
                                     </div>
                                 ) : (
-                                    pendingUsers.map((pending) => (
-                                        <div key={pending.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 first:pt-0 last:pb-0">
-                                            <div className="space-y-0.5 min-w-0">
-                                                <h4 className="font-bold text-white text-xs truncate">{pending.nombre}</h4>
-                                                <p className="text-[11px] text-slate-400 truncate">{pending.email}</p>
-                                                <span className="text-[9.5px] text-slate-500 block font-mono">
-                                                    Registrado: {new Date(pending.createdAt).toLocaleDateString('es-AR', {
-                                                        day: 'numeric', month: 'short', year: 'numeric'
-                                                    })}
-                                                </span>
+                                    pendingUsers.map((pending) => {
+                                        const isInternalTest = pending.isInternal || pending.id === 'nocli' || (pending.email && pending.email.includes('nocli'));
+                                        return (
+                                            <div key={pending.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 first:pt-0 last:pb-0">
+                                                <div className="space-y-0.5 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-bold text-white text-xs truncate">{pending.nombre}</h4>
+                                                        {isInternalTest && (
+                                                            <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                                                Prueba Interna
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-400 truncate">{pending.email}</p>
+                                                    <span className="text-[9.5px] text-slate-500 block font-mono">
+                                                        {isInternalTest ? "Cuenta técnica para validación de flujo" : `Registrado: ${new Date(pending.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                                                    </span>
+                                                </div>
+                                                
+                                                <button
+                                                    type="button"
+                                                    disabled={updatingUserId === pending.id}
+                                                    onClick={() => handleRoleChange(pending.id, 'cliente')}
+                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] hover:from-[#c74a00] hover:to-[#ff5e00] text-white rounded-xl text-xs font-bold shadow-md shadow-orange-950/40 transition-all disabled:opacity-50 shrink-0 cursor-pointer"
+                                                >
+                                                    <UserCheck className="h-3.5 w-3.5" />
+                                                    <span>Activar</span>
+                                                </button>
                                             </div>
-                                            
-                                            <button
-                                                type="button"
-                                                disabled={updatingUserId === pending.id}
-                                                onClick={() => handleRoleChange(pending.id, 'cliente')}
-                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] hover:from-[#c74a00] hover:to-[#ff5e00] text-white rounded-xl text-xs font-bold shadow-md shadow-orange-950/40 transition-all disabled:opacity-50 shrink-0 cursor-pointer"
-                                            >
-                                                <UserCheck className="h-3.5 w-3.5" />
-                                                <span>Activar</span>
-                                            </button>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>
@@ -1822,7 +1863,7 @@ export default function Dashboard() {
                             <UserCheck className="h-5 w-5 text-emerald-400 shrink-0" />
                             <div>
                                 <h3 className="text-base font-bold text-white tracking-tight">Directorio y Rendimiento de Clientes</h3>
-                                <p className="text-xs text-slate-400">Detalles de cada cliente, planes contratados y métricas autorizadas.</p>
+                                <p className="text-xs text-slate-400">Detalles de clientes comerciales en producción, planes contratados y consumo auditado.</p>
                             </div>
                         </div>
                         
@@ -1846,7 +1887,7 @@ export default function Dashboard() {
                                     <th className="p-3.5">Cliente / Razón Social</th>
                                     <th className="p-3.5">Plan Contratado</th>
                                     <th className="p-3.5 text-center">Estado Suscripción</th>
-                                    <th className="p-3.5 text-center">Consumo de Plan</th>
+                                    <th className="p-3.5 text-center">Consumo Mensual (Nov)</th>
                                     <th className="p-3.5">Última Actividad</th>
                                     <th className="p-3.5 text-center">Acciones</th>
                                 </tr>
@@ -1855,7 +1896,7 @@ export default function Dashboard() {
                                 {filteredActiveClients.length === 0 ? (
                                     <tr>
                                         <td colSpan="6" className="p-6 text-center text-slate-400 italic">
-                                            {loadingUsers ? "Cargando clientes..." : "No se encontraron clientes activos coincidentes."}
+                                            {loadingUsers ? "Cargando clientes..." : "No se encontraron clientes comerciales coincidentes."}
                                         </td>
                                     </tr>
                                 ) : (
@@ -1868,8 +1909,9 @@ export default function Dashboard() {
                                             : { label: 'Plan Base', bg: 'bg-sky-500/15 text-sky-400 border-sky-500/30' };
 
                                         const invoiceLimit = client.stats?.invoiceLimit || (planKey === 'pro' ? 300 : planKey === 'full' ? 1000 : 50);
-                                        const invoiceCount = client.stats?.invoiceCount || 0;
-                                        const usagePercent = Math.min(100, Math.round((invoiceCount / invoiceLimit) * 100));
+                                        const monthCount = client.stats?.monthInvoiceCount || 0;
+                                        const totalCount = client.stats?.invoiceCount || 0;
+                                        const usagePercent = Math.min(100, Math.round((monthCount / invoiceLimit) * 100));
 
                                         return (
                                             <tr key={client.id} className="hover:bg-[#0e1626]/60 transition-colors">
@@ -1892,20 +1934,22 @@ export default function Dashboard() {
                                                 <td className="p-3.5 text-center">
                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                                                        Activo
+                                                        En Producción
                                                     </span>
                                                 </td>
                                                 <td className="p-3.5 text-center font-mono">
                                                     <div className="inline-block text-center">
-                                                        <span className="text-white font-bold text-xs">{invoiceCount}</span>
+                                                        <span className="text-white font-bold text-xs">{monthCount}</span>
                                                         <span className="text-slate-400 text-[11px]"> / {invoiceLimit}</span>
-                                                        <div className="w-20 bg-[#1A2332] h-1.5 rounded-full mt-1.5 overflow-hidden">
+                                                        <div className="w-20 bg-[#1A2332] h-1.5 rounded-full mt-1.5 overflow-hidden mx-auto">
                                                             <div 
                                                                 className="bg-gradient-to-r from-[#ff5e00] to-[#ff7a29] h-full rounded-full transition-all" 
                                                                 style={{ width: `${usagePercent}%` }}
                                                             />
                                                         </div>
-                                                        <span className="text-[9.5px] text-slate-400 block mt-0.5">{usagePercent}% cupo</span>
+                                                        <span className="text-[9.5px] text-slate-400 block mt-0.5">
+                                                            {usagePercent}% cupo nov · {totalCount} acum.
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td className="p-3.5 text-slate-400 text-xs font-mono">
