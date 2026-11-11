@@ -89,7 +89,7 @@ export default function ProfessionalsPage() {
         setForm({
             nombre: prof.nombre,
             email: prof.email,
-            password: prof.password,
+            password: "",
             specialty: prof.specialty || "",
             matricula: prof.matricula || "",
             role: prof.role || "vitacore-professional"
@@ -274,8 +274,8 @@ export default function ProfessionalsPage() {
                                         <span className="font-bold lowercase select-all">{prof.email}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-gray-400">Contraseña:</span>
-                                        <span className="font-mono text-teal-600 dark:text-teal-400 font-bold">{prof.password}</span>
+                                        <span className="text-gray-400">Credencial:</span>
+                                        <span className="font-mono text-teal-600 dark:text-teal-400 font-bold">Protegida (bcrypt)</span>
                                     </div>
                                 </div>
                             </div>
@@ -495,12 +495,12 @@ export default function ProfessionalsPage() {
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Contraseña *</label>
+                                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">Nueva Contraseña (opcional)</label>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                     <input
-                                        type="text"
-                                        required
+                                        type="password"
+                                        placeholder="Dejar vacío para mantener la actual"
                                         value={form.password}
                                         onChange={(e) => setForm({ ...form, password: e.target.value })}
                                         className="w-full pl-9 pr-3 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50"

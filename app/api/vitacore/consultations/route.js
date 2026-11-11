@@ -1,29 +1,37 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
-// Helper to get patients file path
+const CLINICAL_ROLES = ['cliente', 'admin', 'user', 'owner', 'vitacore-professional'];
+
 function getFilePath(userId) {
     return path.join(process.cwd(), 'data', 'users', userId, 'vitacore', 'patients.json');
 }
 
-// POST: Add a new consultation/evolution for a patient
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
         const body = await request.json();
-        const { userId, patientId, consultation } = body;
+        const { userId, patientId, consultation } = body || {};
 
-        if (!userId || !patientId || !consultation || !consultation.reason) {
-            return NextResponse.json({ error: 'userId, patientId, and consultation reason are required' }, { status: 400 });
+        const auth = authorizeTenantAccess(session, userId, { allowedRoles: CLINICAL_ROLES });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
-        const filePath = getFilePath(userId);
+        if (!patientId || !consultation || !String(consultation.reason || '').trim()) {
+            return NextResponse.json({ error: 'patientId y motivo de consulta son requeridos' }, { status: 400 });
+        }
+
+        const filePath = getFilePath(auth.tenantId);
         let patients = [];
         try {
             const data = await fs.readFile(filePath, 'utf-8');
             patients = JSON.parse(data);
-        } catch (error) {
-            return NextResponse.json({ error: 'Fichero no encontrado' }, { status: 404 });
+        } catch {
+            return NextResponse.json({ error: 'Fichero clínico no encontrado' }, { status: 404 });
         }
 
         const index = patients.findIndex(p => p.id === patientId);
@@ -32,13 +40,15 @@ export async function POST(request) {
         }
 
         const newConsultation = {
-            id: 'cons_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
+            id: `cons_${crypto.randomBytes(6).toString('hex')}`,
             date: consultation.date || new Date().toISOString(),
-            reason: consultation.reason,
-            observations: consultation.observations || '',
-            prescription: consultation.prescription || '',
+            reason: String(consultation.reason).trim(),
+            observations: String(consultation.observations || ''),
+            prescription: String(consultation.prescription || ''),
             tags: Array.isArray(consultation.tags) ? consultation.tags : [],
             isImportant: consultation.isImportant === true,
+            professionalId: session.id,
+            professionalName: session.nombre,
             created_at: new Date().toISOString()
         };
 
@@ -47,7 +57,6 @@ export async function POST(request) {
         }
 
         patients[index].consultations.push(newConsultation);
-        // Sort consultations by date descending (latest first)
         patients[index].consultations.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         await fs.writeFile(filePath, JSON.stringify(patients, null, 2), 'utf-8');
@@ -58,23 +67,28 @@ export async function POST(request) {
     }
 }
 
-// PUT: Update a consultation
 export async function PUT(request) {
     try {
+        const session = await getServerSession(request);
         const body = await request.json();
-        const { userId, patientId, consultationId, updatedData } = body;
+        const { userId, patientId, consultationId, updatedData } = body || {};
 
-        if (!userId || !patientId || !consultationId || !updatedData) {
-            return NextResponse.json({ error: 'userId, patientId, consultationId, and updatedData are required' }, { status: 400 });
+        const auth = authorizeTenantAccess(session, userId, { allowedRoles: CLINICAL_ROLES });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
-        const filePath = getFilePath(userId);
+        if (!patientId || !consultationId || !updatedData) {
+            return NextResponse.json({ error: 'patientId, consultationId y updatedData son requeridos' }, { status: 400 });
+        }
+
+        const filePath = getFilePath(auth.tenantId);
         let patients = [];
         try {
             const data = await fs.readFile(filePath, 'utf-8');
             patients = JSON.parse(data);
-        } catch (error) {
-            return NextResponse.json({ error: 'Fichero no encontrado' }, { status: 404 });
+        } catch {
+            return NextResponse.json({ error: 'Fichero clínico no encontrado' }, { status: 404 });
         }
 
         const pIndex = patients.findIndex(p => p.id === patientId);
@@ -88,7 +102,6 @@ export async function PUT(request) {
             return NextResponse.json({ error: 'Consulta no encontrada' }, { status: 404 });
         }
 
-        // Merge updated fields
         consultations[cIndex] = {
             ...consultations[cIndex],
             date: updatedData.date ?? consultations[cIndex].date,
@@ -99,7 +112,6 @@ export async function PUT(request) {
             isImportant: updatedData.isImportant ?? consultations[cIndex].isImportant
         };
 
-        // Sort consultations by date descending (latest first)
         consultations.sort((a, b) => new Date(b.date) - new Date(a.date));
         patients[pIndex].consultations = consultations;
 
@@ -111,25 +123,29 @@ export async function PUT(request) {
     }
 }
 
-// DELETE: Delete a consultation
 export async function DELETE(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'), { allowedRoles: CLINICAL_ROLES });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+
         const patientId = searchParams.get('patientId');
         const consultationId = searchParams.get('consultationId');
 
-        if (!userId || !patientId || !consultationId) {
-            return NextResponse.json({ error: 'userId, patientId, and consultationId are required' }, { status: 400 });
+        if (!patientId || !consultationId) {
+            return NextResponse.json({ error: 'patientId y consultationId son requeridos' }, { status: 400 });
         }
 
-        const filePath = getFilePath(userId);
+        const filePath = getFilePath(auth.tenantId);
         let patients = [];
         try {
             const data = await fs.readFile(filePath, 'utf-8');
             patients = JSON.parse(data);
-        } catch (error) {
-            return NextResponse.json({ error: 'Fichero no encontrado' }, { status: 404 });
+        } catch {
+            return NextResponse.json({ error: 'Fichero clínico no encontrado' }, { status: 404 });
         }
 
         const pIndex = patients.findIndex(p => p.id === patientId);

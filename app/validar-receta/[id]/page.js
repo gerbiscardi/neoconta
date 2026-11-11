@@ -1,10 +1,13 @@
 "use client";
 import { useState, useEffect, use } from "react";
+import { useSearchParams } from "next/navigation";
 import { ShieldCheck, ShieldAlert, HeartPulse, CheckCircle2, Clock, User, Award, FileText, Lock } from "lucide-react";
 
 export default function ValidarRecetaPage({ params }) {
     const resolvedParams = use(params);
     const recipeId = resolvedParams?.id;
+    const searchParams = useSearchParams();
+    const token = searchParams.get("token");
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
@@ -12,13 +15,18 @@ export default function ValidarRecetaPage({ params }) {
 
     useEffect(() => {
         if (!recipeId) return;
-        fetch(`/api/vitacore/prescriptions/validate?id=${encodeURIComponent(recipeId)}`)
+        if (!token) {
+            setError("Enlace incompleto: se requiere el token de verificación criptográfico.");
+            setLoading(false);
+            return;
+        }
+        fetch(`/api/vitacore/prescriptions/validate?id=${encodeURIComponent(recipeId)}&token=${encodeURIComponent(token)}`)
             .then(res => res.json())
             .then(resData => {
                 if (resData.success) {
                     setData(resData);
                 } else {
-                    setError(resData.message || "Receta no encontrada o inválida.");
+                    setError(resData.error || resData.message || "Documento no encontrado o token inválido.");
                 }
                 setLoading(false);
             })
@@ -27,7 +35,7 @@ export default function ValidarRecetaPage({ params }) {
                 setError("Error de conexión al verificar la receta.");
                 setLoading(false);
             });
-    }, [recipeId]);
+    }, [recipeId, token]);
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
@@ -110,20 +118,38 @@ export default function ValidarRecetaPage({ params }) {
                                     </div>
                                 </div>
 
-                                <div className="border-t border-slate-800 pt-3">
-                                    <p className="text-slate-400 font-bold uppercase flex items-center gap-1 mb-2">
-                                        <FileText className="h-3.5 w-3.5 text-teal-400" /> Medicamentos Prescritos (Rp/)
-                                    </p>
-                                    <div className="space-y-2">
-                                        {data.prescription.medications.map((med, idx) => (
-                                            <div key={idx} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80">
-                                                <p className="font-bold text-slate-100 text-xs">{idx + 1}. {med.name}</p>
-                                                <p className="text-slate-400 text-[11px]">Dosis: {med.dosage || 'S/I'} | Cantidad: {med.quantity || '1'}</p>
-                                                {med.instructions && <p className="text-teal-300/80 text-[11px] italic mt-0.5">{med.instructions}</p>}
-                                            </div>
-                                        ))}
+                                {data.prescription.medications && data.prescription.medications.length > 0 && (
+                                    <div className="border-t border-slate-800 pt-3">
+                                        <p className="text-slate-400 font-bold uppercase flex items-center gap-1 mb-2">
+                                            <FileText className="h-3.5 w-3.5 text-teal-400" /> Medicamentos Prescritos (Rp/)
+                                        </p>
+                                        <div className="space-y-2">
+                                            {data.prescription.medications.map((med, idx) => (
+                                                <div key={idx} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80">
+                                                    <p className="font-bold text-slate-100 text-xs">{idx + 1}. {med.name}</p>
+                                                    <p className="text-slate-400 text-[11px]">Dosis: {med.dosage || 'S/I'} | Cantidad: {med.quantity || '1'}</p>
+                                                    {med.instructions && <p className="text-teal-300/80 text-[11px] italic mt-0.5">{med.instructions}</p>}
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {data.prescription.studies && data.prescription.studies.length > 0 && (
+                                    <div className="border-t border-slate-800 pt-3">
+                                        <p className="text-slate-400 font-bold uppercase flex items-center gap-1 mb-2">
+                                            <FileText className="h-3.5 w-3.5 text-cyan-400" /> Estudios Médicos Solicitados ({data.prescription.category || 'Orden'})
+                                        </p>
+                                        <div className="space-y-2">
+                                            {data.prescription.studies.map((st, idx) => (
+                                                <div key={idx} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80">
+                                                    <p className="font-bold text-slate-100 text-xs">{idx + 1}. {st.name} {st.loincCode ? `(LOINC: ${st.loincCode})` : ''}</p>
+                                                    {st.clinicalNotes && <p className="text-slate-400 text-[11px] mt-0.5">{st.clinicalNotes}</p>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {data.prescription.diagnosis && (
                                     <div className="border-t border-slate-800 pt-3">

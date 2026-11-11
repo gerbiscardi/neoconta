@@ -1,21 +1,31 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { signAppointmentToken } from '@/lib/publicTokens';
 
-// GET: Retrieve appointments for a client/professional (supports pagination, date filter, and search)
+function attachConfirmToken(tenantId, app) {
+    return {
+        ...app,
+        confirmToken: signAppointmentToken(tenantId, app.id)
+    };
+}
+
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const date = searchParams.get('date'); // YYYY-MM-DD
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+
+        const userId = auth.tenantId;
+        const date = searchParams.get('date');
         const professionalId = searchParams.get('professionalId');
         const patientId = searchParams.get('patientId');
         const search = searchParams.get('search') || '';
         const pageParam = searchParams.get('page');
         const limitParam = searchParams.get('limit');
-
-        if (!userId) {
-            return NextResponse.json({ error: 'userId es requerido' }, { status: 400 });
-        }
 
         const where = {
             userId,
@@ -34,27 +44,23 @@ export async function GET(request) {
 
         if (pageParam || limitParam) {
             const page = Math.max(1, parseInt(pageParam || '1', 10));
-            const limit = Math.max(1, parseInt(limitParam || '10', 10));
+            const limit = Math.min(100, Math.max(1, parseInt(limitParam || '10', 10)));
             const skip = (page - 1) * limit;
 
             const [total, appointments] = await Promise.all([
                 prisma.appointment.count({ where }),
                 prisma.appointment.findMany({
                     where,
-                    orderBy: [
-                        { date: 'asc' },
-                        { time: 'asc' }
-                    ],
+                    orderBy: [{ date: 'asc' }, { time: 'asc' }],
                     skip,
                     take: limit
                 })
             ]);
 
             const totalPages = Math.ceil(total / limit) || 1;
-
             return NextResponse.json({
                 success: true,
-                appointments,
+                appointments: appointments.map(a => attachConfirmToken(userId, a)),
                 total,
                 totalPages,
                 page,
@@ -64,48 +70,49 @@ export async function GET(request) {
 
         const appointments = await prisma.appointment.findMany({
             where,
-            orderBy: [
-                { date: 'asc' },
-                { time: 'asc' }
-            ]
+            orderBy: [{ date: 'asc' }, { time: 'asc' }]
         });
 
         return NextResponse.json({
             success: true,
-            appointments,
+            appointments: appointments.map(a => attachConfirmToken(userId, a)),
             total: appointments.length,
             totalPages: 1,
             page: 1,
             limit: appointments.length
         });
-
     } catch (error) {
         console.error('Error in /api/vitacore/appointments GET:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// POST: Create a new appointment
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
         const body = await request.json();
-        const { userId, appointment } = body;
+        const { userId: requestedUserId, appointment } = body || {};
 
-        if (!userId || !appointment || !appointment.patientName || !appointment.date || !appointment.time) {
+        const auth = authorizeTenantAccess(session, requestedUserId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+
+        if (!appointment || !String(appointment.patientName || '').trim() || !appointment.date || !appointment.time) {
             return NextResponse.json({ error: 'Faltan campos obligatorios (paciente, fecha, hora)' }, { status: 400 });
         }
 
         const newAppointment = await prisma.appointment.create({
             data: {
-                userId,
+                userId: auth.tenantId,
                 patientId: appointment.patientId || null,
-                patientName: appointment.patientName,
-                patientPhone: appointment.patientPhone || appointment.patientDni || '',
+                patientName: String(appointment.patientName).trim(),
+                patientPhone: String(appointment.patientPhone || appointment.patientDni || ''),
                 professionalId: appointment.professionalId || null,
                 professionalName: appointment.professionalName || 'Director Clínico',
                 professionalSpecialty: appointment.professionalSpecialty || '',
-                date: appointment.date,
-                time: appointment.time,
+                date: String(appointment.date),
+                time: String(appointment.time),
                 consultationType: appointment.consultationType || 'Consulta General',
                 reason: appointment.reason || '',
                 status: appointment.status || 'reservado',
@@ -113,25 +120,40 @@ export async function POST(request) {
             }
         });
 
-        return NextResponse.json({ success: true, appointment: newAppointment }, { status: 201 });
+        return NextResponse.json({
+            success: true,
+            appointment: attachConfirmToken(auth.tenantId, newAppointment)
+        }, { status: 201 });
     } catch (error) {
         console.error('Error in /api/vitacore/appointments POST:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// PUT: Update appointment status or details
 export async function PUT(request) {
     try {
+        const session = await getServerSession(request);
         const body = await request.json();
-        const { userId, appointmentId, updatedData } = body;
+        const { userId: requestedUserId, appointmentId, updatedData } = body || {};
 
-        if (!userId || !appointmentId || !updatedData) {
-            return NextResponse.json({ error: 'userId, appointmentId y updatedData son requeridos' }, { status: 400 });
+        const auth = authorizeTenantAccess(session, requestedUserId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+
+        if (!appointmentId || !updatedData) {
+            return NextResponse.json({ error: 'appointmentId y updatedData son requeridos' }, { status: 400 });
+        }
+
+        const existing = await prisma.appointment.findFirst({
+            where: { id: String(appointmentId), userId: auth.tenantId }
+        });
+        if (!existing) {
+            return NextResponse.json({ error: 'Turno no encontrado en esta organización' }, { status: 404 });
         }
 
         const updated = await prisma.appointment.update({
-            where: { id: appointmentId },
+            where: { id: existing.id },
             data: {
                 ...(updatedData.patientName !== undefined && { patientName: updatedData.patientName }),
                 ...(updatedData.date !== undefined && { date: updatedData.date }),
@@ -144,28 +166,38 @@ export async function PUT(request) {
             }
         });
 
-        return NextResponse.json({ success: true, appointment: updated });
+        return NextResponse.json({
+            success: true,
+            appointment: attachConfirmToken(auth.tenantId, updated)
+        });
     } catch (error) {
         console.error('Error in /api/vitacore/appointments PUT:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// DELETE: Delete an appointment
 export async function DELETE(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const appointmentId = searchParams.get('appointmentId');
-
-        if (!userId || !appointmentId) {
-            return NextResponse.json({ error: 'userId y appointmentId son requeridos' }, { status: 400 });
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
-        await prisma.appointment.delete({
-            where: { id: appointmentId }
-        });
+        const appointmentId = searchParams.get('appointmentId');
+        if (!appointmentId) {
+            return NextResponse.json({ error: 'appointmentId es requerido' }, { status: 400 });
+        }
 
+        const existing = await prisma.appointment.findFirst({
+            where: { id: String(appointmentId), userId: auth.tenantId }
+        });
+        if (!existing) {
+            return NextResponse.json({ error: 'Turno no encontrado en esta organización' }, { status: 404 });
+        }
+
+        await prisma.appointment.delete({ where: { id: existing.id } });
         return NextResponse.json({ success: true, message: 'Turno eliminado exitosamente' });
     } catch (error) {
         console.error('Error in /api/vitacore/appointments DELETE:', error);

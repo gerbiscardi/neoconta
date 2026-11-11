@@ -1,17 +1,32 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { aiOperationLimiter, rateLimitResponse } from '@/lib/rateLimit';
+
+const CLINICAL_AI_ROLES = ['cliente', 'admin', 'user', 'owner', 'vitacore-professional'];
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
+        const body = await request.json();
+        const { userId, action, patient, draftText, reason, prescription, observations } = body || {};
+
+        const auth = authorizeTenantAccess(session, userId, { allowedRoles: CLINICAL_AI_ROLES });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+
+        const limitCheck = aiOperationLimiter.check(`vitacore-ai:${auth.tenantId}`);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, 'Has superado el límite temporal de consultas clínicas asistidas por IA.');
+        }
+
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey || apiKey.trim() === '') {
             return NextResponse.json({
                 error: 'La API Key de Gemini (GEMINI_API_KEY) no está configurada en el servidor.'
             }, { status: 500 });
         }
-
-        const body = await request.json();
-        const { action, patient, draftText, reason, prescription, observations } = body;
 
         const ai = new GoogleGenerativeAI(apiKey);
         const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });

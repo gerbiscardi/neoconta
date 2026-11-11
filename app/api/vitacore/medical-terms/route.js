@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { join } from 'path';
 import sqlite3 from 'sqlite3';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { medicalTermsLimiter, rateLimitResponse } from '@/lib/rateLimit';
 
 let dbInstance = null;
 
@@ -27,6 +29,17 @@ function runQuery(db, sql, params) {
 
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
+        const auth = authorizeTenantAccess(session);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+
+        const limitCheck = medicalTermsLimiter.check(`medical-terms:${session.id}`);
+        if (!limitCheck.allowed) {
+            return rateLimitResponse(limitCheck, 'Demasiadas consultas al glosario médico en poco tiempo.');
+        }
+
         const { searchParams } = new URL(request.url);
         const query = searchParams.get('q');
         const source = searchParams.get('source'); // 'ICD-11', 'RxNorm', 'LOINC', 'Orphanet', etc.

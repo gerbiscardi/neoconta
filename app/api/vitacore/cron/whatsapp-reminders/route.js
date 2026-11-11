@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-import { getServerSession } from '@/lib/auth';
+import prisma from '@/lib/db';
+import { getServerSession, sanitizeUserId } from '@/lib/auth';
+import { signAppointmentToken } from '@/lib/publicTokens';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -20,21 +22,12 @@ export async function GET(request) {
         const bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
 
         const isAuthorizedSecret = Boolean(CRON_SECRET) && ((secretParam && secretParam === CRON_SECRET) || (bearerSecret && bearerSecret === CRON_SECRET));
-        
+
         if (!isAuthorizedSecret) {
             const session = await getServerSession(request);
             if (!session || session.role !== 'owner') {
-                isCronRunning = false;
                 return NextResponse.json({ error: 'Acceso no autorizado al servicio de recordatorios' }, { status: 401 });
             }
-        }
-
-        const usersDir = path.join(process.cwd(), 'data', 'users');
-        let userFolders = [];
-        try {
-            userFolders = await fs.readdir(usersDir);
-        } catch (e) {
-            return NextResponse.json({ success: true, reminders: [], message: 'No hay usuarios registrados.' });
         }
 
         const today = new Date();
@@ -42,47 +35,70 @@ export async function GET(request) {
         tomorrow.setDate(today.getDate() + 1);
         const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
+        const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://neoconta.com.ar';
+        const seenIds = new Set();
         const reminders = [];
 
-        for (const userId of userFolders) {
-            const appointmentsPath = path.join(usersDir, userId, 'vitacore', 'appointments.json');
-            try {
-                const data = await fs.readFile(appointmentsPath, 'utf-8');
-                const appointments = JSON.parse(data);
+        const pushReminder = (userId, app) => {
+            const safeTenant = sanitizeUserId(userId);
+            if (!safeTenant || seenIds.has(app.id)) return;
+            seenIds.add(app.id);
 
-                const upcoming = appointments.filter(app => {
-                    return app.date === tomorrowStr && (app.status === 'reservado' || app.status === 'confirmado');
-                });
+            const cleanPhone = (app.patientPhone || '').replace(/[^0-9]/g, '');
+            const formattedPhone = cleanPhone.length === 10 ? `549${cleanPhone}` : cleanPhone;
 
-                for (const app of upcoming) {
-                    const cleanPhone = (app.patientPhone || '').replace(/[^0-9]/g, '');
-                    const formattedPhone = cleanPhone.length === 10 ? `549${cleanPhone}` : cleanPhone;
+            const token = signAppointmentToken(safeTenant, app.id);
+            const confirmUrl = `${origin}/confirmar-turno/${app.id}?token=${encodeURIComponent(token)}`;
+            const placeName = app.professionalName ? `Consultorio ${app.professionalName}` : 'nuestro Consultorio';
 
-                    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://neoconta.com.ar';
-                    const confirmUrl = `${origin}/confirmar-turno/${app.id}?userId=${userId}`;
+            const message = `Hola *${app.patientName}*, te recordamos tu turno médico para mañana *${app.date.split('-').reverse().join('/')}* a las *${app.time} hs* con el/la *${app.professionalName}* (${app.professionalSpecialty || 'Médico'}).\n\nPor favor confirma o gestiona tu asistencia ingresando al siguiente enlace:\n${confirmUrl}\n\n¡Te esperamos en ${placeName}!`;
+            const whatsappUrl = formattedPhone ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}` : null;
 
-                    const placeName = app.professionalName ? `Consultorio ${app.professionalName}` : "nuestro Consultorio";
+            reminders.push({
+                userId: safeTenant,
+                appointmentId: app.id,
+                patientName: app.patientName,
+                patientPhone: app.patientPhone,
+                date: app.date,
+                time: app.time,
+                professionalName: app.professionalName,
+                status: app.status,
+                whatsappUrl,
+                message
+            });
+        };
 
-                    const message = `Hola *${app.patientName}*, te recordamos tu turno médico para mañana *${app.date.split('-').reverse().join('/')}* a las *${app.time} hs* con el/la *${app.professionalName}* (${app.professionalSpecialty || 'Médico'}).\n\nPor favor confirma o gestiona tu asistencia ingresando al siguiente enlace:\n${confirmUrl}\n\n¡Te esperamos en ${placeName}!`;
-
-                    const whatsappUrl = formattedPhone ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}` : null;
-
-                    reminders.push({
-                        userId,
-                        appointmentId: app.id,
-                        patientName: app.patientName,
-                        patientPhone: app.patientPhone,
-                        date: app.date,
-                        time: app.time,
-                        professionalName: app.professionalName,
-                        status: app.status,
-                        whatsappUrl,
-                        message
-                    });
-                }
-            } catch (err) {
-                // Ignore missing file or invalid json for a particular user
+        // 1. Prisma appointments
+        const prismaUpcoming = await prisma.appointment.findMany({
+            where: {
+                date: tomorrowStr,
+                status: { in: ['reservado', 'confirmado'] }
             }
+        });
+        for (const app of prismaUpcoming) {
+            pushReminder(app.userId, app);
+        }
+
+        // 2. Legacy JSON fallback
+        const usersDir = path.join(process.cwd(), 'data', 'users');
+        try {
+            const userFolders = await fs.readdir(usersDir);
+            for (const userId of userFolders) {
+                const appointmentsPath = path.join(usersDir, userId, 'vitacore', 'appointments.json');
+                try {
+                    const data = await fs.readFile(appointmentsPath, 'utf-8');
+                    const appointments = JSON.parse(data);
+                    for (const app of appointments) {
+                        if (app.date === tomorrowStr && (app.status === 'reservado' || app.status === 'confirmado')) {
+                            pushReminder(userId, app);
+                        }
+                    }
+                } catch {
+                    // Ignore missing file
+                }
+            }
+        } catch {
+            // No legacy folder
         }
 
         return NextResponse.json({
@@ -92,7 +108,7 @@ export async function GET(request) {
             reminders
         });
     } catch (error) {
-        console.error("Error in /api/vitacore/cron/whatsapp-reminders:", error);
+        console.error('Error in /api/vitacore/cron/whatsapp-reminders:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     } finally {
         isCronRunning = false;

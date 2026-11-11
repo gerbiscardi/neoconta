@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { z } from 'zod';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 const PatientSchema = z.object({
     name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
@@ -18,20 +18,17 @@ const PatientSchema = z.object({
 export async function GET(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-        }
-
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+        const targetUserId = auth.tenantId;
+        const hideClinicalConsultations = session.role === 'vitacore-receptionist';
+
         const search = searchParams.get('search') || '';
         const pageParam = searchParams.get('page');
         const limitParam = searchParams.get('limit');
-
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
-        }
 
         const where = {
             userId: targetUserId,
@@ -66,10 +63,13 @@ export async function GET(request) {
             ]);
 
             const totalPages = Math.ceil(total / limit) || 1;
+            const safePatients = hideClinicalConsultations
+                ? patients.map(({ consultations, ...rest }) => ({ ...rest, consultations: [] }))
+                : patients;
 
             return NextResponse.json({
                 success: true,
-                patients,
+                patients: safePatients,
                 total,
                 totalPages,
                 page,
@@ -87,7 +87,11 @@ export async function GET(request) {
             orderBy: { name: 'asc' }
         });
 
-        return NextResponse.json({ success: true, patients, total: patients.length, totalPages: 1, page: 1, limit: patients.length });
+        const safePatients = hideClinicalConsultations
+            ? patients.map(({ consultations, ...rest }) => ({ ...rest, consultations: [] }))
+            : patients;
+
+        return NextResponse.json({ success: true, patients: safePatients, total: safePatients.length, totalPages: 1, page: 1, limit: safePatients.length });
     } catch (error) {
         console.error('Error in /api/vitacore/patients GET:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -98,17 +102,14 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-        }
-
         const body = await request.json();
-        const { userId, patient } = body;
+        const { userId, patient } = body || {};
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         if (!patient) {
             return NextResponse.json({ error: 'Datos de paciente requeridos' }, { status: 400 });
@@ -157,38 +158,61 @@ export async function POST(request) {
 export async function PUT(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-        }
-
         const body = await request.json();
-        const { userId, patient } = body;
+        const { userId, patient } = body || {};
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         if (!patient || !patient.id) {
             return NextResponse.json({ error: 'patient.id es requerido' }, { status: 400 });
         }
 
+        const existing = await prisma.patient.findFirst({
+            where: { id: String(patient.id), userId: targetUserId }
+        });
+        if (!existing) {
+            return NextResponse.json({ error: 'Paciente no encontrado en esta organización' }, { status: 404 });
+        }
+
+        const validation = PatientSchema.safeParse({
+            name: patient.name ?? existing.name,
+            dni: String(patient.dni ?? existing.dni),
+            birthDate: patient.birthDate !== undefined ? patient.birthDate : existing.birthDate,
+            phone: patient.phone !== undefined ? patient.phone : existing.phone,
+            email: patient.email !== undefined ? patient.email : existing.email,
+            obraSocial: patient.obraSocial !== undefined ? patient.obraSocial : existing.obraSocial,
+            affiliateNumber: patient.affiliateNumber !== undefined ? patient.affiliateNumber : existing.affiliateNumber,
+            importantDetails: patient.importantDetails !== undefined ? patient.importantDetails : existing.importantDetails
+        });
+        if (!validation.success) {
+            return NextResponse.json({ error: validation.error.issues[0]?.message || 'Datos inválidos' }, { status: 400 });
+        }
+        const valid = validation.data;
+
         const updated = await prisma.patient.update({
-            where: { id: patient.id },
+            where: { id: existing.id },
             data: {
-                name: patient.name,
-                dni: String(patient.dni),
-                birthDate: patient.birthDate || null,
-                phone: patient.phone || null,
-                email: patient.email || null,
-                obraSocial: patient.obraSocial || null,
-                affiliateNumber: patient.affiliateNumber || null,
-                importantDetails: patient.importantDetails || null
+                name: valid.name,
+                dni: valid.dni,
+                birthDate: valid.birthDate || null,
+                phone: valid.phone || null,
+                email: valid.email || null,
+                obraSocial: valid.obraSocial || null,
+                affiliateNumber: valid.affiliateNumber || null,
+                importantDetails: session.role === 'vitacore-receptionist' ? existing.importantDetails : (valid.importantDetails || null)
             },
-            include: { consultations: true }
+            include: { consultations: session.role !== 'vitacore-receptionist' }
         });
 
-        return NextResponse.json({ success: true, patient: updated });
+        const safeUpdated = session.role === 'vitacore-receptionist'
+            ? { ...updated, consultations: [] }
+            : updated;
+
+        return NextResponse.json({ success: true, patient: safeUpdated });
     } catch (error) {
         console.error('Error in /api/vitacore/patients PUT:', error);
         return NextResponse.json({ error: 'Error al actualizar el paciente' }, { status: 500 });
@@ -199,25 +223,29 @@ export async function PUT(request) {
 export async function DELETE(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-        }
-
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const patientId = searchParams.get('patientId');
-
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'), {
+            allowedRoles: ['cliente', 'admin', 'user', 'owner', 'vitacore-professional']
+        });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
+        const patientId = searchParams.get('patientId');
 
         if (!patientId) {
             return NextResponse.json({ error: 'patientId es requerido' }, { status: 400 });
         }
 
+        const existing = await prisma.patient.findFirst({
+            where: { id: String(patientId), userId: targetUserId }
+        });
+        if (!existing) {
+            return NextResponse.json({ error: 'Paciente no encontrado en esta organización' }, { status: 404 });
+        }
+
         await prisma.patient.delete({
-            where: { id: patientId }
+            where: { id: existing.id }
         });
 
         return NextResponse.json({ success: true, message: 'Paciente eliminado correctamente' });

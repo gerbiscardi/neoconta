@@ -2,13 +2,22 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 export async function POST(request) {
     try {
-        const { userId, reportId, urlToExclude } = await request.json();
+        const session = await getServerSession(request);
+        const body = await request.json();
+        const { userId: requestedUserId, reportId, urlToExclude } = body || {};
 
-        if (!userId || !reportId || !urlToExclude) {
-            return NextResponse.json({ error: "Faltan datos requeridos (userId, reportId, urlToExclude)" }, { status: 400 });
+        const auth = authorizeTenantAccess(session, requestedUserId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+        const userId = auth.tenantId;
+
+        if (!reportId || !urlToExclude) {
+            return NextResponse.json({ error: 'Faltan datos requeridos (reportId, urlToExclude)' }, { status: 400 });
         }
 
         const userDir = join(process.cwd(), 'data', 'users', userId);

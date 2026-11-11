@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 // Helper to resolve AFIP voucher type
 const getCbteTipo = (invoice) => {
@@ -78,12 +79,15 @@ const getMonthKey = (dateStr) => {
 
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
         const body = await request.json();
-        const { userId, widgets, clientFilter } = body;
+        const { userId: requestedUserId, widgets, clientFilter } = body || {};
 
-        if (!userId) {
-            return new Response(JSON.stringify({ error: 'userId is required' }), { status: 400 });
+        const auth = authorizeTenantAccess(session, requestedUserId);
+        if (!auth.authorized) {
+            return new Response(JSON.stringify({ error: auth.error }), { status: auth.status });
         }
+        const userId = auth.tenantId;
 
         if (!widgets || !Array.isArray(widgets)) {
             return new Response(JSON.stringify({ error: 'widgets array is required' }), { status: 400 });

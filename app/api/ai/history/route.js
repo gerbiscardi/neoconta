@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 // GET: Retrieve all audit reports for a user
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-
-        if (!userId) {
-            return NextResponse.json({ error: "Falta el ID del usuario (userId)" }, { status: 400 });
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', userId);
+        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
         const historyPath = join(userDir, 'reviews_analysis.json');
 
         let history = [];
@@ -34,15 +35,19 @@ export async function GET(request) {
 // DELETE: Delete a specific report from history
 export async function DELETE(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
         const reportId = searchParams.get('reportId');
 
-        if (!userId || !reportId) {
-            return NextResponse.json({ error: "Faltan datos requeridos (userId, reportId)" }, { status: 400 });
+        if (!reportId) {
+            return NextResponse.json({ error: "Falta reportId requerido" }, { status: 400 });
         }
 
-        const userDir = join(process.cwd(), 'data', 'users', userId);
+        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
         const historyPath = join(userDir, 'reviews_analysis.json');
 
         let history = [];

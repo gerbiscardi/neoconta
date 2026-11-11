@@ -48,17 +48,20 @@ export default function WhatsAppModal({
         const placeName = clinicName.trim() || "nuestro Consultorio";
 
         if (templateType === "turno" && appointmentData) {
-            const confirmUrl = `${origin}/confirmar-turno/${appointmentData.id}`;
+            const tokenParam = appointmentData.confirmToken ? `?token=${encodeURIComponent(appointmentData.confirmToken)}` : "";
+            const confirmUrl = `${origin}/confirmar-turno/${appointmentData.id}${tokenParam}`;
             return `Hola *${patientName || appointmentData.patientName}*, te recordamos tu turno médico para el día *${appointmentData.date.split('-').reverse().join('/')}* a las *${appointmentData.time} hs* con el/la *${appointmentData.professionalName}* (${appointmentData.professionalSpecialty || 'Médico'}).\n\nConfirmá o gestioná tu asistencia con 1 clic aquí:\n${confirmUrl}\n\n¡Te esperamos en ${placeName}!`;
         }
 
         if (templateType === "receta" && prescriptionData) {
-            const validateUrl = `${origin}/validar-receta/${prescriptionData.id}`;
+            const tokenParam = prescriptionData.validateToken ? `?token=${encodeURIComponent(prescriptionData.validateToken)}` : "";
+            const validateUrl = `${origin}/validar-receta/${prescriptionData.id}${tokenParam}`;
             return `Hola *${patientName}*, te enviamos tu Receta Digital emitida por el/la *${prescriptionData.professionalName}*.\n\nPodés presentar el código QR en la farmacia o descargar el PDF oficial desde:\n${validateUrl}\n\n${placeName}`;
         }
 
         if (templateType === "orden" && orderData) {
-            const validateUrl = `${origin}/validar-receta/${orderData.id}`;
+            const tokenParam = orderData.validateToken ? `?token=${encodeURIComponent(orderData.validateToken)}` : "";
+            const validateUrl = `${origin}/validar-receta/${orderData.id}${tokenParam}`;
             return `Hola *${patientName}*, te adjuntamos la Solicitud de Estudios y Laboratorio (${orderData.category}) emitida por *${orderData.professionalName}*.\n\nPodés visualizar las prácticas requeridas con códigos LOINC y validez QR aquí:\n${validateUrl}\n\n${placeName}`;
         }
 

@@ -2,14 +2,17 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { signValidationToken } from '@/lib/publicTokens';
+
+const PRESCRIPTION_ROLES = ['cliente', 'admin', 'user', 'owner', 'vitacore-professional'];
 
 function getPrescriptionsFilePath(userId) {
     return path.join(process.cwd(), 'data', 'users', userId, 'vitacore', 'prescriptions.json');
 }
 
 async function ensureDirectoryExists(filePath) {
-    const dir = path.dirname(filePath);
-    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
 }
 
 async function readPrescriptions(userId) {
@@ -17,7 +20,7 @@ async function readPrescriptions(userId) {
     try {
         const data = await fs.readFile(filePath, 'utf-8');
         return JSON.parse(data);
-    } catch (err) {
+    } catch {
         return [];
     }
 }
@@ -28,17 +31,27 @@ async function writePrescriptions(userId, prescriptions) {
     await fs.writeFile(filePath, JSON.stringify(prescriptions, null, 2), 'utf-8');
 }
 
-// GET: Retrieve prescriptions for a patient
+function attachToken(userId, item) {
+    return {
+        ...item,
+        validateToken: signValidationToken(userId, item.id, 'prescription')
+    };
+}
+
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'), {
+            allowedRoles: PRESCRIPTION_ROLES
+        });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+
+        const userId = auth.tenantId;
         const patientId = searchParams.get('patientId');
         const prescriptionId = searchParams.get('prescriptionId');
-
-        if (!userId) {
-            return NextResponse.json({ error: 'userId es requerido' }, { status: 400 });
-        }
 
         const prescriptions = await readPrescriptions(userId);
 
@@ -47,28 +60,39 @@ export async function GET(request) {
             if (!found) {
                 return NextResponse.json({ error: 'Receta no encontrada' }, { status: 404 });
             }
-            return NextResponse.json({ success: true, prescription: found });
+            return NextResponse.json({ success: true, prescription: attachToken(userId, found) });
         }
 
         if (patientId) {
-            const filtered = prescriptions.filter(p => p.patientId === patientId);
+            const filtered = prescriptions.filter(p => p.patientId === patientId).map(p => attachToken(userId, p));
             return NextResponse.json({ success: true, prescriptions: filtered });
         }
 
-        return NextResponse.json({ success: true, prescriptions });
+        return NextResponse.json({
+            success: true,
+            prescriptions: prescriptions.map(p => attachToken(userId, p))
+        });
     } catch (error) {
         console.error('Error in /api/vitacore/prescriptions GET:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// POST: Create a new prescription
 export async function POST(request) {
     try {
+        const session = await getServerSession(request);
         const body = await request.json();
-        const { userId, prescription } = body;
+        const { userId: requestedUserId, prescription } = body || {};
 
-        if (!userId || !prescription || !prescription.patientId || !prescription.medications || prescription.medications.length === 0) {
+        const auth = authorizeTenantAccess(session, requestedUserId, {
+            allowedRoles: PRESCRIPTION_ROLES
+        });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+        const userId = auth.tenantId;
+
+        if (!prescription || !prescription.patientId || !Array.isArray(prescription.medications) || prescription.medications.length === 0) {
             return NextResponse.json({ error: 'Faltan datos obligatorios para emitir la receta' }, { status: 400 });
         }
 
@@ -76,7 +100,6 @@ export async function POST(request) {
         const prescriptionId = 'rec_' + crypto.randomBytes(6).toString('hex');
         const issuedAt = new Date().toISOString();
 
-        // Calculate cryptographic SHA-256 hash of prescription payload for legal verification
         const rawPayload = `${prescriptionId}|${userId}|${prescription.patientId}|${prescription.patientDni || ''}|${JSON.stringify(prescription.medications)}|${issuedAt}`;
         const sha256Hash = crypto.createHash('sha256').update(rawPayload).digest('hex');
 
@@ -88,56 +111,56 @@ export async function POST(request) {
             patientDni: prescription.patientDni || '',
             patientSocialSecurity: prescription.patientSocialSecurity || '',
             patientAffiliateNumber: prescription.patientAffiliateNumber || '',
-            
-            professionalId: prescription.professionalId || '',
-            professionalName: prescription.professionalName || '',
+            professionalId: prescription.professionalId || session.id,
+            professionalName: prescription.professionalName || session.nombre,
             professionalSpecialty: prescription.professionalSpecialty || '',
             professionalMatricula: prescription.professionalMatricula || '',
             professionalCuit: prescription.professionalCuit || '',
-            
             diagnosis: prescription.diagnosis || '',
             medications: prescription.medications || [],
             observations: prescription.observations || '',
-            
             useDigitalSignature: prescription.useDigitalSignature === true,
             signatureUrl: prescription.signatureUrl || null,
-            
-            issuedAt: issuedAt,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+            issuedAt,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             status: 'activa'
         };
 
         prescriptions.unshift(newPrescription);
         await writePrescriptions(userId, prescriptions);
 
-        return NextResponse.json({ success: true, prescription: newPrescription }, { status: 201 });
+        return NextResponse.json({ success: true, prescription: attachToken(userId, newPrescription) }, { status: 201 });
     } catch (error) {
         console.error('Error in /api/vitacore/prescriptions POST:', error);
-        return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
+        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// DELETE: Annull a prescription
 export async function DELETE(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'), {
+            allowedRoles: PRESCRIPTION_ROLES
+        });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
+        }
+        const userId = auth.tenantId;
         const prescriptionId = searchParams.get('prescriptionId');
 
-        if (!userId || !prescriptionId) {
-            return NextResponse.json({ error: 'userId y prescriptionId son requeridos' }, { status: 400 });
+        if (!prescriptionId) {
+            return NextResponse.json({ error: 'prescriptionId es requerido' }, { status: 400 });
         }
 
         const prescriptions = await readPrescriptions(userId);
         const index = prescriptions.findIndex(p => p.id === prescriptionId);
-
         if (index === -1) {
             return NextResponse.json({ error: 'Receta no encontrada' }, { status: 404 });
         }
 
         prescriptions[index].status = 'anulada';
         prescriptions[index].annulledAt = new Date().toISOString();
-
         await writePrescriptions(userId, prescriptions);
 
         return NextResponse.json({ success: true, message: 'Receta anulada exitosamente' });

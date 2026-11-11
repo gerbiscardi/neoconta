@@ -6,7 +6,7 @@ import { CheckCircle2, XCircle, Calendar, Clock, User, Award, HeartPulse, Check,
 export default function ConfirmarTurnoPage({ params }) {
     const { id: appointmentId } = React.use(params);
     const searchParams = useSearchParams();
-    const userId = searchParams.get("userId");
+    const token = searchParams.get("token");
 
     const [appointment, setAppointment] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -17,12 +17,17 @@ export default function ConfirmarTurnoPage({ params }) {
     useEffect(() => {
         const fetchAppointment = async () => {
             try {
-                const res = await fetch(`/api/vitacore/appointments/confirm?id=${appointmentId}${userId ? `&userId=${userId}` : ''}`);
+                if (!token) {
+                    setError("Enlace incompleto: se requiere un token válido de confirmación.");
+                    setLoading(false);
+                    return;
+                }
+                const res = await fetch(`/api/vitacore/appointments/confirm?id=${encodeURIComponent(appointmentId)}&token=${encodeURIComponent(token)}`);
                 const data = await res.json();
                 if (res.ok && data.success) {
                     setAppointment(data.appointment);
                 } else {
-                    setError(data.error || "Turno no encontrado o expirado.");
+                    setError(data.error || "Turno no encontrado o enlace expirado.");
                 }
             } catch (err) {
                 console.error("Error fetching appointment:", err);
@@ -35,7 +40,7 @@ export default function ConfirmarTurnoPage({ params }) {
         if (appointmentId) {
             fetchAppointment();
         }
-    }, [appointmentId, userId]);
+    }, [appointmentId, token]);
 
     const handleUpdateStatus = async (action) => {
         setSubmitting(true);
@@ -45,7 +50,7 @@ export default function ConfirmarTurnoPage({ params }) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     appointmentId,
-                    userId,
+                    token,
                     action
                 })
             });
