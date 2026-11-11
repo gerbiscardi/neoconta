@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { 
     runSimpleMean, 
     runHistoricalMedian, 
@@ -43,17 +43,12 @@ const parseInvoiceEmissionDate = (inv) => {
 export async function GET(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-        }
-
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const targetUserId = sanitizeUserId(userId || session.id);
-
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         const invoicesDir = path.join(process.cwd(), 'data', 'invoices');
         const historyFile = path.join(invoicesDir, `${targetUserId}_history.json`);

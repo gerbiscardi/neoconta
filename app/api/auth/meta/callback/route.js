@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { verifyOAuthState } from '@/lib/publicTokens';
+import { encryptOAuthToken } from '@/lib/tokenCrypto';
 
 export async function GET(request) {
     try {
@@ -76,7 +77,7 @@ export async function GET(request) {
             connected: true,
             pageName: 'Página de Facebook Conectada',
             instagramUsername: '@cuenta_instagram_conectada',
-            accessToken: longData.access_token,
+            accessToken: encryptOAuthToken(longData.access_token),
             connectedAt: new Date().toISOString()
         };
 

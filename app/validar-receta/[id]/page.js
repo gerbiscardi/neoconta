@@ -8,34 +8,50 @@ export default function ValidarRecetaPage({ params }) {
     const recipeId = resolvedParams?.id;
     const searchParams = useSearchParams();
     const token = searchParams.get("token");
+    const hashParam = searchParams.get("hash");
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [requiresHash, setRequiresHash] = useState(false);
+    const [hashInput, setHashInput] = useState(hashParam || "");
+
+    const verifyDocument = async ({ useHash } = {}) => {
+        if (!recipeId) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const qs = new URLSearchParams({ id: recipeId });
+            if (token) {
+                qs.set("token", token);
+            } else if (useHash) {
+                qs.set("hash", useHash.trim());
+            } else if (hashParam) {
+                qs.set("hash", hashParam.trim());
+            }
+            const res = await fetch(`/api/vitacore/prescriptions/validate?${qs.toString()}`);
+            const resData = await res.json();
+            if (resData.success) {
+                setData(resData);
+                setRequiresHash(false);
+            } else if (resData.requiresHashFallback) {
+                setRequiresHash(true);
+                setError(null);
+            } else {
+                setError(resData.error || resData.message || "Documento no encontrado o código de verificación inválido.");
+            }
+        } catch (err) {
+            console.error("Error validating prescription:", err);
+            setError("Error de conexión al verificar la receta.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!recipeId) return;
-        if (!token) {
-            setError("Enlace incompleto: se requiere el token de verificación criptográfico.");
-            setLoading(false);
-            return;
-        }
-        fetch(`/api/vitacore/prescriptions/validate?id=${encodeURIComponent(recipeId)}&token=${encodeURIComponent(token)}`)
-            .then(res => res.json())
-            .then(resData => {
-                if (resData.success) {
-                    setData(resData);
-                } else {
-                    setError(resData.error || resData.message || "Documento no encontrado o token inválido.");
-                }
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error("Error validating prescription:", err);
-                setError("Error de conexión al verificar la receta.");
-                setLoading(false);
-            });
-    }, [recipeId, token]);
+        verifyDocument();
+    }, [recipeId, token, hashParam]);
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
@@ -59,6 +75,36 @@ export default function ValidarRecetaPage({ params }) {
                             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-teal-400"></div>
                             <p className="text-sm text-slate-400 font-medium">Verificando firma criptográfica e historial...</p>
                         </div>
+                    ) : requiresHash ? (
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                verifyDocument({ useHash: hashInput });
+                            }}
+                            className="py-6 space-y-4 text-center"
+                        >
+                            <div className="inline-flex p-3.5 bg-teal-950/50 border border-teal-700/60 rounded-full text-teal-400">
+                                <Lock className="h-9 w-9" />
+                            </div>
+                            <h2 className="text-lg font-bold text-white">Verificación de Documento Impreso</h2>
+                            <p className="text-xs text-slate-400 max-w-md mx-auto">
+                                Este enlace corresponde a un comprobante emitido antes de los QR firmados. Ingresá el código <span className="text-teal-400 font-mono font-bold">HASH SHA-256</span> impreso al pie de tu PDF para validar la autenticidad.
+                            </p>
+                            <input
+                                type="text"
+                                value={hashInput}
+                                onChange={(e) => setHashInput(e.target.value)}
+                                placeholder="Pegá los 64 caracteres del hash SHA-256..."
+                                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-teal-300 focus:outline-none focus:border-teal-500"
+                                required
+                            />
+                            <button
+                                type="submit"
+                                className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                            >
+                                Validar Documento con SHA-256
+                            </button>
+                        </form>
                     ) : error ? (
                         <div className="py-8 text-center space-y-4">
                             <div className="inline-flex p-4 bg-red-950/40 border border-red-800/60 rounded-full text-red-400">

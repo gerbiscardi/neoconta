@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import prisma from '@/lib/db';
 import { getServerSession, sanitizeUserId } from '@/lib/auth';
 import { signAppointmentToken } from '@/lib/publicTokens';
 
-const CRON_SECRET = process.env.CRON_SECRET;
-
 let isCronRunning = false;
+
+function timingSafeSecretMatch(provided, expected) {
+    if (!provided || !expected) return false;
+    const hashA = crypto.createHash('sha256').update(String(provided)).digest();
+    const hashB = crypto.createHash('sha256').update(String(expected)).digest();
+    return crypto.timingSafeEqual(hashA, hashB);
+}
 
 export async function GET(request) {
     if (isCronRunning) {
@@ -16,18 +22,32 @@ export async function GET(request) {
 
     try {
         isCronRunning = true;
+        const cronSecret = process.env.CRON_SECRET && process.env.CRON_SECRET.trim();
         const { searchParams } = new URL(request.url);
         const secretParam = searchParams.get('secret');
         const authHeader = request.headers.get('authorization') || '';
         const bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
 
-        const isAuthorizedSecret = Boolean(CRON_SECRET) && ((secretParam && secretParam === CRON_SECRET) || (bearerSecret && bearerSecret === CRON_SECRET));
+        if (!cronSecret) {
+            return NextResponse.json(
+                { error: 'Servicio técnico de cron no configurado (CRON_SECRET requerido).' },
+                { status: 503 }
+            );
+        }
+
+        const isAuthorizedSecret =
+            timingSafeSecretMatch(bearerSecret, cronSecret) ||
+            timingSafeSecretMatch(secretParam, cronSecret);
 
         if (!isAuthorizedSecret) {
             const session = await getServerSession(request);
-            if (!session || session.role !== 'owner') {
-                return NextResponse.json({ error: 'Acceso no autorizado al servicio de recordatorios' }, { status: 401 });
+            if (session) {
+                return NextResponse.json(
+                    { error: 'Acceso denegado: la sesión web (incluido Owner) no puede consultar recordatorios clínicos identificables entre consultorios.' },
+                    { status: 403 }
+                );
             }
+            return NextResponse.json({ error: 'Acceso no autorizado al servicio de recordatorios' }, { status: 401 });
         }
 
         const today = new Date();

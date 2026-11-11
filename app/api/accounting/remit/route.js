@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import nodemailer from 'nodemailer';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 // Helper: Normalize date to YYYY-MM-DD
 function normalizeDateStr(d) {
@@ -446,10 +446,6 @@ function generatePdfBuffer(profile, fechaDesde, fechaHasta, invoices, bankTx, in
 export async function POST(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: "No autenticado. Por favor inicia sesión." }, { status: 401 });
-        }
-
         const body = await request.json();
         const {
             userId,
@@ -463,10 +459,11 @@ export async function POST(request) {
             action = 'download'
         } = body;
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: "No tienes permiso para acceder o remitir la información de este usuario." }, { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         const profile = await getUserProfile(targetUserId);
         const invoices = includeInvoices ? await getInvoicesForUser(targetUserId, fechaDesde, fechaHasta) : [];

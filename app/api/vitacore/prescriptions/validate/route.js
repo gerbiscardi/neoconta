@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { sanitizeUserId } from '@/lib/auth';
@@ -12,6 +13,45 @@ function maskDni(dni) {
     return `***${clean.slice(-3)}`;
 }
 
+function timingSafeHexMatch(a, b) {
+    const cleanA = String(a || '').trim().toLowerCase();
+    const cleanB = String(b || '').trim().toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(cleanA) || !/^[a-f0-9]{64}$/.test(cleanB)) {
+        return false;
+    }
+    return crypto.timingSafeEqual(Buffer.from(cleanA, 'hex'), Buffer.from(cleanB, 'hex'));
+}
+
+async function findLegacyDocumentByHash(docId, providedHash) {
+    const usersRoot = path.join(process.cwd(), 'data', 'users');
+    let tenantDirs = [];
+    try {
+        tenantDirs = await fs.readdir(usersRoot);
+    } catch {
+        return null;
+    }
+
+    for (const dir of tenantDirs) {
+        const cleanDir = sanitizeUserId(dir);
+        if (!cleanDir) continue;
+        for (const [docType, fileName] of [['prescription', 'prescriptions.json'], ['order', 'orders.json']]) {
+            const filePath = path.join(usersRoot, cleanDir, 'vitacore', fileName);
+            try {
+                const raw = await fs.readFile(filePath, 'utf-8');
+                const items = JSON.parse(raw);
+                if (!Array.isArray(items)) continue;
+                const candidate = items.find(p => p && p.id === docId);
+                if (candidate && timingSafeHexMatch(candidate.hash, providedHash)) {
+                    return { foundDoc: candidate, docType };
+                }
+            } catch {
+                // Missing file or invalid JSON in this tenant folder
+            }
+        }
+    }
+    return null;
+}
+
 export async function GET(request) {
     try {
         const ip = getClientIp(request);
@@ -23,42 +63,61 @@ export async function GET(request) {
         const { searchParams } = new URL(request.url);
         const docId = searchParams.get('id');
         const token = searchParams.get('token');
+        const legacyHash = searchParams.get('hash');
 
         if (!docId) {
             return NextResponse.json({ error: 'ID de documento es requerido' }, { status: 400 });
         }
-        if (!token) {
-            return NextResponse.json({
-                success: false,
-                isValid: false,
-                error: 'Token criptográfico de verificación requerido'
-            }, { status: 401 });
-        }
-
-        const verified = verifyValidationToken(token, docId);
-        if (!verified) {
-            return NextResponse.json({
-                success: false,
-                isValid: false,
-                error: 'Enlace de verificación inválido o expirado'
-            }, { status: 403 });
-        }
-
-        const tenantId = sanitizeUserId(verified.tenantId);
-        if (!tenantId) {
-            return NextResponse.json({ error: 'Organización inválida en el token' }, { status: 403 });
-        }
-
-        const fileName = verified.docType === 'order' ? 'orders.json' : 'prescriptions.json';
-        const filePath = path.join(process.cwd(), 'data', 'users', tenantId, 'vitacore', fileName);
 
         let foundDoc = null;
-        try {
-            const data = await fs.readFile(filePath, 'utf-8');
-            const items = JSON.parse(data);
-            foundDoc = items.find(p => p.id === docId) || null;
-        } catch {
-            foundDoc = null;
+        let docType = 'prescription';
+
+        if (token) {
+            const verified = verifyValidationToken(token, docId);
+            if (!verified) {
+                return NextResponse.json({
+                    success: false,
+                    isValid: false,
+                    error: 'Enlace de verificación inválido o expirado'
+                }, { status: 403 });
+            }
+
+            const tenantId = sanitizeUserId(verified.tenantId);
+            if (!tenantId) {
+                return NextResponse.json({ error: 'Organización inválida en el token' }, { status: 403 });
+            }
+
+            docType = verified.docType;
+            const fileName = docType === 'order' ? 'orders.json' : 'prescriptions.json';
+            const filePath = path.join(process.cwd(), 'data', 'users', tenantId, 'vitacore', fileName);
+
+            try {
+                const data = await fs.readFile(filePath, 'utf-8');
+                const items = JSON.parse(data);
+                foundDoc = items.find(p => p.id === docId) || null;
+            } catch {
+                foundDoc = null;
+            }
+        } else if (legacyHash) {
+            if (!/^[a-f0-9]{64}$/i.test(legacyHash.trim())) {
+                return NextResponse.json({
+                    success: false,
+                    isValid: false,
+                    error: 'Código hash SHA-256 inválido para validación heredada'
+                }, { status: 403 });
+            }
+            const legacyMatch = await findLegacyDocumentByHash(docId, legacyHash);
+            if (legacyMatch) {
+                foundDoc = legacyMatch.foundDoc;
+                docType = legacyMatch.docType;
+            }
+        } else {
+            return NextResponse.json({
+                success: false,
+                isValid: false,
+                requiresHashFallback: true,
+                error: 'Token criptográfico de verificación requerido (o hash SHA-256 para documentos impresos previos).'
+            }, { status: 401 });
         }
 
         if (!foundDoc) {
@@ -75,7 +134,7 @@ export async function GET(request) {
         return NextResponse.json({
             success: true,
             isValid,
-            docType: verified.docType,
+            docType,
             prescription: {
                 id: foundDoc.id,
                 hash: foundDoc.hash,

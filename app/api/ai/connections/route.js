@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { decryptOAuthToken, encryptOAuthToken, isEncryptedOAuthToken } from '@/lib/tokenCrypto';
 
 export async function GET(request) {
     try {
@@ -31,12 +32,29 @@ export async function GET(request) {
         const metaConfigured = Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET);
 
         const sanitized = {};
+        let upgradedAtRest = false;
 
         const googleDetails = connections.google;
+        let plainGoogleRefresh = '';
+        if (googleDetails?.refreshToken) {
+            try {
+                plainGoogleRefresh = decryptOAuthToken(googleDetails.refreshToken);
+                if (!isEncryptedOAuthToken(googleDetails.refreshToken) && !plainGoogleRefresh.startsWith('mock_')) {
+                    connections.google.refreshToken = encryptOAuthToken(plainGoogleRefresh);
+                    if (googleDetails.accessToken && !isEncryptedOAuthToken(googleDetails.accessToken)) {
+                        connections.google.accessToken = encryptOAuthToken(decryptOAuthToken(googleDetails.accessToken));
+                    }
+                    upgradedAtRest = true;
+                }
+            } catch {
+                plainGoogleRefresh = '';
+            }
+        }
+
         if (
             googleDetails?.connected === true &&
-            googleDetails.refreshToken &&
-            !String(googleDetails.refreshToken).startsWith('mock_') &&
+            plainGoogleRefresh &&
+            !plainGoogleRefresh.startsWith('mock_') &&
             googleConfigured
         ) {
             const { accessToken, refreshToken, ...rest } = googleDetails;
@@ -45,15 +63,28 @@ export async function GET(request) {
             sanitized.google = {
                 connected: false,
                 providerConfigured: googleConfigured,
-                wasMockDisabled: Boolean(googleDetails?.refreshToken && String(googleDetails.refreshToken).startsWith('mock_'))
+                wasMockDisabled: Boolean(plainGoogleRefresh && plainGoogleRefresh.startsWith('mock_'))
             };
         }
 
         const metaDetails = connections.meta;
+        let plainMetaAccess = '';
+        if (metaDetails?.accessToken) {
+            try {
+                plainMetaAccess = decryptOAuthToken(metaDetails.accessToken);
+                if (!isEncryptedOAuthToken(metaDetails.accessToken) && !plainMetaAccess.startsWith('mock_')) {
+                    connections.meta.accessToken = encryptOAuthToken(plainMetaAccess);
+                    upgradedAtRest = true;
+                }
+            } catch {
+                plainMetaAccess = '';
+            }
+        }
+
         if (
             metaDetails?.connected === true &&
-            metaDetails.accessToken &&
-            !String(metaDetails.accessToken).startsWith('mock_') &&
+            plainMetaAccess &&
+            !plainMetaAccess.startsWith('mock_') &&
             metaConfigured
         ) {
             const { accessToken, refreshToken, ...rest } = metaDetails;
@@ -62,8 +93,12 @@ export async function GET(request) {
             sanitized.meta = {
                 connected: false,
                 providerConfigured: metaConfigured,
-                wasMockDisabled: Boolean(metaDetails?.accessToken && String(metaDetails.accessToken).startsWith('mock_'))
+                wasMockDisabled: Boolean(plainMetaAccess && plainMetaAccess.startsWith('mock_'))
             };
+        }
+
+        if (upgradedAtRest) {
+            await writeFile(connFilePath, JSON.stringify(connections, null, 2), 'utf-8').catch(() => {});
         }
 
         return NextResponse.json({ success: true, connections: sanitized });

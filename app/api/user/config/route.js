@@ -3,7 +3,7 @@ import { writeFile, readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import prisma from '@/lib/db';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { saveEncryptedUserFile, userHasCert } from '@/lib/crypto';
 
 const PLAN_DEFAULTS = {
@@ -84,17 +84,14 @@ const PLAN_DEFAULTS = {
 export async function GET(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-        }
-
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: "Acceso no autorizado a la configuración" }, { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         const userDir = join(process.cwd(), 'data', 'users', targetUserId);
         const configPath = join(userDir, 'config.json');
@@ -107,7 +104,7 @@ export async function GET(request) {
         }
 
         const userDb = await prisma.user.findUnique({ where: { id: targetUserId } }).catch(() => null);
-        const isOwner = userDb?.role === 'owner' || userId === 'admin' || userDb?.email === 'admin@neoconta.com';
+        const isOwner = userDb?.role === 'owner' || targetUserId === 'admin' || userDb?.email === 'admin@neoconta.com';
 
         const assignedPlan = isOwner ? "full" : (config.plan || "base");
         const baseFeatures = config.features || PLAN_DEFAULTS[assignedPlan] || PLAN_DEFAULTS.base;
@@ -151,10 +148,6 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-        }
-
         const contentType = request.headers.get('content-type') || '';
         let userId, razonSocial, cuit, production, condicionIva, logo, features, medicalDetails, direccion;
         let certFile, keyFile;
@@ -182,10 +175,13 @@ export async function POST(request) {
             keyFile = data.get('key');   // File object
         }
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: "Acceso no autorizado para modificar esta configuración" }, { status: 403 });
+        const auth = authorizeTenantAccess(session, userId, {
+            allowedRoles: ['cliente', 'no-cliente', 'admin', 'user', 'owner']
+        });
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         // Directory: data/users/{targetUserId}
         const userDir = join(process.cwd(), 'data', 'users', targetUserId);
@@ -211,7 +207,7 @@ export async function POST(request) {
             ...(condicionIva !== undefined && { condicionIva }),
             ...(logo !== undefined && { logo }),
             ...(direccion !== undefined && { direccion }),
-            ...(features !== undefined && { features }),
+            ...(session.role === 'owner' && features !== undefined && { features }),
             ...(medicalDetails !== undefined && { medicalDetails }),
             onboardingCompleted: true
         };

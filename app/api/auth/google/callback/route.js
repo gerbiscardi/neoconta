@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { verifyOAuthState } from '@/lib/publicTokens';
+import { encryptOAuthToken, decryptOAuthToken } from '@/lib/tokenCrypto';
 
 export async function GET(request) {
     try {
@@ -62,12 +63,17 @@ export async function GET(request) {
             // File does not exist yet
         }
 
+        const existingRefreshPlain = allConnections.google?.refreshToken
+            ? decryptOAuthToken(allConnections.google.refreshToken)
+            : '';
+        const finalRefreshToken = data.refresh_token || existingRefreshPlain || '';
+
         allConnections.google = {
             ...allConnections.google,
             connected: true,
             locationName: 'Perfil de Google Business',
-            refreshToken: data.refresh_token || allConnections.google?.refreshToken || '',
-            accessToken: data.access_token,
+            refreshToken: encryptOAuthToken(finalRefreshToken),
+            accessToken: encryptOAuthToken(data.access_token),
             connectedAt: new Date().toISOString()
         };
 

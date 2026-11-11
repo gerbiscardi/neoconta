@@ -3,15 +3,14 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import prisma from '@/lib/db';
-import { getServerSession, authorizeTenantAccess, hashPassword } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess, hashPassword, getUsersJsonPath } from '@/lib/auth';
 
-const dbPath = path.join(process.cwd(), 'data', 'users.json');
 const SUB_USER_ROLES = new Set(['vitacore-professional', 'vitacore-receptionist']);
 const ADMIN_ROLES = ['cliente', 'admin', 'user', 'owner'];
 
 async function readUsersJson() {
     try {
-        const data = await fs.readFile(dbPath, 'utf-8');
+        const data = await fs.readFile(getUsersJsonPath(), 'utf-8');
         const parsed = JSON.parse(data);
         return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -20,8 +19,9 @@ async function readUsersJson() {
 }
 
 async function writeUsersJson(users) {
-    await fs.mkdir(path.dirname(dbPath), { recursive: true });
-    await fs.writeFile(dbPath, JSON.stringify(users, null, 2), 'utf-8');
+    const targetPath = getUsersJsonPath();
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, JSON.stringify(users, null, 2), 'utf-8');
 }
 
 function sanitizeSubUser(u) {

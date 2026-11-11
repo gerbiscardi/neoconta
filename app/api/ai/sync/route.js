@@ -4,6 +4,7 @@ import { join } from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { aiOperationLimiter, rateLimitResponse } from '@/lib/rateLimit';
+import { decryptOAuthToken, encryptOAuthToken, isEncryptedOAuthToken } from '@/lib/tokenCrypto';
 
 async function fetchGoogleReviewsReal(refreshToken) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -131,15 +132,49 @@ export async function POST(request) {
             // No connections file
         }
 
+        let upgradedAtRest = false;
+        let googleRefreshPlain = '';
+        if (connections.google?.refreshToken) {
+            try {
+                googleRefreshPlain = decryptOAuthToken(connections.google.refreshToken);
+                if (!isEncryptedOAuthToken(connections.google.refreshToken) && !googleRefreshPlain.startsWith('mock_')) {
+                    connections.google.refreshToken = encryptOAuthToken(googleRefreshPlain);
+                    if (connections.google.accessToken && !isEncryptedOAuthToken(connections.google.accessToken)) {
+                        connections.google.accessToken = encryptOAuthToken(decryptOAuthToken(connections.google.accessToken));
+                    }
+                    upgradedAtRest = true;
+                }
+            } catch {
+                googleRefreshPlain = '';
+            }
+        }
+
+        let metaAccessPlain = '';
+        if (connections.meta?.accessToken) {
+            try {
+                metaAccessPlain = decryptOAuthToken(connections.meta.accessToken);
+                if (!isEncryptedOAuthToken(connections.meta.accessToken) && !metaAccessPlain.startsWith('mock_')) {
+                    connections.meta.accessToken = encryptOAuthToken(metaAccessPlain);
+                    upgradedAtRest = true;
+                }
+            } catch {
+                metaAccessPlain = '';
+            }
+        }
+
+        if (upgradedAtRest) {
+            await writeFile(connFilePath, JSON.stringify(connections, null, 2), 'utf-8').catch(() => {});
+        }
+
         const hasValidGoogle = Boolean(
             connections.google?.connected === true &&
-            connections.google?.refreshToken &&
-            !String(connections.google.refreshToken).startsWith('mock_')
+            googleRefreshPlain &&
+            !googleRefreshPlain.startsWith('mock_')
         );
         const hasValidMeta = Boolean(
             connections.meta?.connected === true &&
-            connections.meta?.accessToken &&
-            !String(connections.meta.accessToken).startsWith('mock_')
+            metaAccessPlain &&
+            !metaAccessPlain.startsWith('mock_')
         );
 
         if (!hasValidGoogle && !hasValidMeta) {
@@ -157,7 +192,7 @@ export async function POST(request) {
         if (hasValidGoogle) {
             providersAttempted++;
             try {
-                const googleReviews = await fetchGoogleReviewsReal(connections.google.refreshToken);
+                const googleReviews = await fetchGoogleReviewsReal(googleRefreshPlain);
                 googleReviews.forEach(r => comments.push({ ...r, source: 'google' }));
                 providersSucceeded++;
                 providerStatus.google = { status: 'ok', count: googleReviews.length };
@@ -170,7 +205,7 @@ export async function POST(request) {
         if (hasValidMeta) {
             providersAttempted++;
             try {
-                const metaComments = await fetchMetaCommentsReal(connections.meta.accessToken);
+                const metaComments = await fetchMetaCommentsReal(metaAccessPlain);
                 metaComments.forEach(c => comments.push(c));
                 providersSucceeded++;
                 providerStatus.meta = { status: 'ok', count: metaComments.length };

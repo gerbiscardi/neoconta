@@ -160,7 +160,8 @@ export function generateOrderPDF(order) {
     // Validation & QR Section at bottom left
     const qrY = 230;
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://neoconta.com.ar';
-    const validationUrl = `${origin}/validar-receta/${order.id}`;
+    const tokenQuery = order.validateToken ? `?token=${encodeURIComponent(order.validateToken)}` : '';
+    const validationUrl = `${origin}/validar-receta/${order.id}${tokenQuery}`;
     const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(validationUrl)}`;
 
     try {

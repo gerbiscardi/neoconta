@@ -1,23 +1,20 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 // GET: Retrieve a specific transaction and its details by ID
 export async function GET(request, { params }) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-        }
-
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
         const { id } = await params;
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return new Response(JSON.stringify({ error: auth.error }), { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         const userDir = path.join(process.cwd(), 'data', 'users', targetUserId);
         const transactionsFilePath = path.join(userDir, 'banco', '_transactions.json');
@@ -73,18 +70,15 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-        }
-
         const data = await request.json();
         const { userId, updates } = data;
         const { id } = await params;
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return new Response(JSON.stringify({ error: auth.error }), { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         if (!updates) {
             return new Response(JSON.stringify({ error: 'updates object required' }), { status: 400 });
@@ -126,18 +120,15 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-        }
-
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
         const { id } = await params;
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return new Response(JSON.stringify({ error: auth.error }), { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         const transactionsFilePath = path.join(process.cwd(), 'data', 'users', targetUserId, 'banco', '_transactions.json');
 

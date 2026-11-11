@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { getServerSession, hashPassword } from '@/lib/auth';
+import { getServerSession, hashPassword, getUsersJsonPath } from '@/lib/auth';
 import prisma from '@/lib/db';
 
-const DB_PATH = join(process.cwd(), 'data', 'users.json');
+const getDbPath = () => getUsersJsonPath();
 
 const PLAN_DEFAULTS = {
     base: {
@@ -83,7 +83,7 @@ const PLAN_DEFAULTS = {
 
 async function getUsers() {
     try {
-        const data = await readFile(DB_PATH, 'utf-8');
+        const data = await readFile(getDbPath(), 'utf-8');
         return JSON.parse(data);
     } catch (err) {
         console.error("Error reading users db:", err);
@@ -92,7 +92,7 @@ async function getUsers() {
 }
 
 async function saveUsers(users) {
-    await writeFile(DB_PATH, JSON.stringify(users, null, 2), 'utf-8');
+    await writeFile(getDbPath(), JSON.stringify(users, null, 2), 'utf-8');
 }
 
 // GET: List all users with stats and config (For owner only)
@@ -331,14 +331,16 @@ export async function POST(request) {
             return NextResponse.json({ error: "Faltan datos requeridos (nombre, email, contraseña, rol, tipo de usuario)" }, { status: 400 });
         }
 
+        const cleanEmail = email.trim().toLowerCase();
         const users = await getUsers();
-        const emailExists = users.some(u => u.email.toLowerCase() === email.trim().toLowerCase());
-        if (emailExists) {
+        const existingPrisma = await prisma.user.findUnique({ where: { email: cleanEmail } });
+        const emailExists = users.some(u => String(u.email || '').trim().toLowerCase() === cleanEmail);
+        if (existingPrisma || emailExists) {
             return NextResponse.json({ error: "El correo electrónico ya se encuentra registrado." }, { status: 400 });
         }
 
         // Generate unique userId based on email prefix + random string
-        const cleanName = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
+        const cleanName = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') || 'user';
         const randomSuffix = Math.random().toString(36).substring(2, 6);
         const userId = `${cleanName}_${randomSuffix}`;
 
@@ -347,7 +349,7 @@ export async function POST(request) {
         const newUser = {
             id: userId,
             nombre: nombre.trim(),
-            email: email.trim().toLowerCase(),
+            email: cleanEmail,
             password: hashedPassword,
             tipoUsuario: tipoUsuario,
             role: role,
@@ -356,31 +358,34 @@ export async function POST(request) {
             createdAt: new Date().toISOString()
         };
 
-        users.push(newUser);
-        await saveUsers(users);
+        // Synchronize authoritative Prisma DB first
+        await prisma.user.upsert({
+            where: { id: userId },
+            update: {
+                nombre: newUser.nombre,
+                email: newUser.email,
+                password: newUser.password,
+                role: newUser.role,
+                status: 'active',
+                mustChangePassword: true
+            },
+            create: {
+                id: userId,
+                nombre: newUser.nombre,
+                email: newUser.email,
+                password: newUser.password,
+                role: newUser.role,
+                status: 'active',
+                mustChangePassword: true
+            }
+        });
 
-        // Synchronize with Prisma DB
         try {
-            await prisma.user.upsert({
-                where: { id: userId },
-                update: {
-                    nombre: newUser.nombre,
-                    email: newUser.email,
-                    password: newUser.password,
-                    role: newUser.role,
-                    mustChangePassword: true
-                },
-                create: {
-                    id: userId,
-                    nombre: newUser.nombre,
-                    email: newUser.email,
-                    password: newUser.password,
-                    role: newUser.role,
-                    mustChangePassword: true
-                }
-            });
-        } catch (prismaErr) {
-            console.error("Error syncing new user to Prisma:", prismaErr);
+            users.push(newUser);
+            await saveUsers(users);
+        } catch (saveErr) {
+            await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+            throw saveErr;
         }
 
         // Save config.json for clients
@@ -459,22 +464,27 @@ export async function PUT(request) {
             users[userIndex].mustChangePassword = true; // Force password change if reset by admin
         }
 
-        await saveUsers(users);
+        // Synchronize authoritative Prisma DB first
+        await prisma.user.upsert({
+            where: { id: userId },
+            update: {
+                nombre: users[userIndex].nombre,
+                email: users[userIndex].email,
+                role: users[userIndex].role,
+                ...(hashedPassword ? { password: hashedPassword, mustChangePassword: true } : {})
+            },
+            create: {
+                id: userId,
+                nombre: users[userIndex].nombre,
+                email: users[userIndex].email,
+                password: users[userIndex].password,
+                role: users[userIndex].role,
+                status: users[userIndex].status || 'active',
+                mustChangePassword: Boolean(users[userIndex].mustChangePassword)
+            }
+        });
 
-        // Synchronize with Prisma DB
-        try {
-            await prisma.user.update({
-                where: { id: userId },
-                data: {
-                    nombre: users[userIndex].nombre,
-                    email: users[userIndex].email,
-                    role: users[userIndex].role,
-                    ...(hashedPassword ? { password: hashedPassword, mustChangePassword: true } : {})
-                }
-            });
-        } catch (prismaErr) {
-            console.error("Error syncing user update to Prisma:", prismaErr);
-        }
+        await saveUsers(users);
 
         // Update config.json (CUIT/Razón Social/Plan/Features)
         if (role === 'cliente' || cuit || razonSocial) {
@@ -534,18 +544,14 @@ export async function DELETE(request) {
             return NextResponse.json({ error: "No se puede eliminar la cuenta del dueño de NeoConta." }, { status: 400 });
         }
 
-        // Filter out and save
+        // Synchronize with Prisma DB first
+        await prisma.user.deleteMany({
+            where: { id: userId }
+        });
+
+        // Filter out and save JSON mirror
         const filteredUsers = users.filter(u => u.id !== userId);
         await saveUsers(filteredUsers);
-
-        // Synchronize with Prisma DB
-        try {
-            await prisma.user.delete({
-                where: { id: userId }
-            });
-        } catch (prismaErr) {
-            console.error("Error deleting user from Prisma:", prismaErr);
-        }
 
         return NextResponse.json({ success: true, message: "Usuario dado de baja exitosamente." });
 
@@ -587,6 +593,10 @@ export async function PATCH(request) {
         }
 
         users[userIndex].role = newRole;
+        await prisma.user.updateMany({
+            where: { id: userId },
+            data: { role: newRole }
+        });
         await saveUsers(users);
 
         return NextResponse.json({ success: true, message: `Usuario actualizado a ${newRole} exitosamente.` });

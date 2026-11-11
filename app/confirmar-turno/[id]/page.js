@@ -7,36 +7,49 @@ export default function ConfirmarTurnoPage({ params }) {
     const { id: appointmentId } = React.use(params);
     const searchParams = useSearchParams();
     const token = searchParams.get("token");
+    const legacyUserId = searchParams.get("userId");
 
     const [appointment, setAppointment] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [requiresLegacy, setRequiresLegacy] = useState(false);
+    const [phoneLast4, setPhoneLast4] = useState("");
+    const [verifiedPhoneLast4, setVerifiedPhoneLast4] = useState("");
     const [statusSubmitted, setStatusSubmitted] = useState(null); // 'confirm' | 'cancel'
     const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => {
-        const fetchAppointment = async () => {
-            try {
-                if (!token) {
-                    setError("Enlace incompleto: se requiere un token válido de confirmación.");
-                    setLoading(false);
-                    return;
-                }
-                const res = await fetch(`/api/vitacore/appointments/confirm?id=${encodeURIComponent(appointmentId)}&token=${encodeURIComponent(token)}`);
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    setAppointment(data.appointment);
-                } else {
-                    setError(data.error || "Turno no encontrado o enlace expirado.");
-                }
-            } catch (err) {
-                console.error("Error fetching appointment:", err);
-                setError("Error de conexión al cargar la información del turno.");
-            } finally {
-                setLoading(false);
+    const fetchAppointment = async (customLast4 = "") => {
+        setLoading(true);
+        setError(null);
+        try {
+            const qs = new URLSearchParams({ id: appointmentId });
+            if (token) {
+                qs.set("token", token);
+            } else {
+                if (legacyUserId) qs.set("userId", legacyUserId);
+                if (customLast4) qs.set("phoneLast4", customLast4);
             }
-        };
+            const res = await fetch(`/api/vitacore/appointments/confirm?${qs.toString()}`);
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setAppointment(data.appointment);
+                setRequiresLegacy(false);
+                if (customLast4) setVerifiedPhoneLast4(customLast4);
+            } else if (data.requiresLegacyVerification) {
+                setRequiresLegacy(true);
+                if (customLast4) setError(data.error || "Dígitos incorrectos.");
+            } else {
+                setError(data.error || "Turno no encontrado o enlace expirado.");
+            }
+        } catch (err) {
+            console.error("Error fetching appointment:", err);
+            setError("Error de conexión al cargar la información del turno.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    useEffect(() => {
         if (appointmentId) {
             fetchAppointment();
         }
@@ -51,6 +64,8 @@ export default function ConfirmarTurnoPage({ params }) {
                 body: JSON.stringify({
                     appointmentId,
                     token,
+                    phoneLast4: verifiedPhoneLast4 || undefined,
+                    userId: legacyUserId || undefined,
                     action
                 })
             });
@@ -87,6 +102,39 @@ export default function ConfirmarTurnoPage({ params }) {
                         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-teal-500 mx-auto" />
                         <p className="text-xs font-bold">Buscando información de tu turno...</p>
                     </div>
+                ) : requiresLegacy ? (
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            fetchAppointment(phoneLast4);
+                        }}
+                        className="py-6 text-center space-y-4"
+                    >
+                        <div className="inline-flex p-3 bg-teal-100 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-full">
+                            <ShieldCheck className="h-9 w-9" />
+                        </div>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Verificá tu Identidad</h2>
+                        <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                            Para confirmar este turno desde un enlace previo, ingresá los últimos 4 dígitos del teléfono de contacto registrado.
+                        </p>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={4}
+                            value={phoneLast4}
+                            onChange={(e) => setPhoneLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="Ej: 1234"
+                            className="w-40 mx-auto block text-center tracking-widest font-mono text-lg px-3 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-xl"
+                            required
+                        />
+                        {error && <p className="text-xs text-rose-500 font-semibold">{error}</p>}
+                        <button
+                            type="submit"
+                            className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                        >
+                            Ver Mi Turno
+                        </button>
+                    </form>
                 ) : error ? (
                     <div className="py-8 text-center space-y-4">
                         <div className="inline-flex p-3 bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-full">

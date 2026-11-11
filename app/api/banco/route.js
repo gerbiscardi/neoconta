@@ -1,22 +1,17 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 // GET: Retrieve all bank transactions
 export async function GET(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-        }
-
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return new Response(JSON.stringify({ error: auth.error }), { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         const transactionsFilePath = path.join(process.cwd(), 'data', 'users', targetUserId, 'banco', '_transactions.json');
 
@@ -41,17 +36,14 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-        }
-
         const data = await request.json();
         const { userId, transaction } = data;
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return new Response(JSON.stringify({ error: auth.error }), { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         if (!transaction) {
             return new Response(JSON.stringify({ error: 'transaction object required' }), { status: 400 });

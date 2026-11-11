@@ -2,22 +2,19 @@ import { NextResponse } from 'next/server';
 import { Afip } from 'afip.ts';
 import path from 'path';
 import fs from 'fs';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { loadDecryptedUserCredentialsSync } from '@/lib/crypto';
 
 export async function POST(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-        }
-
         const { userId, invoiceId, amount } = await request.json();
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         if (!invoiceId || !amount) {
             return NextResponse.json({ error: "Faltan parámetros requeridos (invoiceId, amount)" }, { status: 400 });

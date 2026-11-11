@@ -1,23 +1,20 @@
 import fs from 'fs/promises';
 import path from 'path';
 import * as xlsx from 'xlsx';
-import { getServerSession, canAccessUserData, sanitizeUserId } from '@/lib/auth';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 
 export async function POST(request) {
     try {
         const session = await getServerSession(request);
-        if (!session) {
-            return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-        }
-
         const formData = await request.formData();
         const file = formData.get('file');
         const userId = formData.get('userId');
 
-        const targetUserId = sanitizeUserId(userId || session.id);
-        if (!targetUserId || !canAccessUserData(session, targetUserId)) {
-            return new Response(JSON.stringify({ error: 'Acceso no autorizado' }), { status: 403 });
+        const auth = authorizeTenantAccess(session, userId);
+        if (!auth.authorized) {
+            return new Response(JSON.stringify({ error: auth.error }), { status: auth.status });
         }
+        const targetUserId = auth.tenantId;
 
         if (!file) {
             return new Response(JSON.stringify({ error: 'El archivo es requerido' }), { status: 400 });
