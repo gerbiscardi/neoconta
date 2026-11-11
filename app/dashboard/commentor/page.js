@@ -52,6 +52,13 @@ export default function CommentorPage() {
     const [isRecalculating, setIsRecalculating] = useState(false);
 
     useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const oauthErr = params.get('oauth_error');
+            if (oauthErr) {
+                setSyncError(oauthErr);
+            }
+        }
         const userStr = localStorage.getItem('neoconta_user');
         if (userStr) {
             const user = JSON.parse(userStr);
@@ -337,7 +344,11 @@ export default function CommentorPage() {
                                         <div>
                                             <p className="font-bold text-xs text-slate-800 dark:text-slate-200">Google Business Profile</p>
                                             <p className="text-[10px] text-slate-500 truncate max-w-[150px]">
-                                                {connections.google?.connected ? connections.google.locationName : "Desconectado"}
+                                                {connections.google?.connected
+                                                    ? connections.google.locationName
+                                                    : connections.google?.providerConfigured === false
+                                                        ? "Integración todavía no disponible"
+                                                        : "Desconectado"}
                                             </p>
                                         </div>
                                     </div>
@@ -348,6 +359,10 @@ export default function CommentorPage() {
                                         >
                                             Desconectar
                                         </button>
+                                    ) : connections.google?.providerConfigured === false ? (
+                                        <span className="px-2.5 py-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-md">
+                                            No disponible
+                                        </span>
                                     ) : (
                                         <button
                                             onClick={() => handleConnect("google")}
@@ -367,7 +382,11 @@ export default function CommentorPage() {
                                         <div>
                                             <p className="font-bold text-xs text-slate-800 dark:text-slate-200">Meta (IG / FB)</p>
                                             <p className="text-[10px] text-slate-500 truncate max-w-[150px]">
-                                                {connections.meta?.connected ? `${connections.meta.pageName} (${connections.meta.instagramUsername})` : "Desconectado"}
+                                                {connections.meta?.connected
+                                                    ? `${connections.meta.pageName} (${connections.meta.instagramUsername})`
+                                                    : connections.meta?.providerConfigured === false
+                                                        ? "Integración todavía no disponible"
+                                                        : "Desconectado"}
                                             </p>
                                         </div>
                                     </div>
@@ -378,6 +397,10 @@ export default function CommentorPage() {
                                         >
                                             Desconectar
                                         </button>
+                                    ) : connections.meta?.providerConfigured === false ? (
+                                        <span className="px-2.5 py-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-md">
+                                            No disponible
+                                        </span>
                                     ) : (
                                         <button
                                             onClick={() => handleConnect("meta")}
@@ -388,6 +411,12 @@ export default function CommentorPage() {
                                     )}
                                 </div>
                             </div>
+                            {syncError && !(connections.google?.connected || connections.meta?.connected) && (
+                                <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 text-red-700 dark:text-red-300 rounded-lg text-xs flex gap-2">
+                                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                    <p>{syncError}</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* Sync controls */}

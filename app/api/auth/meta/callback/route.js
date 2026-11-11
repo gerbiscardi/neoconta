@@ -1,88 +1,65 @@
 import { NextResponse } from 'next/server';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { verifyOAuthState } from '@/lib/publicTokens';
 
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
         const code = searchParams.get('code');
-        const userId = searchParams.get('state'); // State contains the userId passed
+        const state = searchParams.get('state');
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-        if (!userId) {
-            return NextResponse.json({ error: "Falta el ID del usuario en el state" }, { status: 400 });
+        const verifiedState = verifyOAuthState(state, 'meta');
+        if (!verifiedState) {
+            return NextResponse.json({ error: 'Parámetro state OAuth inválido o expirado' }, { status: 403 });
         }
 
-        if (!code) {
-            return NextResponse.json({ error: "Falta el código de autorización" }, { status: 400 });
+        const auth = authorizeTenantAccess(session, verifiedState.tenantId);
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
-        let connectionData = {
-            connected: true,
-            pageName: "Mi Negocio FB (Mock)",
-            instagramUsername: "@minegocio_ok (Mock)",
-            accessToken: "mock_meta_long_lived_token",
-            connectedAt: new Date().toISOString()
-        };
+        if (!code || code === 'mock_code' || String(code).startsWith('mock_')) {
+            return NextResponse.json({ error: 'Código de autorización OAuth no válido' }, { status: 400 });
+        }
 
         const appId = process.env.META_APP_ID;
         const appSecret = process.env.META_APP_SECRET;
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-        const redirectUri = `${appUrl}/api/auth/meta/callback`;
-
-        // If it's not a mock flow and we have credentials, perform the real exchange
-        if (code !== 'mock_code' && appId && appSecret) {
-            try {
-                // 1. Exchange code for short-lived access token
-                const tokenUrl = `https://graph.facebook.com/v20.0/oauth/access_token?` +
-                    `client_id=${appId}` +
-                    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-                    `&client_secret=${appSecret}` +
-                    `&code=${code}`;
-
-                const shortRes = await fetch(tokenUrl);
-                const shortData = await shortRes.json();
-
-                if (!shortRes.ok) {
-                    throw new Error(shortData.error?.message || "Error al obtener token de corta duración");
-                }
-
-                const shortToken = shortData.access_token;
-
-                // 2. Exchange short-lived token for long-lived user token (60 days)
-                const longLivedUrl = `https://graph.facebook.com/v20.0/oauth/access_token?` +
-                    `grant_type=fb_exchange_token` +
-                    `&client_id=${appId}` +
-                    `&client_secret=${appSecret}` +
-                    `&fb_exchange_token=${shortToken}`;
-
-                const longRes = await fetch(longLivedUrl);
-                const longData = await longRes.json();
-
-                if (!longRes.ok) {
-                    throw new Error(longData.error?.message || "Error al obtener token de larga duración");
-                }
-
-                const longLivedToken = longData.access_token;
-
-                // In a real application, we would call the Facebook Pages API to get page details and page token
-                // e.g. GET https://graph.facebook.com/v20.0/me/accounts?access_token=longLivedToken
-                // For simplicity, we store the longLivedToken which allows querying basic details and comments.
-                connectionData = {
-                    connected: true,
-                    pageName: "Página de Facebook Conectada",
-                    instagramUsername: "@cuenta_instagram_conectada",
-                    accessToken: longLivedToken,
-                    connectedAt: new Date().toISOString()
-                };
-
-            } catch (exchangeError) {
-                console.error("Meta token exchange error:", exchangeError);
-                return NextResponse.json({ error: exchangeError.message }, { status: 500 });
-            }
+        if (!appId || !appSecret) {
+            return NextResponse.json({ error: 'Credenciales OAuth de Meta no configuradas en el servidor' }, { status: 501 });
         }
 
-        // Save connection info to data/users/[userId]/connections.json
-        const userDir = join(process.cwd(), 'data', 'users', userId);
+        const redirectUri = `${appUrl}/api/auth/meta/callback`;
+        const tokenUrl =
+            `https://graph.facebook.com/v20.0/oauth/access_token?` +
+            `client_id=${encodeURIComponent(appId)}` +
+            `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+            `&client_secret=${encodeURIComponent(appSecret)}` +
+            `&code=${encodeURIComponent(code)}`;
+
+        const shortRes = await fetch(tokenUrl);
+        const shortData = await shortRes.json();
+        if (!shortRes.ok || !shortData.access_token) {
+            throw new Error(shortData.error?.message || 'Error al obtener token de corta duración de Meta');
+        }
+
+        const longLivedUrl =
+            `https://graph.facebook.com/v20.0/oauth/access_token?` +
+            `grant_type=fb_exchange_token` +
+            `&client_id=${encodeURIComponent(appId)}` +
+            `&client_secret=${encodeURIComponent(appSecret)}` +
+            `&fb_exchange_token=${encodeURIComponent(shortData.access_token)}`;
+
+        const longRes = await fetch(longLivedUrl);
+        const longData = await longRes.json();
+        if (!longRes.ok || !longData.access_token) {
+            throw new Error(longData.error?.message || 'Error al obtener token de larga duración de Meta');
+        }
+
+        const userDir = join(process.cwd(), 'data', 'users', auth.tenantId);
         await mkdir(userDir, { recursive: true });
         const connFilePath = join(userDir, 'connections.json');
 
@@ -90,23 +67,23 @@ export async function GET(request) {
         try {
             const fileData = await readFile(connFilePath, 'utf-8');
             allConnections = JSON.parse(fileData);
-        } catch (e) {
-            // File does not exist yet, ignore
+        } catch {
+            // File does not exist yet
         }
 
-        // Merge meta connection
         allConnections.meta = {
             ...allConnections.meta,
-            ...connectionData
+            connected: true,
+            pageName: 'Página de Facebook Conectada',
+            instagramUsername: '@cuenta_instagram_conectada',
+            accessToken: longData.access_token,
+            connectedAt: new Date().toISOString()
         };
 
         await writeFile(connFilePath, JSON.stringify(allConnections, null, 2), 'utf-8');
-
-        // Redirect back to komentor dashboard
         return NextResponse.redirect(`${appUrl}/dashboard/commentor?sync=meta`);
-
     } catch (error) {
-        console.error("Error in Meta OAuth callback:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('Error in Meta OAuth callback:', error);
+        return NextResponse.json({ error: error.message || 'Error en autenticación Meta' }, { status: 500 });
     }
 }

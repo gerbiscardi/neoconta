@@ -1,34 +1,41 @@
 import { NextResponse } from 'next/server';
+import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
+import { signOAuthState } from '@/lib/publicTokens';
 
 export async function GET(request) {
     try {
+        const session = await getServerSession(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-
-        if (!userId) {
-            return NextResponse.json({ error: "Falta el ID del usuario (userId)" }, { status: 400 });
+        const auth = authorizeTenantAccess(session, searchParams.get('userId'));
+        if (!auth.authorized) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
         const appId = process.env.META_APP_ID;
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const appSecret = process.env.META_APP_SECRET;
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
         const redirectUri = `${appUrl}/api/auth/meta/callback`;
 
-        // If credentials are not configured, use mock flow for local testing
-        if (!appId || appId.trim() === "") {
-            console.log("META_APP_ID not set. Redirecting to mock Meta OAuth callback.");
-            return NextResponse.redirect(`${redirectUri}?code=mock_code&state=${userId}`);
+        if (!appId || !appId.trim() || !appSecret || !appSecret.trim()) {
+            const wantsJson = (request.headers.get('accept') || '').includes('application/json');
+            const message = 'Integración OAuth de Meta (IG / FB) todavía no disponible (credenciales no configuradas).';
+            if (wantsJson) {
+                return NextResponse.json({ success: false, code: 'OAUTH_NOT_CONFIGURED', error: message }, { status: 501 });
+            }
+            return NextResponse.redirect(`${appUrl}/dashboard/commentor?oauth_error=${encodeURIComponent(message)}`);
         }
 
-        const metaAuthUrl = `https://www.facebook.com/v20.0/dialog/oauth?` +
+        const signedState = signOAuthState(auth.tenantId, 'meta');
+        const metaAuthUrl =
+            `https://www.facebook.com/v20.0/dialog/oauth?` +
             `client_id=${encodeURIComponent(appId)}` +
             `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-            `&scope=${encodeURIComponent("pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_comments")}` +
-            `&state=${encodeURIComponent(userId)}`;
+            `&scope=${encodeURIComponent('pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_comments')}` +
+            `&state=${encodeURIComponent(signedState)}`;
 
         return NextResponse.redirect(metaAuthUrl);
-
     } catch (error) {
-        console.error("Error in Meta OAuth redirect:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('Error in Meta OAuth redirect:', error);
+        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }

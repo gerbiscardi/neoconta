@@ -30,16 +30,7 @@ export default function CommanderPage() {
     const [excelDataType, setExcelDataType] = useState("invoices"); // "invoices", "transactions"
     const [excelProcessing, setExcelProcessing] = useState(false);
 
-    // SQL Ingestion State
-    const [sqlConfig, setSqlConfig] = useState({ host: "db.reforsal.com", dbName: "starbase_prod", user: "neoconta_sync", pass: "••••••••" });
-    const [sqlTesting, setSqlTesting] = useState(false);
-    const [sqlTested, setSqlTested] = useState(null); // true, false, null
-    const [sqlProcessing, setSqlProcessing] = useState(false);
-
-    // Cloud Ingestion State
-    const [cloudLinked, setCloudLinked] = useState(false);
-    const [cloudProcessing, setCloudProcessing] = useState(false);
-
+    // SQL & Cloud connectors are intentionally disabled until real integrations ship
     // Ingestions History State
     const [ingestions, setIngestions] = useState([]);
     const [loadingIngestions, setLoadingIngestions] = useState(false);
@@ -433,30 +424,6 @@ export default function CommanderPage() {
 
         await handleIngest('excel', cleanedData);
         setExcelProcessing(false);
-    };
-
-    // SQL Connection Test & Sync
-    const testSqlConnection = () => {
-        setSqlTesting(true);
-        setSqlTested(null);
-        setTimeout(() => {
-            setSqlTesting(false);
-            setSqlTested(true);
-        }, 1500);
-    };
-
-    const runSqlSync = async () => {
-        setSqlProcessing(true);
-        await handleIngest('sql');
-        setSqlProcessing(false);
-    };
-
-    // Cloud OneDrive Sync Simulation
-    const runCloudSync = async () => {
-        setCloudProcessing(true);
-        await handleIngest('cloud');
-        setCloudProcessing(false);
-        setCloudLinked(true);
     };
 
     // Custom Widget Handlers
@@ -1014,120 +981,36 @@ export default function CommanderPage() {
 
                         {activeIngestionTab === "sql" && (
                             <div className="space-y-4 animate-fade-in-quick">
-                                <div className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed">
-                                    <p>Conecta Commander directamente con tus bases de datos de producción (PostgreSQL, SQL Server, o MySQL) para alimentar el dashboard en tiempo real sin cargas manuales.</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-405 uppercase mb-1">Host de Base de Datos</label>
-                                        <input 
-                                            type="text" 
-                                            value={sqlConfig.host} 
-                                            onChange={(e) => setSqlConfig({...sqlConfig, host: e.target.value})}
-                                            className="px-3 py-2 text-xs rounded-xl border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none w-full text-slate-950 dark:text-white"
-                                        />
+                                <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl flex items-start gap-3.5">
+                                    <div className="p-2.5 bg-amber-500/15 text-amber-500 rounded-xl shrink-0">
+                                        <Database className="h-5 w-5" />
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-405 uppercase mb-1">Nombre de la DB</label>
-                                        <input 
-                                            type="text" 
-                                            value={sqlConfig.dbName} 
-                                            onChange={(e) => setSqlConfig({...sqlConfig, dbName: e.target.value})}
-                                            className="px-3 py-2 text-xs rounded-xl border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none w-full text-slate-950 dark:text-white"
-                                        />
+                                    <div className="space-y-1">
+                                        <h4 className="text-xs font-bold text-slate-950 dark:text-white uppercase tracking-wide">
+                                            Integración todavía no disponible
+                                        </h4>
+                                        <p className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed">
+                                            La conexión directa con bases de datos SQL externas (PostgreSQL, SQL Server y MySQL) se encuentra deshabilitada hasta contar con conectores productivos verificados. Utiliza la importación de planillas Excel con procedencia auditada.
+                                        </p>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-405 uppercase mb-1">Usuario</label>
-                                        <input 
-                                            type="text" 
-                                            value={sqlConfig.user} 
-                                            onChange={(e) => setSqlConfig({...sqlConfig, user: e.target.value})}
-                                            className="px-3 py-2 text-xs rounded-xl border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none w-full text-slate-950 dark:text-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-405 uppercase mb-1">Contraseña</label>
-                                        <input 
-                                            type="password" 
-                                            value={sqlConfig.pass} 
-                                            onChange={(e) => setSqlConfig({...sqlConfig, pass: e.target.value})}
-                                            className="px-3 py-2 text-xs rounded-xl border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none w-full text-slate-950 dark:text-white"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                                    <button 
-                                        onClick={testSqlConnection}
-                                        disabled={sqlTesting || sqlProcessing}
-                                        className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-850 dark:hover:bg-slate-700 cursor-pointer flex items-center justify-center gap-1.5"
-                                    >
-                                        {sqlTesting && <RefreshCw className="h-3 w-3 animate-spin" />}
-                                        Probar Conexión
-                                    </button>
-
-                                    {sqlTested && (
-                                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
-                                            <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1 shrink-0">
-                                                <CheckCircle className="h-3.5 w-3.5" /> Conexión Exitosa
-                                            </span>
-                                            
-                                            <button 
-                                                onClick={runSqlSync}
-                                                disabled={sqlProcessing}
-                                                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white shadow-sm cursor-pointer flex items-center justify-center gap-1.5 flex-grow sm:flex-grow-0"
-                                            >
-                                                {sqlProcessing ? (
-                                                    <>
-                                                        <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sincronizando...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Database className="h-3.5 w-3.5" /> Sincronizar Datos SQL
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}
 
                         {activeIngestionTab === "cloud" && (
                             <div className="space-y-4 animate-fade-in-quick">
-                                <div className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed">
-                                    <p>Vincula una carpeta compartida en la nube de OneDrive o Google Drive. El sistema Commander escaneará automáticamente la carpeta cada hora en segundo plano en busca de nuevas planillas de transacciones.</p>
-                                </div>
-
-                                <div className="bg-slate-50 dark:bg-slate-950/20 border border-slate-200/50 dark:border-slate-850 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-3 bg-blue-500/10 text-blue-600 rounded-2xl">
-                                            <Cloud className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-bold text-slate-950 dark:text-white">Microsoft OneDrive Sync</h4>
-                                            <p className="text-[10px] text-slate-400 mt-0.5">{cloudLinked ? "Sincronizado: /Contabilidad/Commander_Plano" : "Carpeta de la nube no vinculada"}</p>
-                                        </div>
+                                <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl flex items-start gap-3.5">
+                                    <div className="p-2.5 bg-amber-500/15 text-amber-500 rounded-xl shrink-0">
+                                        <Cloud className="h-5 w-5" />
                                     </div>
-
-                                    <button 
-                                        onClick={runCloudSync}
-                                        disabled={cloudProcessing}
-                                        className={`px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
-                                            cloudLinked 
-                                                ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" 
-                                                : "bg-orange-600 text-white hover:bg-orange-700 shadow-sm"
-                                        }`}
-                                    >
-                                        {cloudProcessing ? (
-                                            <>
-                                                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sincronizando...
-                                            </>
-                                        ) : (
-                                            cloudLinked ? "Desvincular" : "Vincular y Sincronizar"
-                                        )}
-                                    </button>
+                                    <div className="space-y-1">
+                                        <h4 className="text-xs font-bold text-slate-950 dark:text-white uppercase tracking-wide">
+                                            Integración todavía no disponible
+                                        </h4>
+                                        <p className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed">
+                                            La sincronización automática con carpetas en la nube (OneDrive / Google Drive) se encuentra deshabilitada hasta habilitar OAuth y lectura verificada. Utiliza la importación manual de planillas Excel.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1135,11 +1018,7 @@ export default function CommanderPage() {
                         <div className="bg-slate-50 dark:bg-slate-950/40 p-4 border border-slate-200/50 dark:border-slate-850 rounded-2xl text-[10px] text-slate-500 dark:text-slate-400 mt-6 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                                <span>Commander procesa y encripta todas las conexiones de manera segura bajo certificados TLS 1.3 de AFIP.</span>
-                            </div>
-                            <div className="flex items-center gap-0.5 text-orange-500 font-bold hover:underline cursor-pointer">
-                                <span>Ver documentación del motor</span>
-                                <ArrowRight className="h-3 w-3" />
+                                <span>Los comprobantes importados por Excel registran procedencia externa sin atribuir autorización fiscal ARCA.</span>
                             </div>
                         </div>
                     </div>
