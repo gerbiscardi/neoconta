@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { getJwtSecret } from '../lib/auth.js';
 import { computeCommanderAnalytics, evaluateWidgets } from '../lib/commander/engine.js';
 import { processExternalIngestion, rollbackExternalBatch, getIngestPaths, loadJsonArray } from '../lib/commander/ingestService.js';
 import {
@@ -556,11 +560,212 @@ async function testComponent4Cloud() {
     }
 }
 
+async function waitForNextServer(url, timeoutMs = 30000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        try {
+            const res = await fetch(`${url}/login`);
+            if (res.ok || res.status === 200) return;
+        } catch {
+            // retry
+        }
+        await new Promise((r) => setTimeout(r, 400));
+    }
+    throw new Error(`Timed out waiting for Next.js server at ${url}`);
+}
+
+async function testComponent5E2E() {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'commander-c5-e2e-'));
+    const port = 3198;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const tenantA = `tenant_e2e_a_${Date.now()}`;
+    const tenantB = `tenant_e2e_b_${Date.now()}`;
+
+    // Isolated SQLite DB copy so we never touch real prisma/neoconta.db
+    const srcDb = path.resolve(process.cwd(), 'prisma', 'neoconta.db');
+    const tmpDb = path.join(tmpRoot, 'e2e.db');
+    await fs.copyFile(srcDb, tmpDb);
+    const tmpDbUrl = `file:${tmpDb.replace(/\\/g, '/')}`;
+
+    const prisma = new PrismaClient({ datasources: { db: { url: tmpDbUrl } } });
+    await prisma.user.createMany({
+        data: [
+            { id: tenantA, email: `${tenantA}@e2e.local`, nombre: 'E2E A', password: 'hash', role: 'CLIENT', status: 'active' },
+            { id: tenantB, email: `${tenantB}@e2e.local`, nombre: 'E2E B', password: 'hash', role: 'CLIENT', status: 'active' }
+        ]
+    });
+    await prisma.$disconnect();
+
+    // Seed isolated data under tmpRoot
+    await fs.mkdir(path.join(tmpRoot, 'invoices'), { recursive: true });
+    await fs.mkdir(path.join(tmpRoot, 'users', tenantA, 'banco'), { recursive: true });
+    await fs.mkdir(path.join(tmpRoot, 'users', tenantB, 'banco'), { recursive: true });
+
+    await fs.writeFile(
+        path.join(tmpRoot, 'invoices', `${tenantA}_history.json`),
+        JSON.stringify([
+            {
+                id: 'e2e_f1',
+                cae: '75222222222221',
+                cbteFch: '20260710',
+                CbteTipo: 1,
+                PtoVta: 1,
+                CbteDesde: 1,
+                RazonSocial: 'Sanatorio E2E',
+                CUIT: '30711111119',
+                Importe: 120000,
+                status: 'aprobado'
+            },
+            {
+                id: 'e2e_nc1',
+                cae: '75222222222222',
+                cbteFch: '20260915',
+                CbteTipo: 3,
+                PtoVta: 1,
+                CbteDesde: 2,
+                CbtesAsoc: [{ Tipo: 1, PtoVta: 1, Nro: 1 }],
+                RazonSocial: 'Sanatorio E2E',
+                CUIT: '30711111119',
+                Importe: 20000,
+                status: 'aprobado'
+            }
+        ]),
+        'utf8'
+    );
+
+    await fs.writeFile(
+        path.join(tmpRoot, 'users', tenantA, 'banco', '_transactions.json'),
+        JSON.stringify([
+            {
+                id: 'e2e_tx1',
+                transaction_date: '2026-07-20T12:00:00.000Z',
+                client_name: 'Sanatorio E2E',
+                amount: 50000,
+                concept: 'Transferencia parcial',
+                linked_invoices: [{ invoice_id: '75222222222221', amount: 50000 }]
+            },
+            {
+                id: 'e2e_tx2',
+                transaction_date: '2026-09-20T12:00:00.000Z',
+                client_name: 'Banco Comision',
+                amount: -5000,
+                concept: 'Comision bancaria',
+                linked_invoices: []
+            }
+        ]),
+        'utf8'
+    );
+
+    const secret = getJwtSecret();
+    const cookieA = `neoconta_session=${encodeURIComponent(
+        jwt.sign({ id: tenantA, email: 'a@e2e.local', role: 'CLIENT', parentId: null }, secret, { expiresIn: '1h' })
+    )}`;
+    const cookieB = `neoconta_session=${encodeURIComponent(
+        jwt.sign({ id: tenantB, email: 'b@e2e.local', role: 'CLIENT', parentId: null }, secret, { expiresIn: '1h' })
+    )}`;
+
+    const nextBin = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
+    const serverProc = spawn(process.execPath, [nextBin, 'start', '-p', String(port), '-H', '127.0.0.1'], {
+        cwd: process.cwd(),
+        env: {
+            ...process.env,
+            DATABASE_URL: tmpDbUrl,
+            NEOCONTA_DATA_DIR: tmpRoot,
+            MICROSOFT_CLIENT_ID: '',
+            MICROSOFT_CLIENT_SECRET: ''
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    try {
+        await waitForNextServer(baseUrl);
+
+        // 1. Stats API
+        const statsRes = await fetch(`${baseUrl}/api/commander/stats?userId=${tenantA}`, {
+            headers: { Cookie: cookieA }
+        });
+        assert.equal(statsRes.status, 200);
+        const stats = await statsRes.json();
+        assert.equal(stats.kpis.netInvoicing, 100000);
+        assert.equal(stats.kpis.bankDeposits, 50000);
+        assert.equal(stats.kpis.bankNetFlow, 45000);
+        assert.equal(stats.kpis.reconciledCollections, 50000);
+        assert.equal(stats.kpis.pendingReceivables, 50000);
+        assert.ok(stats.dataQuality.emptyMonths.includes('2026-08'));
+
+        // 2. Widgets Data Reconciliation against Stats KPIs
+        const widgetsRes = await fetch(`${baseUrl}/api/commander/widgets/data`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: cookieA },
+            body: JSON.stringify({
+                userId: tenantA,
+                widgets: [
+                    { id: 'w_inv', type: 'kpi', dataSource: 'invoices', yAxisMeasure: 'amount', aggregation: 'sum' },
+                    { id: 'w_bank', type: 'kpi', dataSource: 'transactions_net', yAxisMeasure: 'amount', aggregation: 'sum' }
+                ]
+            })
+        });
+        assert.equal(widgetsRes.status, 200);
+        const widgetsJson = await widgetsRes.json();
+        assert.equal(widgetsJson.results.w_inv.value, stats.kpis.netInvoicing);
+        assert.equal(widgetsJson.results.w_bank.value, stats.kpis.bankNetFlow);
+
+        // 3. Audit Drill-Down Reconciliation
+        const auditRes = await fetch(`${baseUrl}/api/commander/audit?userId=${tenantA}&metric=invoices`, {
+            headers: { Cookie: cookieA }
+        });
+        assert.equal(auditRes.status, 200);
+        const auditJson = await auditRes.json();
+        const auditSum = auditJson.records.reduce((acc, r) => acc + r.signedAmount, 0);
+        assert.equal(auditSum, stats.kpis.netInvoicing, 'Audit drill-down records must sum exactly to netInvoicing');
+
+        // 4. SQL SSRF blocked over HTTP
+        const ssrfRes = await fetch(`${baseUrl}/api/commander/sql`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: cookieA },
+            body: JSON.stringify({
+                userId: tenantA,
+                action: 'test',
+                engine: 'postgres',
+                host: '127.0.0.1',
+                port: 5432,
+                database: 'db',
+                username: 'u'
+            })
+        });
+        assert.equal(ssrfRes.status, 400);
+
+        // 5. Cloud OneDrive fail-closed 501 over HTTP
+        const cloudAuthRes = await fetch(`${baseUrl}/api/commander/cloud/onedrive/auth?userId=${tenantA}`, {
+            headers: { Cookie: cookieA },
+            redirect: 'manual'
+        });
+        assert.equal(cloudAuthRes.status, 501);
+
+        // 6. Cross-tenant isolation (tenantB cannot read tenantA)
+        for (const forbiddenUrl of [
+            `${baseUrl}/api/commander/stats?userId=${tenantA}`,
+            `${baseUrl}/api/commander/audit?userId=${tenantA}&metric=invoices`,
+            `${baseUrl}/api/commander/sql?userId=${tenantA}`,
+            `${baseUrl}/api/commander/cloud?userId=${tenantA}`
+        ]) {
+            const r = await fetch(forbiddenUrl, { headers: { Cookie: cookieB } });
+            assert.equal(r.status, 403, `Expected 403 cross-tenant block for ${forbiddenUrl}`);
+        }
+
+        console.log('PASS: Component 5 E2E HTTP server, KPI<->widget<->audit reconciliation, SSRF/501 & cross-tenant isolation verified');
+    } finally {
+        serverProc.kill();
+        await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 (async () => {
     await testComponent1Engine();
     await testComponent2Ingest();
     await testComponent3Sql();
     await testComponent4Cloud();
+    await testComponent5E2E();
 })().catch(err => {
     console.error(err);
     process.exit(1);

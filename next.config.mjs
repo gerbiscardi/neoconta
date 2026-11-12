@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['afip.ts'],
+  serverExternalPackages: ['afip.ts', 'pg', 'mysql2', 'mssql'],
   async headers() {
     return [
       {

@@ -18,6 +18,9 @@ export default function CommanderPage() {
     
     // Filters state
     const [selectedClient, setSelectedClient] = useState("");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
+    const [sourceFilter, setSourceFilter] = useState("all"); // "all" | "fiscal_verified" | "external_unverified"
     const [searchQuery, setSearchQuery] = useState("");
     const [minAmount, setMinAmount] = useState("");
 
@@ -27,10 +30,43 @@ export default function CommanderPage() {
     // Excel Ingestion State
     const [excelFile, setExcelFile] = useState(null);
     const [excelData, setExcelData] = useState([]);
+    const [excelHeaders, setExcelHeaders] = useState([]);
     const [excelDataType, setExcelDataType] = useState("invoices"); // "invoices", "transactions"
+    const [excelMapping, setExcelMapping] = useState({});
+    const [excelPreview, setExcelPreview] = useState(null);
+    const [skipDuplicates, setSkipDuplicates] = useState(true);
     const [excelProcessing, setExcelProcessing] = useState(false);
 
-    // SQL & Cloud connectors are intentionally disabled until real integrations ship
+    // SQL Connectors State
+    const [sqlConnections, setSqlConnections] = useState([]);
+    const [sqlForm, setSqlForm] = useState({
+        name: "",
+        engine: "postgres",
+        host: "",
+        port: "5432",
+        database: "",
+        username: "",
+        password: "",
+        ssl: false,
+        tableOrQueryMode: "table",
+        tableName: "",
+        customQuery: "",
+        dataType: "invoices",
+        syncColumn: ""
+    });
+    const [sqlTables, setSqlTables] = useState([]);
+    const [sqlPreviewRows, setSqlPreviewRows] = useState(null);
+    const [sqlBusy, setSqlBusy] = useState(false);
+
+    // Cloud Connectors State
+    const [cloudStatus, setCloudStatus] = useState(null);
+    const [cloudFiles, setCloudFiles] = useState({});
+    const [cloudDataType, setCloudDataType] = useState("invoices");
+    const [cloudBusy, setCloudBusy] = useState(false);
+
+    // Audit Drill-Down Modal State
+    const [auditModal, setAuditModal] = useState({ open: false, title: "", metric: "invoices", loading: false, records: [], error: null });
+
     // Ingestions History State
     const [ingestions, setIngestions] = useState([]);
     const [loadingIngestions, setLoadingIngestions] = useState(false);
@@ -88,7 +124,10 @@ export default function CommanderPage() {
                 body: JSON.stringify({
                     userId: user.id,
                     widgets: activeWidgets,
-                    clientFilter: selectedClient
+                    clientFilter: selectedClient,
+                    dateFrom,
+                    dateTo,
+                    sourceFilter
                 })
             });
             if (res.ok) {
@@ -156,7 +195,14 @@ export default function CommanderPage() {
             const user = JSON.parse(localStorage.getItem('neoconta_user'));
             if (!user) return;
 
-            const res = await fetch(`/api/commander/stats?userId=${user.id}&client=${encodeURIComponent(selectedClient)}`);
+            const params = new URLSearchParams({
+                userId: user.id,
+                client: selectedClient,
+                dateFrom,
+                dateTo,
+                source: sourceFilter
+            });
+            const res = await fetch(`/api/commander/stats?${params.toString()}`);
             if (!res.ok) {
                 throw new Error("No se pudieron cargar las estadísticas de Commander.");
             }
@@ -207,13 +253,66 @@ export default function CommanderPage() {
         }
     };
 
+    const fetchSqlConnections = async () => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        try {
+            const res = await fetch(`/api/commander/sql?userId=${user.id}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) setSqlConnections(data.connections || []);
+            }
+        } catch (err) {
+            console.error("Error loading SQL connections:", err);
+        }
+    };
+
+    const fetchCloudStatus = async () => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        try {
+            const res = await fetch(`/api/commander/cloud?userId=${user.id}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) setCloudStatus(data);
+            }
+        } catch (err) {
+            console.error("Error loading Cloud status:", err);
+        }
+    };
+
+    const openAudit = async (metric, title) => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        setAuditModal({ open: true, title, metric, loading: true, records: [], error: null });
+        try {
+            const params = new URLSearchParams({
+                userId: user.id,
+                metric,
+                client: selectedClient,
+                dateFrom,
+                dateTo,
+                source: sourceFilter,
+                limit: "100"
+            });
+            const res = await fetch(`/api/commander/audit?${params.toString()}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error consultando auditoría");
+            setAuditModal({ open: true, title, metric, loading: false, records: data.records || [], error: null });
+        } catch (err) {
+            setAuditModal({ open: true, title, metric, loading: false, records: [], error: err.message });
+        }
+    };
+
     useEffect(() => {
         if (mounted) {
             fetchStats();
             loadWidgetsConfig();
             fetchIngestions();
+            fetchSqlConnections();
+            fetchCloudStatus();
         }
-    }, [mounted, selectedClient]);
+    }, [mounted, selectedClient, dateFrom, dateTo, sourceFilter]);
 
     // Formatters
     const formatCurrency = (val) => {
@@ -252,20 +351,23 @@ export default function CommanderPage() {
         return null;
     };
 
-    // Ingest data to API
-    const handleIngest = async (ingestionType, dataToSubmit = null) => {
+    // Ingest data to API (supports preview and commit)
+    const handleIngest = async (ingestionType, dataToSubmit = null, mode = 'commit') => {
         setError(null);
         setSuccessMessage("");
         
         try {
             const user = JSON.parse(localStorage.getItem('neoconta_user'));
-            if (!user) return;
+            if (!user) return null;
 
             const bodyObj = {
                 userId: user.id,
                 ingestionType,
                 dataType: excelDataType,
-                data: dataToSubmit
+                data: dataToSubmit,
+                mode,
+                skipDuplicates,
+                columnMapping: excelMapping
             };
 
             if (ingestionType === 'excel' && excelFile) {
@@ -283,12 +385,20 @@ export default function CommanderPage() {
                 throw new Error(responseData.error || "Ocurrió un error al procesar la ingesta.");
             }
 
+            if (mode === 'preview') {
+                setExcelPreview(responseData);
+                return responseData;
+            }
+
             setSuccessMessage(responseData.message || "Ingesta procesada correctamente.");
             
             // Clean local file states
             if (ingestionType === 'excel') {
                 setExcelFile(null);
                 setExcelData([]);
+                setExcelHeaders([]);
+                setExcelMapping({});
+                setExcelPreview(null);
             }
 
             // Refresh stats, widgets data and ingestions
@@ -296,14 +406,15 @@ export default function CommanderPage() {
             await fetchWidgetsData(widgets);
             await fetchIngestions();
             
-            // Clear success alert after 5s
             setTimeout(() => {
                 setSuccessMessage("");
             }, 6000);
+            return responseData;
 
         } catch (err) {
             console.error("Ingestion failed:", err);
             setError(err.message || "Error al intentar ingerir los datos.");
+            return null;
         }
     };
 
@@ -313,6 +424,8 @@ export default function CommanderPage() {
         if (!file) return;
 
         setExcelFile(file);
+        setExcelPreview(null);
+        setExcelMapping({});
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
@@ -320,14 +433,158 @@ export default function CommanderPage() {
                 const wb = XLSX.read(bstr, { type: "binary" });
                 const wsname = wb.SheetNames[0];
                 const ws = wb.Sheets[wsname];
-                const rawData = XLSX.utils.sheet_to_json(ws);
+                const rawData = XLSX.utils.sheet_to_json(ws, { defval: "" });
                 setExcelData(rawData);
+                setExcelHeaders(rawData.length > 0 ? Object.keys(rawData[0]) : []);
             } catch (err) {
                 console.error("Failed to read Excel file", err);
                 setError("No se pudo leer el archivo Excel. Asegúrate de que sea un archivo válido.");
             }
         };
         reader.readAsBinaryString(file);
+    };
+
+    const runExcelPreview = async () => {
+        if (excelData.length === 0) return;
+        setExcelProcessing(true);
+        await handleIngest('excel', excelData, 'preview');
+        setExcelProcessing(false);
+    };
+
+    const confirmExcelCommit = async () => {
+        if (excelData.length === 0) return;
+        setExcelProcessing(true);
+        await handleIngest('excel', excelData, 'commit');
+        setExcelProcessing(false);
+    };
+
+    const handleSqlAction = async (action, extra = {}) => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        setSqlBusy(true);
+        setError(null);
+        setSuccessMessage("");
+        try {
+            const res = await fetch('/api/commander/sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: user.id,
+                    action,
+                    ...sqlForm,
+                    port: Number(sqlForm.port) || undefined,
+                    ...extra
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error en operación SQL");
+
+            if (action === 'test') {
+                setSuccessMessage(`Conexión SQL verificada (${data.latencyMs} ms).`);
+            } else if (action === 'tables') {
+                setSqlTables(data.tables || []);
+                setSuccessMessage(`Se detectaron ${(data.tables || []).length} tablas/vistas.`);
+            } else if (action === 'preview') {
+                setSqlPreviewRows(data);
+            } else if (action === 'save') {
+                setSuccessMessage("Conexión SQL guardada de forma cifrada.");
+                await fetchSqlConnections();
+            } else if (action === 'sync') {
+                setSuccessMessage(`Sincronización SQL completada: ${data.insertedCount} nuevos, ${data.skippedDuplicatesCount || 0} duplicados omitidos.`);
+                await fetchSqlConnections();
+                await fetchStats();
+                await fetchWidgetsData(widgets);
+                await fetchIngestions();
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSqlBusy(false);
+        }
+    };
+
+    const handleDeleteSqlConnection = async (connectionId) => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        setSqlBusy(true);
+        try {
+            const res = await fetch(`/api/commander/sql?userId=${user.id}&connectionId=${encodeURIComponent(connectionId)}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "No se pudo eliminar la conexión SQL");
+            await fetchSqlConnections();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSqlBusy(false);
+        }
+    };
+
+    const handleCloudListFiles = async (provider) => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        setCloudBusy(true);
+        setError(null);
+        try {
+            const res = await fetch(`/api/commander/cloud?userId=${user.id}&action=files&provider=${encodeURIComponent(provider)}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error listando archivos Cloud");
+            setCloudFiles((prev) => ({ ...prev, [provider]: data.files || [] }));
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setCloudBusy(false);
+        }
+    };
+
+    const handleCloudSyncFile = async (provider, fileId) => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        setCloudBusy(true);
+        setError(null);
+        setSuccessMessage("");
+        try {
+            const res = await fetch('/api/commander/cloud', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: user.id,
+                    provider,
+                    fileId,
+                    dataType: cloudDataType
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error sincronizando archivo Cloud");
+            setSuccessMessage(
+                data.deduplicatedBatch
+                    ? `Archivo ya sincronizado previamente (idempotencia: ${data.file?.name}).`
+                    : `Archivo ${data.file?.name} sincronizado: ${data.insertedCount} registros incorporados.`
+            );
+            await fetchCloudStatus();
+            await fetchStats();
+            await fetchWidgetsData(widgets);
+            await fetchIngestions();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setCloudBusy(false);
+        }
+    };
+
+    const handleCloudDisconnect = async (provider) => {
+        const user = JSON.parse(localStorage.getItem('neoconta_user'));
+        if (!user) return;
+        setCloudBusy(true);
+        try {
+            await fetch(`/api/commander/cloud?userId=${user.id}&provider=${encodeURIComponent(provider)}`, {
+                method: 'DELETE'
+            });
+            await fetchCloudStatus();
+        } finally {
+            setCloudBusy(false);
+        }
     };
 
     const parseAmount = (val) => {
@@ -563,7 +820,7 @@ export default function CommanderPage() {
                     <select
                         value={selectedClient}
                         onChange={(e) => setSelectedClient(e.target.value)}
-                        className="px-4 py-2.5 text-sm font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm focus:ring-2 focus:ring-orange-500/20 outline-none w-full md:w-[240px]"
+                        className="px-4 py-2.5 text-sm font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm focus:ring-2 focus:ring-orange-500/20 outline-none w-full md:w-[210px]"
                     >
                         <option value="">Todos los Clientes</option>
                         {stats?.clients.map((c, idx) => (
@@ -572,6 +829,170 @@ export default function CommanderPage() {
                     </select>
                 </div>
             </div>
+
+            {/* SYNCHRONIZED PERIOD & PROVENANCE FILTERS */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">Desde:</span>
+                        <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white outline-none"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">Hasta:</span>
+                        <input
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white outline-none"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">Procedencia:</span>
+                        <select
+                            value={sourceFilter}
+                            onChange={(e) => setSourceFilter(e.target.value)}
+                            className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white outline-none"
+                        >
+                            <option value="all">Todas las Fuentes</option>
+                            <option value="fiscal_verified">Solo Fiscal Verificada (ARCA)</option>
+                            <option value="external_unverified">Solo Importación Externa (Excel/SQL/Cloud)</option>
+                        </select>
+                    </div>
+                    {(dateFrom || dateTo || sourceFilter !== "all" || selectedClient) && (
+                        <button
+                            onClick={() => {
+                                setDateFrom("");
+                                setDateTo("");
+                                setSourceFilter("all");
+                                setSelectedClient("");
+                            }}
+                            className="text-xs font-bold text-orange-600 hover:text-orange-500 px-2 py-1 cursor-pointer"
+                        >
+                            Limpiar filtros
+                        </button>
+                    )}
+                </div>
+                {stats?.dataQuality?.updatedAt && (
+                    <span className="text-[11px] text-slate-400">
+                        Motor BI actualizado: {new Date(stats.dataQuality.updatedAt).toLocaleString('es-AR')}
+                    </span>
+                )}
+            </div>
+
+            {/* EXECUTIVE AUDITABLE KPI CARDS */}
+            {stats?.kpis && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Facturación Neta</span>
+                            <TrendingUp className="h-4 w-4 text-orange-500" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(stats.kpis.netInvoicing)}</div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                                ARCA: {formatCurrency(stats.kpis.fiscalVerifiedNet)} · Externa: {formatCurrency(stats.kpis.externalUnverifiedNet)}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => openAudit('invoices', 'Auditoría: Facturación Neta')}
+                            className="mt-3 text-[11px] font-bold text-orange-600 hover:text-orange-500 flex items-center gap-1 cursor-pointer"
+                        >
+                            Auditar registros <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Depósitos Bancarios</span>
+                            <Wallet className="h-4 w-4 text-emerald-500" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(stats.kpis.bankDeposits)}</div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                                Flujo neto banco: {formatCurrency(stats.kpis.bankNetFlow)}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => openAudit('bankDeposits', 'Auditoría: Depósitos Bancarios')}
+                            className="mt-3 text-[11px] font-bold text-emerald-600 hover:text-emerald-500 flex items-center gap-1 cursor-pointer"
+                        >
+                            Auditar movimientos <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Cobranza Conciliada</span>
+                            <ShieldCheck className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(stats.kpis.reconciledCollections)}</div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                                Pagos vinculados a comprobantes
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => openAudit('reconciled', 'Auditoría: Cobranza Conciliada')}
+                            className="mt-3 text-[11px] font-bold text-blue-600 hover:text-blue-500 flex items-center gap-1 cursor-pointer"
+                        >
+                            Auditar conciliación <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Saldo Pendiente</span>
+                            <DollarSign className="h-4 w-4 text-red-500" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(stats.kpis.pendingReceivables)}</div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                                Cartera exigible neta (NC descontadas)
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => openAudit('invoices', 'Auditoría: Cartera Pendiente')}
+                            className="mt-3 text-[11px] font-bold text-red-600 hover:text-red-500 flex items-center gap-1 cursor-pointer"
+                        >
+                            Auditar comprobantes <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* DATA QUALITY & PROVENANCE BANNER */}
+            {stats?.dataQuality && (
+                <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-4">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            Procedencia: <strong>{stats.dataQuality.fiscalVerifiedCount || 0}</strong> ARCA verificados · <strong>{stats.dataQuality.externalUnverifiedCount || 0}</strong> externos
+                        </span>
+                        {stats.dataQuality.unverifiedMissingStatusCount > 0 && (
+                            <button
+                                onClick={() => openAudit('unverified', 'Comprobantes excluidos (sin estado / no aprobados)')}
+                                className="text-amber-600 dark:text-amber-400 font-bold underline cursor-pointer"
+                            >
+                                {stats.dataQuality.unverifiedMissingStatusCount} comprobante(s) excluidos sin aprobación
+                            </button>
+                        )}
+                        {stats.dataQuality.undatedInvoicesCount > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                {stats.dataQuality.undatedInvoicesCount} sin fecha fiscal
+                            </span>
+                        )}
+                        {Array.isArray(stats.dataQuality.emptyMonths) && stats.dataQuality.emptyMonths.length > 0 && (
+                            <span className="text-slate-500">
+                                Meses sin movimiento: {stats.dataQuality.emptyMonths.join(', ')}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Success and Error Alerts */}
             {error && (
@@ -960,58 +1381,284 @@ export default function CommanderPage() {
                                 </div>
 
                                 {excelData.length > 0 && (
-                                    <button 
-                                        onClick={runExcelIngest}
-                                        disabled={excelProcessing}
-                                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                                    >
-                                        {excelProcessing ? (
-                                            <>
-                                                <RefreshCw className="h-4.5 w-4.5 animate-spin" /> Ingeriendo Datos...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <FileSpreadsheet className="h-4.5 w-4.5" /> Ingerir {excelData.length} Registros de Excel
-                                            </>
+                                    <div className="space-y-3 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-950/30">
+                                        {excelHeaders.length > 0 && (
+                                            <div className="space-y-2">
+                                                <div className="text-[11px] font-bold uppercase text-slate-500">Mapeo de Columnas (opcional)</div>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                    {(excelDataType === 'invoices'
+                                                        ? [
+                                                            ['date', 'Fecha'],
+                                                            ['client_name', 'Cliente / Razón Social'],
+                                                            ['cuit', 'CUIT'],
+                                                            ['amount', 'Importe'],
+                                                            ['cbteTipo', 'Tipo Cbte'],
+                                                            ['cbteDesde', 'Número']
+                                                        ]
+                                                        : [
+                                                            ['date', 'Fecha'],
+                                                            ['amount', 'Importe'],
+                                                            ['concept', 'Concepto'],
+                                                            ['client_name', 'Cliente / Origen'],
+                                                            ['bank_name', 'Banco'],
+                                                            ['voucher_number', 'Comprobante']
+                                                        ]
+                                                    ).map(([fieldKey, fieldLabel]) => (
+                                                        <div key={fieldKey}>
+                                                            <label className="block text-[10px] text-slate-500 mb-0.5">{fieldLabel}</label>
+                                                            <select
+                                                                value={excelMapping[fieldKey] || ""}
+                                                                onChange={(e) => {
+                                                                    setExcelPreview(null);
+                                                                    setExcelMapping({ ...excelMapping, [fieldKey]: e.target.value });
+                                                                }}
+                                                                className="w-full px-2 py-1 text-[11px] rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-white"
+                                                            >
+                                                                <option value="">Auto-detectar</option>
+                                                                {excelHeaders.map((h) => (
+                                                                    <option key={h} value={h}>{h}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         )}
-                                    </button>
+
+                                        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={skipDuplicates}
+                                                onChange={(e) => setSkipDuplicates(e.target.checked)}
+                                            />
+                                            Omitir duplicados existentes automáticamente
+                                        </label>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                onClick={runExcelPreview}
+                                                disabled={excelProcessing}
+                                                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white transition-all cursor-pointer"
+                                            >
+                                                {excelProcessing ? "Validando..." : `Previsualizar (${excelData.length} filas)`}
+                                            </button>
+                                            <button
+                                                onClick={confirmExcelCommit}
+                                                disabled={excelProcessing}
+                                                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                            >
+                                                <FileSpreadsheet className="h-4 w-4" /> Confirmar Importación
+                                            </button>
+                                        </div>
+
+                                        {excelPreview && (
+                                            <div className="text-xs border-t border-slate-200 dark:border-slate-800 pt-3 space-y-1">
+                                                <div className="font-bold text-slate-800 dark:text-slate-200">
+                                                    Resumen validación: {excelPreview.validCount} válidos · {excelPreview.duplicateCount} duplicados · {excelPreview.errorCount} errores
+                                                </div>
+                                                {excelPreview.rowErrors?.slice(0, 3).map((re, idx) => (
+                                                    <div key={idx} className="text-red-500 text-[11px]">Fila {re.row}: {re.error}</div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         )}
 
                         {activeIngestionTab === "sql" && (
                             <div className="space-y-4 animate-fade-in-quick">
-                                <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-amber-500/15 text-amber-500 rounded-xl shrink-0">
-                                        <Database className="h-5 w-5" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <h4 className="text-xs font-bold text-slate-950 dark:text-white uppercase tracking-wide">
-                                            Integración todavía no disponible
-                                        </h4>
-                                        <p className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed">
-                                            La conexión directa con bases de datos SQL externas (PostgreSQL, SQL Server y MySQL) se encuentra deshabilitada hasta contar con conectores productivos verificados. Utiliza la importación de planillas Excel con procedencia auditada.
-                                        </p>
-                                    </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                                    <input
+                                        placeholder="Nombre conexión"
+                                        value={sqlForm.name}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, name: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
+                                    <select
+                                        value={sqlForm.engine}
+                                        onChange={(e) => {
+                                            const eng = e.target.value;
+                                            const defaultPort = eng === 'mysql' ? '3306' : eng === 'mssql' ? '1433' : '5432';
+                                            setSqlForm({ ...sqlForm, engine: eng, port: defaultPort });
+                                        }}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    >
+                                        <option value="postgres">PostgreSQL</option>
+                                        <option value="mysql">MySQL / MariaDB</option>
+                                        <option value="mssql">SQL Server</option>
+                                    </select>
+                                    <input
+                                        placeholder="Host (ej. db.empresa.com)"
+                                        value={sqlForm.host}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, host: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
+                                    <input
+                                        placeholder="Puerto"
+                                        value={sqlForm.port}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, port: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
+                                    <input
+                                        placeholder="Base de datos"
+                                        value={sqlForm.database}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, database: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
+                                    <input
+                                        placeholder="Usuario (solo lectura)"
+                                        value={sqlForm.username}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, username: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Contraseña"
+                                        value={sqlForm.password}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, password: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
+                                    <select
+                                        value={sqlForm.dataType}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, dataType: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    >
+                                        <option value="invoices">Destino: Facturas</option>
+                                        <option value="transactions">Destino: Banco</option>
+                                    </select>
+                                    <input
+                                        placeholder="Tabla/Vista (ej. dbo.facturas)"
+                                        value={sqlForm.tableName}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, tableName: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
                                 </div>
+
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    <button onClick={() => handleSqlAction('test')} disabled={sqlBusy} className="px-3 py-2 rounded-xl bg-slate-800 text-white font-bold cursor-pointer">Probar Conexión</button>
+                                    <button onClick={() => handleSqlAction('tables')} disabled={sqlBusy} className="px-3 py-2 rounded-xl bg-slate-700 text-white font-bold cursor-pointer">Listar Tablas</button>
+                                    <button onClick={() => handleSqlAction('preview')} disabled={sqlBusy} className="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold cursor-pointer">Previsualizar</button>
+                                    <button onClick={() => handleSqlAction('save')} disabled={sqlBusy} className="px-3 py-2 rounded-xl bg-orange-600 text-white font-bold cursor-pointer">Guardar Conexión</button>
+                                </div>
+
+                                {sqlTables.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {sqlTables.slice(0, 12).map((t) => (
+                                            <button
+                                                key={t.fullName}
+                                                onClick={() => setSqlForm({ ...sqlForm, tableName: t.fullName })}
+                                                className="px-2 py-1 rounded-lg text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
+                                            >
+                                                {t.fullName}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {sqlPreviewRows?.rows?.length > 0 && (
+                                    <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                                        Vista previa SQL: {sqlPreviewRows.rowCount} fila(s) · Columnas: {sqlPreviewRows.headers.join(', ')}
+                                    </div>
+                                )}
+
+                                {sqlConnections.length > 0 && (
+                                    <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+                                        <div className="text-[11px] font-bold uppercase text-slate-500">Conexiones Guardadas</div>
+                                        {sqlConnections.map((conn) => (
+                                            <div key={conn.id} className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                                                <div>
+                                                    <div className="font-bold text-slate-800 dark:text-white">{conn.name} ({conn.engine})</div>
+                                                    <div className="text-[10px] text-slate-500">{conn.host}:{conn.port}/{conn.database} · {conn.tableName || 'SELECT'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => handleSqlAction('sync', { connectionId: conn.id })} disabled={sqlBusy} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px] cursor-pointer">Sincronizar</button>
+                                                    <button onClick={() => handleDeleteSqlConnection(conn.id)} disabled={sqlBusy} className="p-1 text-red-500 cursor-pointer" title="Eliminar"><Trash2 className="h-3.5 w-3.5" /></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
                         {activeIngestionTab === "cloud" && (
                             <div className="space-y-4 animate-fade-in-quick">
-                                <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-amber-500/15 text-amber-500 rounded-xl shrink-0">
-                                        <Cloud className="h-5 w-5" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <h4 className="text-xs font-bold text-slate-950 dark:text-white uppercase tracking-wide">
-                                            Integración todavía no disponible
-                                        </h4>
-                                        <p className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed">
-                                            La sincronización automática con carpetas en la nube (OneDrive / Google Drive) se encuentra deshabilitada hasta habilitar OAuth y lectura verificada. Utiliza la importación manual de planillas Excel.
-                                        </p>
-                                    </div>
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">Destino al sincronizar:</span>
+                                    <select
+                                        value={cloudDataType}
+                                        onChange={(e) => setCloudDataType(e.target.value)}
+                                        className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    >
+                                        <option value="invoices">Facturas Emitidas</option>
+                                        <option value="transactions">Movimientos Bancarios</option>
+                                    </select>
                                 </div>
+
+                                {['google_drive', 'onedrive'].map((prov) => {
+                                    const info = cloudStatus?.providers?.[prov];
+                                    const files = cloudFiles[prov] || [];
+                                    const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('neoconta_user') || 'null') : null;
+                                    const authPath = prov === 'google_drive' ? '/api/commander/cloud/google/auth' : '/api/commander/cloud/onedrive/auth';
+                                    return (
+                                        <div key={prov} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <div className="font-bold text-slate-900 dark:text-white">{info?.label || prov}</div>
+                                                    {!info?.configured ? (
+                                                        <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                                                            No configurado: faltan credenciales ({(info?.missingEnv || []).join(', ')})
+                                                        </div>
+                                                    ) : info?.connected ? (
+                                                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                                                            Conectado OAuth ({info.scope})
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[11px] text-slate-500">Listo para vincular por OAuth</div>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {info?.configured && !info?.connected && user && (
+                                                        <a
+                                                            href={`${authPath}?userId=${encodeURIComponent(user.id)}`}
+                                                            className="px-3 py-1.5 rounded-xl bg-orange-600 text-white font-bold text-[11px]"
+                                                        >
+                                                            Conectar OAuth
+                                                        </a>
+                                                    )}
+                                                    {info?.connected && (
+                                                        <>
+                                                            <button onClick={() => handleCloudListFiles(prov)} disabled={cloudBusy} className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-white font-bold text-[11px] cursor-pointer">
+                                                                Listar Planillas
+                                                            </button>
+                                                            <button onClick={() => handleCloudDisconnect(prov)} disabled={cloudBusy} className="px-2.5 py-1.5 rounded-xl border border-red-500/30 text-red-500 font-bold text-[11px] cursor-pointer">
+                                                                Desconectar
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {files.length > 0 && (
+                                                <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                                    {files.map((f) => (
+                                                        <div key={f.id} className="flex items-center justify-between gap-2 py-1">
+                                                            <span className="truncate font-medium text-slate-700 dark:text-slate-300">{f.name}</span>
+                                                            <button
+                                                                onClick={() => handleCloudSyncFile(prov, f.id)}
+                                                                disabled={cloudBusy}
+                                                                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px] shrink-0 cursor-pointer"
+                                                            >
+                                                                Sincronizar
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 
@@ -1296,6 +1943,68 @@ export default function CommanderPage() {
                             >
                                 {editingWidget.id ? "Guardar Cambios" : "Añadir Widget"}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* AUDIT DRILL-DOWN MODAL */}
+            {auditModal.open && (
+                <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-4xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white">{auditModal.title}</h3>
+                                <p className="text-[11px] text-slate-500">Trazabilidad de registros origen (hasta 100 registros filtrados)</p>
+                            </div>
+                            <button
+                                onClick={() => setAuditModal({ ...auditModal, open: false })}
+                                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 overflow-auto flex-1">
+                            {auditModal.loading ? (
+                                <div className="py-12 text-center text-xs text-slate-500">Cargando registros de auditoría...</div>
+                            ) : auditModal.error ? (
+                                <div className="py-6 text-center text-xs text-red-500">{auditModal.error}</div>
+                            ) : auditModal.records.length === 0 ? (
+                                <div className="py-12 text-center text-xs text-slate-400">No hay registros origen para los filtros seleccionados.</div>
+                            ) : (
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-800">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left font-bold text-slate-500">Fecha</th>
+                                            <th className="px-3 py-2 text-left font-bold text-slate-500">Cliente / Concepto</th>
+                                            <th className="px-3 py-2 text-left font-bold text-slate-500">Procedencia</th>
+                                            <th className="px-3 py-2 text-left font-bold text-slate-500">Estado / Origen</th>
+                                            <th className="px-3 py-2 text-right font-bold text-slate-500">Importe</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                        {auditModal.records.map((rec, idx) => (
+                                            <tr key={rec.id || idx}>
+                                                <td className="px-3 py-2 whitespace-nowrap text-slate-500">{rec.date || '-'}</td>
+                                                <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-200">
+                                                    {rec.RazonSocial || rec.client_name || rec.concept || '-'}
+                                                </td>
+                                                <td className="px-3 py-2 text-slate-500">
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800">
+                                                        {rec.provenance || rec.source || '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 text-[11px] text-slate-500">
+                                                    {rec.originFileName || rec.status || (rec.isReconciled ? 'Conciliado' : '-')}
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-bold text-slate-900 dark:text-white">
+                                                    {formatCurrency(rec.signedAmount ?? rec.amount ?? rec.Importe ?? 0)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 </div>
