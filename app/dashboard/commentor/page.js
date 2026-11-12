@@ -1171,7 +1171,8 @@ function RenderWebAuditDashboard({ report, onExcludeSource, isRecalculating }) {
         return "text-red-500";
     };
 
-    const scoreColor = getScoreColor(brandScore ?? 50);
+    const isScoreAvailable = brandScore !== null && brandScore !== undefined && report.results?.aiValidated !== false;
+    const scoreColor = isScoreAvailable ? getScoreColor(brandScore) : "text-slate-400";
 
     return (
         <div className="relative space-y-6 animate-fade-in">
@@ -1193,16 +1194,21 @@ function RenderWebAuditDashboard({ report, onExcludeSource, isRecalculating }) {
                         <svg className="w-28 h-28 transform -rotate-90">
                             <circle cx="56" cy="56" r="48" strokeWidth="8" stroke="currentColor" className="text-slate-100 dark:text-slate-800" fill="transparent" />
                             <circle cx="56" cy="56" r="48" strokeWidth="8" stroke="currentColor" className={scoreColor} fill="transparent" 
-                                    strokeDasharray="301.6" strokeDashoffset={301.6 - (301.6 * (brandScore || 50)) / 100} />
+                                    strokeDasharray="301.6" strokeDashoffset={isScoreAvailable ? (301.6 - (301.6 * brandScore) / 100) : 301.6} />
                         </svg>
                         <div className="absolute flex flex-col items-center">
-                            <span className="text-3xl font-black text-slate-950 dark:text-white">{brandScore}</span>
-                            <span className="text-[10px] font-bold text-slate-400">/ 100</span>
+                            <span className="text-3xl font-black text-slate-950 dark:text-white">{isScoreAvailable ? brandScore : "N/D"}</span>
+                            <span className="text-[10px] font-bold text-slate-400">{isScoreAvailable ? "/ 100" : "Sin score"}</span>
                         </div>
                     </div>
-                    {report.scoreDelta !== undefined && report.scoreDelta !== null && (
+                    {isScoreAvailable && report.scoreDelta !== undefined && report.scoreDelta !== null && (
                         <span className={`mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${report.scoreDelta >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                             {report.scoreDelta >= 0 ? `+${report.scoreDelta}` : report.scoreDelta} pts en última revisión
+                        </span>
+                    )}
+                    {!isScoreAvailable && (
+                        <span className="mt-2 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-900/40">
+                            Validación IA pendiente
                         </span>
                     )}
                 </div>
@@ -1212,23 +1218,31 @@ function RenderWebAuditDashboard({ report, onExcludeSource, isRecalculating }) {
                     <h4 className="font-bold text-[10px] text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-1">
                         <TrendingUp className="h-3.5 w-3.5" /> Sentimiento en Buscadores
                     </h4>
-                    <div className="space-y-3.5">
-                        {[
-                            { label: "Menciones Positivas", value: publicSentiment?.positive || 0, color: "bg-emerald-500" },
-                            { label: "Menciones Neutras", value: publicSentiment?.neutral || 0, color: "bg-amber-400" },
-                            { label: "Menciones Negativas", value: publicSentiment?.negative || 0, color: "bg-red-500" }
-                        ].map((s, idx) => (
-                            <div key={idx} className="space-y-1">
-                                <div className="flex justify-between text-[11px] font-bold text-slate-650 dark:text-slate-350">
-                                    <span>{s.label}</span>
-                                    <span>{s.value}%</span>
+                    {!isScoreAvailable || !publicSentiment ? (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center space-y-1">
+                            <AlertCircle className="h-5 w-5 text-amber-500 mx-auto" />
+                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Análisis de sentimiento no disponible</p>
+                            <p className="text-[10px] text-slate-500">Se conservan las fuentes verificadas indexadas por el buscador sin estimaciones artificiales.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3.5">
+                            {[
+                                { label: "Menciones Positivas", value: publicSentiment?.positive || 0, color: "bg-emerald-500" },
+                                { label: "Menciones Neutras", value: publicSentiment?.neutral || 0, color: "bg-amber-400" },
+                                { label: "Menciones Negativas", value: publicSentiment?.negative || 0, color: "bg-red-500" }
+                            ].map((s, idx) => (
+                                <div key={idx} className="space-y-1">
+                                    <div className="flex justify-between text-[11px] font-bold text-slate-650 dark:text-slate-350">
+                                        <span>{s.label}</span>
+                                        <span>{s.value}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                        <div style={{ width: `${s.value}%` }} className={`${s.color} h-full rounded-full transition-all duration-500`}></div>
+                                    </div>
                                 </div>
-                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                                    <div style={{ width: `${s.value}%` }} className={`${s.color} h-full rounded-full transition-all duration-500`}></div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -1257,9 +1271,11 @@ function RenderWebAuditDashboard({ report, onExcludeSource, isRecalculating }) {
                                         <span className={`h-2 w-2 rounded-full ${
                                             src.sentiment === 'positivo' 
                                                 ? 'bg-emerald-500' 
-                                                : src.sentiment === 'neutro' 
-                                                    ? 'bg-amber-400' 
-                                                    : 'bg-red-500'
+                                                : src.sentiment === 'negativo' 
+                                                    ? 'bg-red-500' 
+                                                    : src.sentiment === 'neutro'
+                                                        ? 'bg-amber-400'
+                                                        : 'bg-slate-400'
                                         }`}></span>
                                     </div>
                                     

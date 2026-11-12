@@ -5,7 +5,7 @@ import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { getUserDataDir, writeJsonAtomic } from '@/lib/dataPaths';
 import { verifyOAuthState } from '@/lib/publicTokens';
 import { encryptOAuthToken } from '@/lib/tokenCrypto';
-import { exchangeMetaToken, listMetaPagesAndInstagram } from '@/lib/commentor/metaConnector';
+import { exchangeMetaToken, listMetaPagesAndInstagram, META_GRAPH_BASE } from '@/lib/commentor/metaConnector';
 
 export async function GET(request) {
     try {
@@ -37,7 +37,7 @@ export async function GET(request) {
 
         const redirectUri = `${appUrl}/api/auth/meta/callback`;
         const tokenUrl =
-            `https://graph.facebook.com/v20.0/oauth/access_token?` +
+            `${META_GRAPH_BASE}/oauth/access_token?` +
             `client_id=${encodeURIComponent(appId)}` +
             `&redirect_uri=${encodeURIComponent(redirectUri)}` +
             `&client_secret=${encodeURIComponent(appSecret)}` +

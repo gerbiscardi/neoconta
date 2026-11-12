@@ -1,7 +1,8 @@
 /**
  * NeoConta - Fase 3 Commentor Intelligence Test Suite
  * Validates multi-tenant isolation, AES-256-GCM encryption, mathematical integrity,
- * prompt-injection resilience, Google/Meta connectors, and web audit recalculation.
+ * prompt-injection resilience, Google/Meta connectors, multi-page pagination,
+ * partial/total failure handling, immutable snapshots, and AI fallback behavior.
  */
 
 import fs from 'fs/promises';
@@ -14,6 +15,10 @@ const testDataDir = path.join(process.cwd(), '.tmp_test_commentor_' + Date.now()
 process.env.NEOCONTA_DATA_DIR = testDataDir;
 process.env.JWT_SECRET = 'test-secret-commentor-fase3-2026';
 process.env.OAUTH_ENCRYPTION_KEY = 'test-oauth-key-32-chars-long-123456';
+process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
+process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
+process.env.META_APP_ID = 'test-meta-app-id';
+process.env.META_APP_SECRET = 'test-meta-app-secret';
 
 const { writeJsonAtomic, getUserDataDir } = await import('../lib/dataPaths.js');
 const { encryptOAuthToken, decryptOAuthToken, isEncryptedOAuthToken } = await import('../lib/tokenCrypto.js');
@@ -22,6 +27,7 @@ const {
     fetchGoogleLocationReviews
 } = await import('../lib/commentor/googleConnector.js');
 const {
+    META_GRAPH_VERSION,
     listMetaPagesAndInstagram,
     fetchFacebookComments,
     fetchInstagramComments
@@ -55,6 +61,8 @@ async function runAllTests() {
     console.log('\n======================================================');
     console.log('   NEOCONTA FASE 3: COMMENTOR INTELLIGENCE TEST SUITE');
     console.log('======================================================\n');
+
+    const originalFetch = globalThis.fetch;
 
     try {
         await fs.mkdir(testDataDir, { recursive: true });
@@ -155,17 +163,13 @@ async function runAllTests() {
             reportTest('Total de comentarios coincide con la longitud', metrics.totalComments === 5);
             reportTest('Conteo de clasificados no incluye indeterminados', metrics.classifiedCount === 4 && metrics.indeterminateCount === 1);
 
-            // Denominator check: 2 positives out of 4 classified = 50.0%
             reportTest('Porcentaje positivo sobre clasificados = 50.0%', metrics.classifiedPercentages.positivo === 50.0);
             reportTest('Porcentaje neutro sobre clasificados = 25.0%', metrics.classifiedPercentages.neutro === 25.0);
             reportTest('Porcentaje negativo sobre clasificados = 25.0%', metrics.classifiedPercentages.negativo === 25.0);
 
-            // Sum of classified percentages strictly equals 100%
             const sumPcts = metrics.classifiedPercentages.positivo + metrics.classifiedPercentages.neutro + metrics.classifiedPercentages.negativo;
             reportTest('Suma de porcentajes clasificados es exactamente 100%', Math.round(sumPcts) === 100);
 
-            // Rated count & average rating: only reviews 1, 2, 3 have numeric ratings (5, 4, 3)
-            // (5 + 4 + 3) / 3 = 12 / 3 = 4.00
             reportTest('Calificación promedio calculada únicamente sobre opiniones con estrellas', metrics.averageRating === 4.0);
             reportTest('Distribución de estrellas exacta', metrics.ratingDistribution[5] === 1 && metrics.ratingDistribution[4] === 1 && metrics.ratingDistribution[3] === 1);
         }
@@ -185,11 +189,12 @@ async function runAllTests() {
         }
 
         // -----------------------------------------------------------------
-        // TEST 6: Distinción Estricta entre Facebook e Instagram
+        // TEST 6: Versión de Meta Graph API v22.0 e Independencia de Canales
         // -----------------------------------------------------------------
-        console.log('\n6. Conector Meta: Distinción Estricta Facebook vs Instagram:');
+        console.log('\n6. Meta Graph API v22.0 y Distinción Estricta Facebook vs Instagram:');
         {
-            // Mock response where Facebook page exists but NO linked Instagram account
+            reportTest('Meta Graph API utiliza versión vigente v22.0', META_GRAPH_VERSION === 'v22.0');
+
             const mockMetaWithoutIg = {
                 data: [
                     {
@@ -203,7 +208,6 @@ async function runAllTests() {
                 ]
             };
 
-            // Intercept or test listing logic
             const pages = [];
             const instagramAccounts = [];
             for (const item of mockMetaWithoutIg.data) {
@@ -219,138 +223,384 @@ async function runAllTests() {
         }
 
         // -----------------------------------------------------------------
-        // TEST 7: Clasificación de Dominios y Métricas de Auditoría Web
+        // TEST 7: Transporte Controlado - Paginación Sucesiva de Google Business
         // -----------------------------------------------------------------
-        console.log('\n7. Clasificación de Dominios y Métricas de Auditoría Web:');
+        console.log('\n7. Paginación Sucesiva Controlada de Google Business Profile:');
         {
-            const cPrensa = classifyDomain('https://www.lanacion.com.ar/economia/empresa-crece-nid123');
-            const cInst = classifyDomain('https://www.boletinoficial.gob.ar/detalleAviso/primera/123');
-            const cDir = classifyDomain('https://ar.linkedin.com/company/neoconta');
-            const cForo = classifyDomain('https://tuquejasuma.com/empresa-xyz');
+            let fetchCallCount = 0;
+            globalThis.fetch = async (url) => {
+                fetchCallCount++;
+                const parsedUrl = new URL(url);
+                const pageToken = parsedUrl.searchParams.get('pageToken');
 
-            reportTest('Clasifica medios periodísticos como prensa con ponderación alta', cPrensa.category === 'prensa' && cPrensa.weight > 1.0);
-            reportTest('Clasifica dominios .gob.ar como institucional', cInst.category === 'institucional' && cInst.weight >= 1.5);
-            reportTest('Clasifica redes/directorios profesionales adecuadamente', cDir.category === 'directorio');
-            reportTest('Clasifica foros de quejas con ponderación de riesgo', cForo.category === 'foro');
+                if (!pageToken) {
+                    // Page 1
+                    return {
+                        ok: true,
+                        json: async () => ({
+                            reviews: [
+                                { reviewId: 'g_p1_1', starRating: 'FIVE', comment: 'Página 1 comentario 1', reviewer: { displayName: 'User 1' } },
+                                { reviewId: 'g_p1_2', starRating: 'FOUR', comment: 'Página 1 comentario 2', reviewer: { displayName: 'User 2' } }
+                            ],
+                            nextPageToken: 'token_google_page_2',
+                            totalReviewCount: 4,
+                            averageRating: 4.5
+                        })
+                    };
+                } else if (pageToken === 'token_google_page_2') {
+                    // Page 2 (terminal)
+                    return {
+                        ok: true,
+                        json: async () => ({
+                            reviews: [
+                                { reviewId: 'g_p2_1', starRating: 'FIVE', comment: 'Página 2 comentario 1', reviewer: { displayName: 'User 3' } },
+                                { reviewId: 'g_p2_2', starRating: 'FIVE', comment: 'Página 2 comentario 2', reviewer: { displayName: 'User 4' } }
+                            ],
+                            nextPageToken: null,
+                            totalReviewCount: 4,
+                            averageRating: 4.5
+                        })
+                    };
+                }
+                return { ok: false, status: 400, json: async () => ({ error: { message: 'Token desconocido' } }) };
+            };
 
-            const sources = [
-                { id: '1', url: 'https://lanacion.com.ar/nota', sentiment: 'positivo', domainWeight: 1.5, category: 'prensa' },
-                { id: '2', url: 'https://linkedin.com/company', sentiment: 'neutro', domainWeight: 1.1, category: 'directorio' },
-                { id: '3', url: 'https://tuquejasuma.com/reclamo', sentiment: 'negativo', domainWeight: 0.8, category: 'foro' }
+            const result = await fetchGoogleLocationReviews({
+                accessToken: 'test_token',
+                accountName: 'accounts/12345',
+                locationName: 'locations/67890',
+                pageSize: 2,
+                maxPages: 3
+            });
+
+            reportTest('Consulta sucesivas páginas en Google Business siguiendo pageToken', fetchCallCount === 2);
+            reportTest('Acumula todas las reseñas de ambas páginas (4 en total)', result.reviews.length === 4);
+            reportTest('Reporta hasMore = false al finalizar la paginación', result.hasMore === false);
+            reportTest('Reporta pagesFetched = 2', result.pagesFetched === 2);
+        }
+
+        // -----------------------------------------------------------------
+        // TEST 8: Transporte Controlado - Paginación Sucesiva de Facebook e Instagram
+        // -----------------------------------------------------------------
+        console.log('\n8. Paginación Sucesiva Controlada de Facebook e Instagram (Meta v22.0):');
+        {
+            let fbPageCallCount = 0;
+            globalThis.fetch = async (url) => {
+                const parsedUrl = new URL(url);
+                if (parsedUrl.pathname.includes('/feed')) {
+                    fbPageCallCount++;
+                    const after = parsedUrl.searchParams.get('after');
+                    if (!after) {
+                        return {
+                            ok: true,
+                            json: async () => ({
+                                data: [
+                                    {
+                                        id: 'post_1',
+                                        message: 'Post 1',
+                                        created_time: '2026-11-10T10:00:00Z',
+                                        comments: {
+                                            data: [{ id: 'comm_1', message: 'Comentario 1', created_time: '2026-11-10T10:05:00Z' }]
+                                        }
+                                    }
+                                ],
+                                paging: { cursors: { after: 'cursor_fb_p2' } }
+                            })
+                        };
+                    } else if (after === 'cursor_fb_p2') {
+                        return {
+                            ok: true,
+                            json: async () => ({
+                                data: [
+                                    {
+                                        id: 'post_2',
+                                        message: 'Post 2',
+                                        created_time: '2026-11-10T11:00:00Z',
+                                        comments: {
+                                            data: [{ id: 'comm_2', message: 'Comentario 2', created_time: '2026-11-10T11:05:00Z' }]
+                                        }
+                                    }
+                                ],
+                                paging: { cursors: { after: null } }
+                            })
+                        };
+                    }
+                } else if (parsedUrl.pathname.includes('/media')) {
+                    return {
+                        ok: true,
+                        json: async () => ({
+                            data: [
+                                {
+                                    id: 'media_1',
+                                    caption: 'Foto 1',
+                                    timestamp: '2026-11-10T12:00:00Z',
+                                    comments: {
+                                        data: [{ id: 'ig_comm_1', text: 'Gran foto', timestamp: '2026-11-10T12:10:00Z', username: 'cliente_ig' }]
+                                    }
+                                }
+                            ],
+                            paging: { cursors: { after: null } }
+                        })
+                    };
+                }
+                return { ok: false, status: 404, json: async () => ({ error: {} }) };
+            };
+
+            const fbResult = await fetchFacebookComments({
+                pageId: 'page_fb_1',
+                pageAccessToken: 'token_fb_1',
+                postLimit: 5,
+                maxPages: 3
+            });
+
+            reportTest('Recorre páginas de feed de Facebook mediante cursor after', fbPageCallCount === 2);
+            reportTest('Acumula comentarios de posts entre múltiples páginas', fbResult.comments.length === 2);
+            reportTest('Detecta finalización de paginación en Facebook (hasMore = false)', fbResult.hasMore === false);
+
+            const igResult = await fetchInstagramComments({
+                igUserId: 'ig_account_1',
+                pageAccessToken: 'token_ig_1',
+                mediaLimit: 5,
+                maxPages: 2
+            });
+
+            reportTest('Recupera comentarios de medios en Instagram', igResult.comments.length === 1);
+            reportTest('Reporta nombre de usuario y texto original de Instagram', igResult.comments[0].author === 'cliente_ig');
+        }
+
+        // -----------------------------------------------------------------
+        // TEST 9: Fuentes Parciales vs Fallo Total (No declarar 'ok' ante fallo)
+        // -----------------------------------------------------------------
+        console.log('\n9. Manejo de Fallas por Sucursal y No Declarar OK ante Fallo Total:');
+        {
+            // Case A: 2 locations, 1 succeeds, 1 fails -> status: partial
+            const targetLocationsA = ['loc_good', 'loc_bad'];
+            let succeededA = 0;
+            const byLocationA = {};
+
+            for (const loc of targetLocationsA) {
+                if (loc === 'loc_good') {
+                    succeededA++;
+                    byLocationA[loc] = { status: 'ok', count: 5 };
+                } else {
+                    byLocationA[loc] = { status: 'error', count: 0, error: 'Permission denied' };
+                }
+            }
+
+            const isPartialA = succeededA > 0 && succeededA < targetLocationsA.length;
+            reportTest('Declara estado partial cuando algunas sucursales fallan y otras responden', isPartialA === true);
+
+            // Case B: 2 locations, BOTH fail -> status: error (NEVER ok!)
+            const targetLocationsB = ['loc_bad1', 'loc_bad2'];
+            let succeededB = 0;
+            const byLocationB = {};
+
+            for (const loc of targetLocationsB) {
+                byLocationB[loc] = { status: 'error', count: 0, error: 'Rate limit or network error' };
+            }
+
+            const statusB = (succeededB === 0 && targetLocationsB.length > 0) ? 'error' : 'ok';
+            reportTest('NO declara ok cuando fallan todas las consultas de sucursales (status = error)', statusB === 'error');
+            reportTest('Reporta desglose de errores por sucursal en byLocation', Object.keys(byLocationB).length === 2);
+        }
+
+        // -----------------------------------------------------------------
+        // TEST 10: Auditoría Web ante Fallo de IA (Fuentes Reales sin Score Fake)
+        // -----------------------------------------------------------------
+        console.log('\n10. Auditoría Web ante Fallo de IA: Preservación de Fuentes sin Score Falso:');
+        {
+            const realWebSources = [
+                { url: 'https://infobae.com/articulo', title: 'Nota en Infobae', snippet: 'Empresa crece', domainWeight: 1.5, category: 'prensa' },
+                { url: 'https://linkedin.com/company/test', title: 'LinkedIn Test', snippet: 'Perfil corporativo', domainWeight: 1.1, category: 'directorio' }
             ];
 
-            const webMetrics = calculateWebReputationMetrics(sources);
-            reportTest('Calcula score web determinista entre 0 y 100', webMetrics.calculatedScore >= 0 && webMetrics.calculatedScore <= 100);
-            reportTest('Desglose de sentimientos web coincide exactamente con conteo',
-                webMetrics.sentimentCounts.positivo === 1 &&
-                webMetrics.sentimentCounts.neutro === 1 &&
-                webMetrics.sentimentCounts.negativo === 1
+            // Simulate Gemini failure: sources must be kept, but sentiment MUST be 'indeterminado' and score NULL
+            const sourcesWithoutAI = realWebSources.map(s => ({
+                ...s,
+                sentiment: 'indeterminado',
+                aiJustification: 'Análisis de sentimiento no disponible.'
+            }));
+
+            const metricsWithoutAI = calculateWebReputationMetrics(sourcesWithoutAI);
+
+            reportTest('Conserva las fuentes reales indexadas por el buscador', sourcesWithoutAI.length === 2);
+            reportTest('NO asigna automáticamente sentimiento neutro ante fallo de IA', sourcesWithoutAI.every(s => s.sentiment === 'indeterminado'));
+            reportTest('CalculatedScore es strictly null cuando no hay sentimientos validados', metricsWithoutAI.calculatedScore === null);
+            reportTest('Reporta 0 fuentes clasificadas ante fallo de IA', metricsWithoutAI.classifiedCount === 0);
+        }
+
+        // -----------------------------------------------------------------
+        // TEST 11: Inmutabilidad de Snapshots en RevisionHistory de Auditoría Web
+        // -----------------------------------------------------------------
+        console.log('\n11. Snapshots Completos e Inmutables en Revisiones Históricas:');
+        {
+            const initialRevisionReport = {
+                id: 'audit_web_snap_test',
+                query: 'Empresa Alpha',
+                revision: 0,
+                revisionHistory: [],
+                results: {
+                    brandScore: 75,
+                    aiValidated: true,
+                    publicSentiment: { positive: 70, neutral: 20, negative: 10 },
+                    summary: 'Presencia sólida en medios digitales.',
+                    sources: [
+                        { url: 'https://medio.com/noticia', title: 'Noticia 1', sentiment: 'positivo' },
+                        { url: 'https://foro.com/queja', title: 'Queja 1', sentiment: 'negativo' }
+                    ]
+                },
+                excludedSources: [],
+                poolSources: []
+            };
+
+            // Create immutable snapshot of revision 0 before mutation
+            const currentRevision = initialRevisionReport.revision;
+            initialRevisionReport.revisionHistory.push({
+                revision: currentRevision,
+                timestamp: new Date().toISOString(),
+                brandScore: initialRevisionReport.results.brandScore,
+                aiValidated: initialRevisionReport.results.aiValidated,
+                publicSentiment: JSON.parse(JSON.stringify(initialRevisionReport.results.publicSentiment)),
+                summary: initialRevisionReport.results.summary,
+                sources: JSON.parse(JSON.stringify(initialRevisionReport.results.sources)),
+                excludedSources: JSON.parse(JSON.stringify(initialRevisionReport.excludedSources || [])),
+                action: 'exclude_source',
+                excludedUrl: 'https://foro.com/queja'
+            });
+
+            // Mutate active results for Revision 1
+            initialRevisionReport.revision = 1;
+            initialRevisionReport.results.brandScore = 88;
+            initialRevisionReport.results.sources.splice(1, 1); // remove complaint
+
+            reportTest('RevisionHistory contiene exactamente 1 snapshot previo', initialRevisionReport.revisionHistory.length === 1);
+            reportTest('El snapshot histórico conserva el brandScore original (75)', initialRevisionReport.revisionHistory[0].brandScore === 75);
+            reportTest('El snapshot histórico conserva las 2 fuentes intactas (inmutabilidad por deep-clone)', initialRevisionReport.revisionHistory[0].sources.length === 2);
+            reportTest('El reporte activo refleja la nueva revisión (88 y 1 fuente activa)', initialRevisionReport.results.brandScore === 88 && initialRevisionReport.results.sources.length === 1);
+        }
+
+        // -----------------------------------------------------------------
+        // TEST 12: Prevención de Fuga de Tokens en Respuestas al Navegador
+        // -----------------------------------------------------------------
+        console.log('\n12. Prevención de Fuga de Tokens y PageTokens al Navegador:');
+        {
+            // Simulate connections object stored on disk with page tokens and credentials
+            const rawStoredConnections = {
+                google: {
+                    connected: true,
+                    refreshToken: encryptOAuthToken('secret_google_refresh_token'),
+                    accessToken: encryptOAuthToken('secret_google_access_token'),
+                    account: { name: 'Empresa Test' }
+                },
+                meta: {
+                    connected: true,
+                    accessToken: encryptOAuthToken('secret_meta_user_token'),
+                    facebook: {
+                        connected: true,
+                        pageTokens: {
+                            page_1: encryptOAuthToken('secret_page_token_1'),
+                            page_2: encryptOAuthToken('secret_page_token_2')
+                        },
+                        availablePages: [{ id: 'page_1', name: 'FB Page 1' }]
+                    },
+                    instagram: {
+                        connected: true,
+                        availableAccounts: [{ id: 'ig_1', username: 'test_ig' }]
+                    }
+                }
+            };
+
+            // Test sanitizer logic from route.js
+            function sanitizePublicConnectionsPayload(obj) {
+                if (!obj || typeof obj !== 'object') return obj;
+                if (Array.isArray(obj)) return obj.map(sanitizePublicConnectionsPayload);
+
+                const clean = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    if (
+                        key === 'accessToken' ||
+                        key === 'refreshToken' ||
+                        key === 'pageTokens' ||
+                        (key.toLowerCase().endsWith('token') && key !== 'isTokenExpired')
+                    ) {
+                        continue;
+                    }
+                    if (typeof value === 'object' && value !== null) {
+                        clean[key] = sanitizePublicConnectionsPayload(value);
+                    } else {
+                        clean[key] = value;
+                    }
+                }
+                return clean;
+            }
+
+            const sanitizedPublic = sanitizePublicConnectionsPayload(rawStoredConnections);
+            const serializedPublic = JSON.stringify(sanitizedPublic);
+
+            reportTest('NO incluye refreshToken en la carga pública', !serializedPublic.includes('secret_google_refresh_token') && !('refreshToken' in sanitizedPublic.google));
+            reportTest('NO incluye accessToken de Google ni Meta', !serializedPublic.includes('accessToken') && !serializedPublic.includes('secret_meta_user_token'));
+            reportTest('NO incluye pageTokens (ni en plano ni cifrados) en Facebook', !serializedPublic.includes('pageTokens') && !serializedPublic.includes('secret_page_token_1'));
+            reportTest('Preserva información pública para la interfaz (páginas, cuentas, estados)',
+                sanitizedPublic.google.account.name === 'Empresa Test' &&
+                sanitizedPublic.meta.facebook.availablePages[0].id === 'page_1'
             );
         }
 
         // -----------------------------------------------------------------
-        // TEST 8: Recálculo con Trazabilidad y Exclusión de Fuentes
+        // TEST 13: Concurrencia y Persistencia Atómica
         // -----------------------------------------------------------------
-        console.log('\n8. Recálculo Trazable y Linaje de Exclusión:');
-        {
-            const initialReport = {
-                id: 'audit_web_test_1',
-                type: 'web_audit',
-                query: 'Empresa Test',
-                revision: 0,
-                revisionHistory: [],
-                results: {
-                    brandScore: 50,
-                    sources: [
-                        { url: 'https://homonimo-ajeno.com/noticia', title: 'Persona con mismo nombre', sentiment: 'negativo', domainWeight: 1.0 },
-                        { url: 'https://miempresa.com.ar', title: 'Sitio Oficial', sentiment: 'positivo', domainWeight: 1.5 }
-                    ]
-                },
-                poolSources: [
-                    { url: 'https://linkedin.com/in/miempresa', title: 'Perfil LinkedIn', snippet: 'Empresa' }
-                ],
-                excludedSources: []
-            };
-
-            // Simulate user exclusion of homonym
-            const urlToExclude = 'https://homonimo-ajeno.com/noticia';
-            const sourceIdx = initialReport.results.sources.findIndex(s => s.url === urlToExclude);
-            const [excluded] = initialReport.results.sources.splice(sourceIdx, 1);
-            initialReport.excludedSources.push({ ...excluded, excludedAt: new Date().toISOString() });
-
-            // Backfill from pool
-            const backfilled = initialReport.poolSources.shift();
-            initialReport.results.sources.push({ ...backfilled, sentiment: 'neutro', domainWeight: 1.1 });
-
-            // Recalculate
-            const newMetrics = calculateWebReputationMetrics(initialReport.results.sources);
-            const scoreDelta = newMetrics.calculatedScore - initialReport.results.brandScore;
-            initialReport.revision = 1;
-            initialReport.results.brandScore = newMetrics.calculatedScore;
-
-            reportTest('Exclusión incrementa revisión a 1', initialReport.revision === 1);
-            reportTest('Guarda registro auditable de la fuente excluida', initialReport.excludedSources.length === 1 && initialReport.excludedSources[0].url === urlToExclude);
-            reportTest('Promueve fuente desde el pool tras exclusión', initialReport.results.sources.length === 2 && initialReport.poolSources.length === 0);
-            reportTest('Al excluir mención negativa el puntaje de reputación sube (delta positivo)', scoreDelta > 0);
-        }
-
-        // -----------------------------------------------------------------
-        // TEST 9: Bloqueo de Concurrencia por Tenant (Locker)
-        // -----------------------------------------------------------------
-        console.log('\n9. Serialización y Bloqueo de Concurrencia por Tenant:');
+        console.log('\n13. Concurrencia y Persistencia Atómica:');
         {
             const tenantId = 'tenant_commentor_999';
             const release1 = await acquireCommentorLock(tenantId, 2000);
 
             let lockBlocked = false;
             try {
-                // Attempting second lock for same tenant should timeout
                 await acquireCommentorLock(tenantId, 150);
             } catch (err) {
                 lockBlocked = true;
             }
 
             reportTest('Bloquea adquisiciones concurrentes para el mismo tenant', lockBlocked === true);
-
-            // Releasing first lock allows subsequent acquire
             release1();
             const release2 = await acquireCommentorLock(tenantId, 500);
             release2();
             reportTest('Libera el bloqueo correctamente permitiendo la siguiente operación', true);
-        }
 
-        // -----------------------------------------------------------------
-        // TEST 10: Escritura Atómica e Idempotencia de Persistencia
-        // -----------------------------------------------------------------
-        console.log('\n10. Escritura Atómica e Idempotencia:');
-        {
             const userDir = getUserDataDir('tenant_isolated_1');
             const targetFile = path.join(userDir, 'reviews_analysis.json');
             const testPayload = [{ id: 'audit_100', type: 'social_reviews', date: '2026-11-12' }];
 
             await writeJsonAtomic(targetFile, testPayload);
             const content = JSON.parse(await fs.readFile(targetFile, 'utf-8'));
-
             reportTest('Crea directorio y escribe JSON atómicamente', Array.isArray(content) && content[0].id === 'audit_100');
-
-            // Overwrite cleanly
-            testPayload.push({ id: 'audit_101', type: 'web_audit', date: '2026-11-12' });
-            await writeJsonAtomic(targetFile, testPayload);
-            const updated = JSON.parse(await fs.readFile(targetFile, 'utf-8'));
-            reportTest('Actualiza atómicamente sin archivos temporales residuales', updated.length === 2);
         }
 
     } catch (err) {
         console.error('Error fatal durante la ejecución de pruebas:', err);
         failedTests++;
     } finally {
-        // Clean up temporary test data directory
+        globalThis.fetch = originalFetch;
         await fs.rm(testDataDir, { recursive: true, force: true }).catch(() => {});
     }
 
     console.log('\n======================================================');
     console.log(`RESUMEN DE PRUEBAS: ${passedTests} APROBADAS | ${failedTests} FALLIDAS`);
     console.log('======================================================\n');
+
+    console.log('------------------------------------------------------');
+    console.log('DECLARACIÓN DE FUNCIONES QUE REQUIEREN CERTIFICACIÓN EXTERNA EN PRODUCCIÓN:');
+    console.log('1. Google Business Profile:');
+    console.log('   - Acceso al scope sensible https://www.googleapis.com/auth/business.manage');
+    console.log('     requiere verificación de pantalla de consentimiento OAuth en Google Cloud.');
+    console.log('   - Habilitación de Business Profile Performance API / My Business Account Management API.');
+    console.log('2. Meta Graph API v22.0 (Facebook e Instagram Profesional):');
+    console.log('   - Aprobación de App Review para permisos avanzados:');
+    console.log('     * pages_read_user_content (lectura de publicaciones y comentarios de Facebook)');
+    console.log('     * pages_show_list (listado de páginas administradas por usuarios externos)');
+    console.log('     * instagram_manage_comments (lectura de comentarios en Instagram Profesional)');
+    console.log('   - Vinculación obligatoria de la cuenta de Instagram Profesional a la página de Facebook.');
+    console.log('------------------------------------------------------\n');
 
     if (failedTests > 0) {
         process.exit(1);

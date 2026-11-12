@@ -98,7 +98,6 @@ export async function POST(request) {
         if (hasValidGoogle) {
             providersAttempted++;
             try {
-                // Ensure fresh access token
                 const { accessToken, expiresIn } = await refreshGoogleAccessToken(googleRefreshPlain);
                 connections.google.accessToken = encryptOAuthToken(accessToken);
                 connections.google.tokenExpiresAt = Date.now() + (expiresIn * 1000);
@@ -128,11 +127,18 @@ export async function POST(request) {
                     providerStatus.google = {
                         status: 'ok',
                         count: 0,
+                        locationsAttempted: 0,
+                        locationsSucceeded: 0,
                         note: 'La cuenta de Google Business no tiene ubicaciones configuradas.'
                     };
                     providersSucceeded++;
                 } else {
                     let googleCount = 0;
+                    let locationsAttempted = targetLocations.length;
+                    let locationsSucceeded = 0;
+                    let hasPending = false;
+                    const byLocation = {};
+
                     for (const locId of targetLocations) {
                         try {
                             const result = await fetchGoogleLocationReviews({
@@ -140,21 +146,72 @@ export async function POST(request) {
                                 accountName,
                                 locationName: locId,
                                 pageSize: 50,
-                                maxPages: 2
+                                maxPages: 3
                             });
                             rawCollected.push(...result.reviews);
                             googleCount += result.reviews.length;
+                            locationsSucceeded++;
+                            if (result.hasMore) hasPending = true;
+
+                            byLocation[locId] = {
+                                status: 'ok',
+                                count: result.reviews.length,
+                                hasMore: result.hasMore,
+                                nextPageToken: result.nextPageToken,
+                                pagesFetched: result.pagesFetched
+                            };
                         } catch (locErr) {
                             console.warn(`Error obteniendo reseñas para ubicación Google ${locId}:`, locErr.message);
+                            byLocation[locId] = {
+                                status: 'error',
+                                count: 0,
+                                error: locErr.message
+                            };
                             providerErrors.push({ provider: 'google', location: locId, error: locErr.message });
                         }
                     }
-                    providerStatus.google = { status: 'ok', count: googleCount };
-                    providersSucceeded++;
+
+                    if (locationsAttempted > 0 && locationsSucceeded === 0) {
+                        providerStatus.google = {
+                            status: 'error',
+                            error: 'Fallaron todas las consultas de sucursales en Google Business Profile.',
+                            count: 0,
+                            locationsAttempted,
+                            locationsSucceeded: 0,
+                            hasMore: false,
+                            byLocation
+                        };
+                    } else if (locationsSucceeded < locationsAttempted) {
+                        providersSucceeded++;
+                        providerStatus.google = {
+                            status: 'partial',
+                            count: googleCount,
+                            locationsAttempted,
+                            locationsSucceeded,
+                            hasMore: hasPending,
+                            byLocation
+                        };
+                    } else {
+                        providersSucceeded++;
+                        providerStatus.google = {
+                            status: 'ok',
+                            count: googleCount,
+                            locationsAttempted,
+                            locationsSucceeded,
+                            hasMore: hasPending,
+                            byLocation
+                        };
+                    }
                 }
             } catch (err) {
                 console.error('Error sincronizando Google Business Profile:', err);
-                providerStatus.google = { status: 'error', error: err.message, count: 0 };
+                providerStatus.google = {
+                    status: 'error',
+                    error: err.message,
+                    count: 0,
+                    locationsAttempted: 0,
+                    locationsSucceeded: 0
+                };
                 providerErrors.push({ provider: 'google', error: err.message });
             }
         }
@@ -175,39 +232,105 @@ export async function POST(request) {
                         selectedPages = availablePages.slice(0, 5).map(p => p.id);
                     }
 
-                    let fbCommentsCount = 0;
-                    const pageTokens = fbConfig.pageTokens || {};
+                    if (selectedPages.length === 0) {
+                        providerStatus.facebook = {
+                            status: 'ok',
+                            count: 0,
+                            pagesAttempted: 0,
+                            pagesSucceeded: 0,
+                            note: 'No hay páginas de Facebook seleccionadas.'
+                        };
+                        providersSucceeded++;
+                    } else {
+                        let fbCommentsCount = 0;
+                        let pagesAttempted = selectedPages.length;
+                        let pagesSucceeded = 0;
+                        let hasPending = false;
+                        const byPage = {};
+                        const pageTokens = fbConfig.pageTokens || {};
 
-                    for (const pageId of selectedPages) {
-                        let pageToken = metaAccessPlain; // Fallback to user token if page token not found
-                        if (pageTokens[pageId]) {
+                        for (const pageId of selectedPages) {
+                            let pageToken = metaAccessPlain;
+                            if (pageTokens[pageId]) {
+                                try {
+                                    pageToken = decryptOAuthToken(pageTokens[pageId]);
+                                } catch {
+                                    pageToken = metaAccessPlain;
+                                }
+                            }
+
                             try {
-                                pageToken = decryptOAuthToken(pageTokens[pageId]);
-                            } catch {
-                                pageToken = metaAccessPlain;
+                                const result = await fetchFacebookComments({
+                                    pageId,
+                                    pageAccessToken: pageToken,
+                                    postLimit: 15,
+                                    commentLimit: 50,
+                                    maxPages: 3
+                                });
+                                rawCollected.push(...result.comments);
+                                fbCommentsCount += result.comments.length;
+                                pagesSucceeded++;
+                                if (result.hasMore) hasPending = true;
+
+                                byPage[pageId] = {
+                                    status: 'ok',
+                                    count: result.comments.length,
+                                    hasMore: result.hasMore,
+                                    nextCursor: result.nextCursor,
+                                    postsProcessed: result.postsProcessed
+                                };
+                            } catch (pageErr) {
+                                console.warn(`Error obteniendo comentarios de página FB ${pageId}:`, pageErr.message);
+                                byPage[pageId] = {
+                                    status: 'error',
+                                    count: 0,
+                                    error: pageErr.message
+                                };
+                                providerErrors.push({ provider: 'facebook', pageId, error: pageErr.message });
                             }
                         }
 
-                        try {
-                            const comments = await fetchFacebookComments({
-                                pageId,
-                                pageAccessToken: pageToken,
-                                postLimit: 10,
-                                commentLimit: 30
-                            });
-                            rawCollected.push(...comments);
-                            fbCommentsCount += comments.length;
-                        } catch (pageErr) {
-                            console.warn(`Error obteniendo comentarios de página FB ${pageId}:`, pageErr.message);
-                            providerErrors.push({ provider: 'facebook', pageId, error: pageErr.message });
+                        if (pagesAttempted > 0 && pagesSucceeded === 0) {
+                            providerStatus.facebook = {
+                                status: 'error',
+                                error: 'Fallaron todas las consultas de páginas de Facebook.',
+                                count: 0,
+                                pagesAttempted,
+                                pagesSucceeded: 0,
+                                hasMore: false,
+                                byPage
+                            };
+                        } else if (pagesSucceeded < pagesAttempted) {
+                            providersSucceeded++;
+                            providerStatus.facebook = {
+                                status: 'partial',
+                                count: fbCommentsCount,
+                                pagesAttempted,
+                                pagesSucceeded,
+                                hasMore: hasPending,
+                                byPage
+                            };
+                        } else {
+                            providersSucceeded++;
+                            providerStatus.facebook = {
+                                status: 'ok',
+                                count: fbCommentsCount,
+                                pagesAttempted,
+                                pagesSucceeded,
+                                hasMore: hasPending,
+                                byPage
+                            };
                         }
                     }
-
-                    providerStatus.facebook = { status: 'ok', count: fbCommentsCount };
-                    providersSucceeded++;
                 } catch (err) {
                     console.error('Error sincronizando Facebook:', err);
-                    providerStatus.facebook = { status: 'error', error: err.message, count: 0 };
+                    providerStatus.facebook = {
+                        status: 'error',
+                        error: err.message,
+                        count: 0,
+                        pagesAttempted: 0,
+                        pagesSucceeded: 0
+                    };
                     providerErrors.push({ provider: 'facebook', error: err.message });
                 }
             }
@@ -226,40 +349,107 @@ export async function POST(request) {
                         selectedAccounts = availableAccounts.slice(0, 5).map(a => a.id);
                     }
 
-                    let igCommentsCount = 0;
-                    for (const igId of selectedAccounts) {
-                        const targetAccount = availableAccounts.find(a => a.id === igId);
-                        const linkedPageId = targetAccount?.linkedPageId;
-                        let tokenToUse = metaAccessPlain;
+                    if (selectedAccounts.length === 0) {
+                        providerStatus.instagram = {
+                            status: 'ok',
+                            count: 0,
+                            accountsAttempted: 0,
+                            accountsSucceeded: 0,
+                            note: 'No hay cuentas de Instagram seleccionadas.'
+                        };
+                        providersSucceeded++;
+                    } else {
+                        let igCommentsCount = 0;
+                        let accountsAttempted = selectedAccounts.length;
+                        let accountsSucceeded = 0;
+                        let hasPending = false;
+                        const byAccount = {};
 
-                        if (linkedPageId && fbConfig.pageTokens?.[linkedPageId]) {
+                        for (const igId of selectedAccounts) {
+                            const targetAccount = availableAccounts.find(a => a.id === igId);
+                            const linkedPageId = targetAccount?.linkedPageId;
+                            let tokenToUse = metaAccessPlain;
+
+                            if (linkedPageId && fbConfig.pageTokens?.[linkedPageId]) {
+                                try {
+                                    tokenToUse = decryptOAuthToken(fbConfig.pageTokens[linkedPageId]);
+                                } catch {
+                                    tokenToUse = metaAccessPlain;
+                                }
+                            }
+
                             try {
-                                tokenToUse = decryptOAuthToken(fbConfig.pageTokens[linkedPageId]);
-                            } catch {
-                                tokenToUse = metaAccessPlain;
+                                const result = await fetchInstagramComments({
+                                    igUserId: igId,
+                                    pageAccessToken: tokenToUse,
+                                    mediaLimit: 15,
+                                    commentLimit: 50,
+                                    maxPages: 3
+                                });
+                                rawCollected.push(...result.comments);
+                                igCommentsCount += result.comments.length;
+                                accountsSucceeded++;
+                                if (result.hasMore) hasPending = true;
+
+                                byAccount[igId] = {
+                                    status: 'ok',
+                                    count: result.comments.length,
+                                    hasMore: result.hasMore,
+                                    nextCursor: result.nextCursor,
+                                    mediaProcessed: result.mediaProcessed
+                                };
+                            } catch (igErr) {
+                                console.warn(`Error obteniendo comentarios de Instagram ${igId}:`, igErr.message);
+                                byAccount[igId] = {
+                                    status: 'error',
+                                    count: 0,
+                                    error: igErr.message
+                                };
+                                providerErrors.push({ provider: 'instagram', igUserId: igId, error: igErr.message });
                             }
                         }
 
-                        try {
-                            const comments = await fetchInstagramComments({
-                                igUserId: igId,
-                                pageAccessToken: tokenToUse,
-                                mediaLimit: 10,
-                                commentLimit: 30
-                            });
-                            rawCollected.push(...comments);
-                            igCommentsCount += comments.length;
-                        } catch (igErr) {
-                            console.warn(`Error obteniendo comentarios de Instagram ${igId}:`, igErr.message);
-                            providerErrors.push({ provider: 'instagram', igUserId: igId, error: igErr.message });
+                        if (accountsAttempted > 0 && accountsSucceeded === 0) {
+                            providerStatus.instagram = {
+                                status: 'error',
+                                error: 'Fallaron todas las consultas de cuentas de Instagram.',
+                                count: 0,
+                                accountsAttempted,
+                                accountsSucceeded: 0,
+                                hasMore: false,
+                                byAccount
+                            };
+                        } else if (accountsSucceeded < accountsAttempted) {
+                            providersSucceeded++;
+                            providerStatus.instagram = {
+                                status: 'partial',
+                                count: igCommentsCount,
+                                accountsAttempted,
+                                accountsSucceeded,
+                                hasMore: hasPending,
+                                byAccount
+                            };
+                        } else {
+                            providersSucceeded++;
+                            providerStatus.instagram = {
+                                status: 'ok',
+                                count: igCommentsCount,
+                                accountsAttempted,
+                                accountsSucceeded,
+                                hasMore: hasPending,
+                                byAccount
+                            };
                         }
                     }
-
-                    providerStatus.instagram = { status: 'ok', count: igCommentsCount };
-                    providersSucceeded++;
                 } catch (err) {
                     console.error('Error sincronizando Instagram:', err);
-                    providerStatus.instagram = { status: 'error', error: err.message, count: 0 };
+                    providerStatus.instagram = {
+                        status: 'error',
+                        error: err.message,
+                        count: 0,
+                        accountsAttempted: 0,
+                        accountsSucceeded: 0
+                    };
                     providerErrors.push({ provider: 'instagram', error: err.message });
                 }
             } else if (igConfig.statusReason) {
@@ -271,7 +461,7 @@ export async function POST(request) {
             }
         }
 
-        // Save updated tokens / cached discoveries
+        // Save updated tokens atomically
         await writeJsonAtomic(connFilePath, connections).catch(err => {
             console.warn('Advertencia guardando connections.json actualizado:', err.message);
         });
@@ -353,7 +543,6 @@ export async function POST(request) {
         }
 
         history.unshift(report);
-        // Keep up to 30 most recent audits
         if (history.length > 30) history = history.slice(0, 30);
 
         await writeJsonAtomic(historyPath, history);

@@ -19,7 +19,7 @@ export async function POST(request) {
         const body = await request.json().catch(() => ({}));
         const { userId, query } = body || {};
 
-        const auth =  authorizeTenantAccess(session, userId);
+        const auth = authorizeTenantAccess(session, userId);
         if (!auth.authorized) {
             return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
@@ -69,52 +69,59 @@ export async function POST(request) {
                 domain: domainInfo.domain,
                 domainWeight: domainInfo.weight,
                 category: domainInfo.category,
-                sentiment: 'neutro', // Baseline until AI classifies
+                sentiment: 'indeterminado',
                 captureDate: new Date().toISOString(),
                 inclusionReason: `Resultado orgánico #${item.position || (idx + 1)} en ${searchOutcome.provider}`
             };
         });
 
-        // Run Gemini PR Audit
-        let aiAudit;
+        // Run Gemini PR Audit with graceful fallback
+        let aiAudit = null;
+        let aiFailed = false;
         try {
             aiAudit = await runAIWebAudit(cleanQuery, activeRaw);
         } catch (aiErr) {
             console.warn('Advertencia en auditoría cualitativa IA web:', aiErr.message);
-            aiAudit = {
-                summary: `Diagnóstico automático: Se relevaron ${activeSources.length} fuentes públicas para "${cleanQuery}".`,
-                sourcesAnalysis: [],
-                reconciliations: [
-                    'Mantener el monitoreo continuo de fuentes indexadas para detectar fluctuaciones tempranas de reputación.',
-                    'Optimizar perfiles corporativos en directorios institucionales para consolidar el control sobre los primeros resultados de búsqueda.'
-                ]
-            };
+            aiFailed = true;
         }
 
-        // Merge AI sentiment classifications with verified source list
-        const aiMap = new Map();
-        if (Array.isArray(aiAudit.sourcesAnalysis)) {
-            for (const item of aiAudit.sourcesAnalysis) {
-                if (item?.url) aiMap.set(item.url, item);
+        let finalSources = [];
+        if (aiFailed || !aiAudit) {
+            // Preserve authentic sources without assigning false neutral sentiments
+            finalSources = activeSources.map(s => ({
+                ...s,
+                sentiment: 'indeterminado',
+                aiJustification: 'Análisis de sentimiento no disponible.'
+            }));
+        } else {
+            const aiMap = new Map();
+            if (Array.isArray(aiAudit.sourcesAnalysis)) {
+                for (const item of aiAudit.sourcesAnalysis) {
+                    if (item?.url) aiMap.set(item.url, item);
+                }
             }
-        }
 
-        const finalSources = activeSources.map(s => {
-            const aiData = aiMap.get(s.url);
-            if (aiData) {
+            finalSources = activeSources.map(s => {
+                const aiData = aiMap.get(s.url);
+                if (aiData) {
+                    return {
+                        ...s,
+                        category: ['prensa', 'directorio', 'foro', 'perfil_profesional', 'institucional', 'otro'].includes(aiData.category)
+                            ? aiData.category
+                            : s.category,
+                        sentiment: ['positivo', 'neutro', 'negativo'].includes(aiData.sentiment)
+                            ? aiData.sentiment
+                            : 'indeterminado',
+                        aiJustification: aiData.justification || ''
+                    };
+                }
                 return {
                     ...s,
-                    category: ['prensa', 'directorio', 'foro', 'perfil_profesional', 'institucional', 'otro'].includes(aiData.category)
-                        ? aiData.category
-                        : s.category,
-                    sentiment: ['positivo', 'neutro', 'negativo'].includes(aiData.sentiment)
-                        ? aiData.sentiment
-                        : s.sentiment,
-                    aiJustification: aiData.justification || ''
+                    sentiment: 'indeterminado',
+                    aiJustification: 'No clasificado por IA.'
                 };
-            }
-            return s;
-        });
+            });
+        }
 
         const metrics = calculateWebReputationMetrics(finalSources);
 
@@ -134,15 +141,18 @@ export async function POST(request) {
             },
             metrics,
             results: {
-                brandScore: metrics.calculatedScore,
-                publicSentiment: {
+                brandScore: aiFailed ? null : metrics.calculatedScore,
+                aiValidated: !aiFailed,
+                publicSentiment: aiFailed ? null : {
                     positive: metrics.sentimentPercentages.positivo,
                     neutral: metrics.sentimentPercentages.neutro,
                     negative: metrics.sentimentPercentages.negativo
                 },
-                summary: aiAudit.summary,
+                summary: aiFailed
+                    ? 'Análisis de sentimiento no disponible (se conservan las fuentes verificadas).'
+                    : (aiAudit.summary || 'Diagnóstico de presencia digital.'),
                 sources: finalSources,
-                reconciliations: Array.isArray(aiAudit.reconciliations) ? aiAudit.reconciliations : []
+                reconciliations: aiFailed ? [] : (Array.isArray(aiAudit.reconciliations) ? aiAudit.reconciliations : [])
             },
             poolSources: poolRaw.map((item, idx) => {
                 const domainInfo = classifyDomain(item.link);
@@ -154,7 +164,7 @@ export async function POST(request) {
                     domain: domainInfo.domain,
                     domainWeight: domainInfo.weight,
                     category: domainInfo.category,
-                    sentiment: 'neutro',
+                    sentiment: 'indeterminado',
                     captureDate: new Date().toISOString()
                 };
             }),

@@ -7,6 +7,33 @@ import { decryptOAuthToken, encryptOAuthToken, isEncryptedOAuthToken } from '@/l
 import { revokeGoogleToken, listGoogleAccounts, listGoogleLocations, refreshGoogleAccessToken } from '@/lib/commentor/googleConnector';
 import { listMetaPagesAndInstagram } from '@/lib/commentor/metaConnector';
 
+/**
+ * Strips all secret and encrypted tokens (access/refresh/page tokens)
+ * from any object before returning it to the browser.
+ */
+function sanitizePublicConnectionsPayload(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizePublicConnectionsPayload);
+
+    const clean = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (
+            key === 'accessToken' ||
+            key === 'refreshToken' ||
+            key === 'pageTokens' ||
+            (key.toLowerCase().endsWith('token') && key !== 'isTokenExpired')
+        ) {
+            continue; // Strip completely!
+        }
+        if (typeof value === 'object' && value !== null) {
+            clean[key] = sanitizePublicConnectionsPayload(value);
+        } else {
+            clean[key] = value;
+        }
+    }
+    return clean;
+}
+
 export async function GET(request) {
     try {
         const session = await getServerSession(request);
@@ -63,16 +90,16 @@ export async function GET(request) {
         );
 
         if (isGoogleActive) {
-            const { accessToken, refreshToken, ...rest } = googleDetails;
-            const isExpired = rest.tokenExpiresAt ? Date.now() > rest.tokenExpiresAt : false;
+            const isExpired = googleDetails.tokenExpiresAt ? Date.now() > googleDetails.tokenExpiresAt : false;
             sanitized.google = {
-                ...rest,
                 connected: true,
                 providerConfigured: true,
                 isTokenExpired: isExpired,
-                account: rest.account || null,
-                availableLocations: Array.isArray(rest.availableLocations) ? rest.availableLocations : [],
-                selectedLocations: Array.isArray(rest.selectedLocations) ? rest.selectedLocations : []
+                locationName: googleDetails.locationName || 'Perfil de Google Business',
+                account: googleDetails.account || null,
+                availableLocations: Array.isArray(googleDetails.availableLocations) ? googleDetails.availableLocations : [],
+                selectedLocations: Array.isArray(googleDetails.selectedLocations) ? googleDetails.selectedLocations : [],
+                connectedAt: googleDetails.connectedAt
             };
         } else {
             sanitized.google = {
@@ -107,39 +134,30 @@ export async function GET(request) {
         );
 
         if (isMetaActive) {
-            const { accessToken, ...rest } = metaDetails;
-            const isExpired = rest.tokenExpiresAt ? Date.now() > rest.tokenExpiresAt : false;
-
-            const fbConfig = rest.facebook || {
-                connected: true,
-                pageName: rest.pageName || 'Página de Facebook',
-                availablePages: [],
-                selectedPages: []
-            };
-
-            const igConfig = rest.instagram || {
-                connected: Boolean(rest.instagramUsername && rest.instagramUsername !== 'No vinculada'),
-                instagramUsername: rest.instagramUsername || null,
-                availableAccounts: [],
-                selectedAccounts: [],
-                statusReason: null
-            };
-
-            // Remove any encrypted page tokens from user-facing payload
-            const sanitizedFb = {
-                ...fbConfig,
-                pageTokens: undefined
-            };
+            const isExpired = metaDetails.tokenExpiresAt ? Date.now() > metaDetails.tokenExpiresAt : false;
+            const fbConfig = metaDetails.facebook || {};
+            const igConfig = metaDetails.instagram || {};
 
             sanitized.meta = {
                 connected: true,
                 providerConfigured: true,
                 isTokenExpired: isExpired,
-                connectedAt: rest.connectedAt,
-                pageName: rest.pageName,
-                instagramUsername: rest.instagramUsername,
-                facebook: sanitizedFb,
-                instagram: igConfig
+                connectedAt: metaDetails.connectedAt,
+                pageName: metaDetails.pageName || fbConfig.pageName || 'Página de Facebook Conectada',
+                instagramUsername: metaDetails.instagramUsername || igConfig.instagramUsername || null,
+                facebook: {
+                    connected: fbConfig.connected !== false,
+                    pageName: fbConfig.pageName || 'Página de Facebook',
+                    availablePages: Array.isArray(fbConfig.availablePages) ? fbConfig.availablePages : [],
+                    selectedPages: Array.isArray(fbConfig.selectedPages) ? fbConfig.selectedPages : []
+                },
+                instagram: {
+                    connected: Boolean(igConfig.connected),
+                    instagramUsername: igConfig.instagramUsername || null,
+                    availableAccounts: Array.isArray(igConfig.availableAccounts) ? igConfig.availableAccounts : [],
+                    selectedAccounts: Array.isArray(igConfig.selectedAccounts) ? igConfig.selectedAccounts : [],
+                    statusReason: igConfig.statusReason || null
+                }
             };
         } else {
             sanitized.meta = {
@@ -155,7 +173,10 @@ export async function GET(request) {
             await writeJsonAtomic(connFilePath, connections).catch(() => {});
         }
 
-        return NextResponse.json({ success: true, connections: sanitized });
+        // Final deep defense: strip any token fields completely
+        const safePublicPayload = sanitizePublicConnectionsPayload(sanitized);
+
+        return NextResponse.json({ success: true, connections: safePublicPayload });
     } catch (error) {
         console.error('Error in GET connections:', error);
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -357,8 +378,15 @@ export async function POST(request) {
                 return NextResponse.json({
                     success: true,
                     message: 'Páginas y cuentas de Meta actualizadas con éxito.',
-                    facebook: connections.meta.facebook,
-                    instagram: connections.meta.instagram
+                    facebook: {
+                        connected: connections.meta.facebook.connected,
+                        availablePages: connections.meta.facebook.availablePages
+                    },
+                    instagram: {
+                        connected: connections.meta.instagram.connected,
+                        availableAccounts: connections.meta.instagram.availableAccounts,
+                        statusReason: connections.meta.instagram.statusReason
+                    }
                 });
             }
 

@@ -69,16 +69,23 @@ export async function POST(request) {
         };
         report.excludedSources.push(exclusionRecord);
 
-        // Record historical snapshot for lineage
-        const previousScore = report.results.brandScore ?? 50;
+        // Record a FULL, IMMUTABLE snapshot of previous revision state
+        const previousScore = report.results.brandScore ?? null;
         const currentRevision = report.revision || 0;
         report.revisionHistory.push({
             revision: currentRevision,
             timestamp: new Date().toISOString(),
             brandScore: previousScore,
-            sourcesCount: report.results.sources.length + 1,
+            aiValidated: report.results.aiValidated !== false,
+            publicSentiment: report.results.publicSentiment ? JSON.parse(JSON.stringify(report.results.publicSentiment)) : null,
+            summary: report.results.summary,
+            sources: JSON.parse(JSON.stringify(report.results.sources)),
+            excludedSources: JSON.parse(JSON.stringify(report.excludedSources)),
+            metrics: report.metrics ? JSON.parse(JSON.stringify(report.metrics)) : null,
+            poolSourcesCount: report.poolSources.length,
             action: 'exclude_source',
-            excludedUrl: urlToExclude
+            excludedUrl: urlToExclude,
+            reason: reason || ''
         });
 
         // 2. Backfill from pool if available
@@ -94,7 +101,7 @@ export async function POST(request) {
                 domain: domainInfo.domain,
                 domainWeight: domainInfo.weight,
                 category: domainInfo.category,
-                sentiment: 'neutro',
+                sentiment: 'indeterminado',
                 captureDate: new Date().toISOString(),
                 inclusionReason: 'Promovido desde el pool de resultados tras exclusión de fuente'
             };
@@ -105,8 +112,9 @@ export async function POST(request) {
             return NextResponse.json({ error: 'No quedan resultados para auditar en este reporte tras la exclusión.' }, { status: 400 });
         }
 
-        // 3. Re-run AI classification for active sources
-        let aiAudit;
+        // 3. Re-evaluate with Gemini PR audit or graceful fallback
+        let aiAudit = null;
+        let aiFailed = false;
         try {
             aiAudit = await runAIWebAudit(report.query, report.results.sources.map(s => ({
                 link: s.url,
@@ -115,58 +123,72 @@ export async function POST(request) {
             })));
         } catch (aiErr) {
             console.warn('Advertencia en recálculo IA web:', aiErr.message);
-            aiAudit = {
-                summary: `Diagnóstico recalculado: ${report.results.sources.length} fuentes activas analizadas tras exclusión.`,
-                sourcesAnalysis: [],
-                reconciliations: report.results.reconciliations || []
-            };
+            aiFailed = true;
         }
 
-        const aiMap = new Map();
-        if (Array.isArray(aiAudit.sourcesAnalysis)) {
-            for (const item of aiAudit.sourcesAnalysis) {
-                if (item?.url) aiMap.set(item.url, item);
+        if (aiFailed || !aiAudit) {
+            report.results.sources = report.results.sources.map(s => ({
+                ...s,
+                sentiment: 'indeterminado',
+                aiJustification: 'Análisis de sentimiento no disponible.'
+            }));
+            report.results.brandScore = null;
+            report.results.aiValidated = false;
+            report.results.publicSentiment = null;
+            report.results.summary = 'Análisis de sentimiento no disponible (se conservan las fuentes verificadas tras la exclusión).';
+            report.scoreDelta = null;
+            report.lastChangeLog = `Revisión #${currentRevision + 1}: Se excluyó "${urlToExclude}". Análisis de sentimiento no disponible.${backfilledItem ? ' Se promovió 1 resultado del pool.' : ''}`;
+        } else {
+            const aiMap = new Map();
+            if (Array.isArray(aiAudit.sourcesAnalysis)) {
+                for (const item of aiAudit.sourcesAnalysis) {
+                    if (item?.url) aiMap.set(item.url, item);
+                }
             }
-        }
 
-        report.results.sources = report.results.sources.map(s => {
-            const aiData = aiMap.get(s.url);
-            if (aiData) {
+            report.results.sources = report.results.sources.map(s => {
+                const aiData = aiMap.get(s.url);
+                if (aiData) {
+                    return {
+                        ...s,
+                        category: ['prensa', 'directorio', 'foro', 'perfil_profesional', 'institucional', 'otro'].includes(aiData.category)
+                            ? aiData.category
+                            : s.category,
+                        sentiment: ['positivo', 'neutro', 'negativo'].includes(aiData.sentiment)
+                            ? aiData.sentiment
+                            : 'indeterminado',
+                        aiJustification: aiData.justification || ''
+                    };
+                }
                 return {
                     ...s,
-                    category: ['prensa', 'directorio', 'foro', 'perfil_profesional', 'institucional', 'otro'].includes(aiData.category)
-                        ? aiData.category
-                        : s.category,
-                    sentiment: ['positivo', 'neutro', 'negativo'].includes(aiData.sentiment)
-                        ? aiData.sentiment
-                        : s.sentiment,
-                    aiJustification: aiData.justification || ''
+                    sentiment: 'indeterminado',
+                    aiJustification: 'No clasificado por IA.'
                 };
-            }
-            return s;
-        });
+            });
 
-        // 4. Recompute deterministic metrics
-        const metrics = calculateWebReputationMetrics(report.results.sources);
-        const newScore = metrics.calculatedScore;
-        const scoreDelta = newScore - previousScore;
+            const metrics = calculateWebReputationMetrics(report.results.sources);
+            const newScore = metrics.calculatedScore;
+            const scoreDelta = previousScore !== null && newScore !== null ? newScore - previousScore : null;
+
+            report.metrics = metrics;
+            report.results.brandScore = newScore;
+            report.results.aiValidated = true;
+            report.results.publicSentiment = {
+                positive: metrics.sentimentPercentages.positivo,
+                neutral: metrics.sentimentPercentages.neutro,
+                negative: metrics.sentimentPercentages.negativo
+            };
+            report.results.summary = aiAudit.summary || report.results.summary;
+            if (Array.isArray(aiAudit.reconciliations) && aiAudit.reconciliations.length > 0) {
+                report.results.reconciliations = aiAudit.reconciliations;
+            }
+            report.scoreDelta = scoreDelta;
+            report.lastChangeLog = `Revisión #${currentRevision + 1}: Se excluyó "${urlToExclude}". Variación de puntuación: ${scoreDelta !== null ? (scoreDelta >= 0 ? `+${scoreDelta}` : scoreDelta) + ' pts' : 'N/D'}.${backfilledItem ? ' Se promovió 1 resultado del pool.' : ''}`;
+        }
 
         report.revision = currentRevision + 1;
         report.lastRecalculatedAt = new Date().toISOString();
-        report.scoreDelta = scoreDelta;
-        report.lastChangeLog = `Revisión #${report.revision}: Se excluyó "${urlToExclude}". Variación de puntuación: ${scoreDelta >= 0 ? `+${scoreDelta}` : scoreDelta} pts.${backfilledItem ? ' Se promovió 1 resultado del pool.' : ''}`;
-
-        report.metrics = metrics;
-        report.results.brandScore = newScore;
-        report.results.publicSentiment = {
-            positive: metrics.sentimentPercentages.positivo,
-            neutral: metrics.sentimentPercentages.neutro,
-            negative: metrics.sentimentPercentages.negativo
-        };
-        report.results.summary = aiAudit.summary || report.results.summary;
-        if (Array.isArray(aiAudit.reconciliations) && aiAudit.reconciliations.length > 0) {
-            report.results.reconciliations = aiAudit.reconciliations;
-        }
 
         // Save updated history atomically
         history[reportIndex] = report;
@@ -175,7 +197,7 @@ export async function POST(request) {
         return NextResponse.json({
             success: true,
             report,
-            scoreDelta,
+            scoreDelta: report.scoreDelta,
             changeLog: report.lastChangeLog
         });
     } catch (error) {

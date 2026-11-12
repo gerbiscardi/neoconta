@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
 import { signOAuthState } from '@/lib/publicTokens';
+import { META_GRAPH_VERSION } from '@/lib/commentor/metaConnector';
 
 export async function GET(request) {
     try {
@@ -27,10 +28,10 @@ export async function GET(request) {
 
         const signedState = signOAuthState(auth.tenantId, 'meta');
         const metaAuthUrl =
-            `https://www.facebook.com/v20.0/dialog/oauth?` +
+            `https://www.facebook.com/${META_GRAPH_VERSION}/dialog/oauth?` +
             `client_id=${encodeURIComponent(appId)}` +
             `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-            `&scope=${encodeURIComponent('pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_comments')}` +
+            `&scope=${encodeURIComponent('pages_show_list,pages_read_engagement,pages_read_user_content,instagram_basic,instagram_manage_comments')}` +
             `&state=${encodeURIComponent(signedState)}`;
 
         return NextResponse.redirect(metaAuthUrl);
