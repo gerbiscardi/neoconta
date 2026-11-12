@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { computeCommanderAnalytics, evaluateWidgets } from '../lib/commander/engine.js';
+import { processExternalIngestion, rollbackExternalBatch, getIngestPaths, loadJsonArray } from '../lib/commander/ingestService.js';
 
 async function testComponent1Engine() {
     const sampleInvoices = [
@@ -202,7 +206,129 @@ async function testComponent1Engine() {
     console.log('PASS: Component 1 Commander financial engine & widget reconciliation verified');
 }
 
-testComponent1Engine().catch(err => {
+async function testComponent2Ingest() {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'commander-c2-'));
+    const prevDataDir = process.env.NEOCONTA_DATA_DIR;
+    process.env.NEOCONTA_DATA_DIR = tmpRoot;
+    const tenantId = 'cli_test_c2';
+
+    try {
+        const { invoicesFilePath, transactionsFilePath } = getIngestPaths(tenantId);
+        await fs.mkdir(path.dirname(invoicesFilePath), { recursive: true });
+
+        // Pre-seed real ARCA invoice that must NEVER be overwritten or duplicated
+        const arcaInvoice = {
+            id: 'arca_keep_1',
+            cae: '75999999999999',
+            cbteFch: '20260901',
+            CbteTipo: 1,
+            PtoVta: 1,
+            CbteDesde: 50,
+            RazonSocial: 'Cliente ARCA Intacto',
+            CUIT: '30711111119',
+            Importe: 80000,
+            status: 'aprobado'
+        };
+        await fs.writeFile(invoicesFilePath, JSON.stringify([arcaInvoice], null, 2));
+
+        // 1. Preview with explicit columnMapping + duplicate vs ARCA + invalid row
+        const previewRes = await processExternalIngestion({
+            tenantId,
+            dataType: 'invoices',
+            mode: 'preview',
+            fileName: 'ventas.csv',
+            columnMapping: {
+                client_name: 'Cliente',
+                cuit: 'Doc',
+                amount: 'Total',
+                date: 'Fecha',
+                cbteTipo: 'Tipo',
+                ptoVta: 'PV',
+                cbteDesde: 'Nro'
+            },
+            data: [
+                { Cliente: 'Cliente ARCA Intacto', Doc: '30-71111111-9', Total: '80.000,00', Fecha: '01/09/2026', Tipo: 1, PV: 1, Nro: 50 }, // duplicate of ARCA
+                { Cliente: 'Nuevo Externo SRL', Doc: '30-72222222-3', Total: '25.500,50', Fecha: '15/09/2026', Tipo: 11, PV: 2, Nro: 10 }, // valid
+                { Cliente: 'Sin Monto', Doc: '30733333331', Total: '-500', Fecha: '15/09/2026' } // error
+            ]
+        });
+        assert.equal(previewRes.ok, true);
+        assert.equal(previewRes.validCount, 1);
+        assert.equal(previewRes.duplicateCount, 1);
+        assert.equal(previewRes.errorCount, 1);
+
+        // 2. Bank transactions supporting positive AND negative amounts + idempotent replay
+        const txPayload = [
+            { fecha: '2026-09-10', concepto: 'Transferencia recibida', importe: '45.000,00', cliente: 'Cliente A', banco: 'GALICIA' },
+            { fecha: '2026-09-11', concepto: 'Debito IIBB', importe: '-3.250,75', cliente: 'ARBA', banco: 'GALICIA' }
+        ];
+        const commitTx1 = await processExternalIngestion({
+            tenantId,
+            dataType: 'transactions',
+            mode: 'commit',
+            fileName: 'extracto.xlsx',
+            data: txPayload
+        });
+        assert.equal(commitTx1.ok, true);
+        assert.equal(commitTx1.recordCount, 2);
+
+        const replayTx = await processExternalIngestion({
+            tenantId,
+            dataType: 'transactions',
+            mode: 'commit',
+            fileName: 'extracto.xlsx',
+            data: txPayload
+        });
+        assert.equal(replayTx.ok, true);
+        assert.equal(replayTx.idempotentReplay, true);
+        assert.equal(replayTx.recordCount, 0);
+
+        const savedTxs = await loadJsonArray(transactionsFilePath);
+        assert.equal(savedTxs.length, 2);
+        assert.ok(savedTxs.some(t => t.amount === 45000));
+        assert.ok(savedTxs.some(t => t.amount === -3250.75));
+
+        // 3. Concurrent invoice commits must serialize cleanly without losing records or touching ARCA
+        const [c1, c2] = await Promise.all([
+            processExternalIngestion({
+                tenantId,
+                dataType: 'invoices',
+                fileName: 'lote_a.xlsx',
+                data: [{ client_name: 'Concurrente A', cuit: '30766666661', amount: 12000, date: '2026-09-20', cbteTipo: 11, ptoVta: 3, cbteDesde: 1 }]
+            }),
+            processExternalIngestion({
+                tenantId,
+                dataType: 'invoices',
+                fileName: 'lote_b.xlsx',
+                data: [{ client_name: 'Concurrente B', cuit: '30766666662', amount: 18000, date: '2026-09-21', cbteTipo: 11, ptoVta: 3, cbteDesde: 2 }]
+            })
+        ]);
+        assert.equal(c1.ok, true);
+        assert.equal(c2.ok, true);
+
+        const allInvs = await loadJsonArray(invoicesFilePath);
+        assert.equal(allInvs.length, 3, 'Concurrent commits must preserve ARCA + both batches');
+        assert.equal(allInvs.find(i => i.id === 'arca_keep_1').status, 'aprobado');
+
+        // 4. Safe rollback preserves ARCA and other batches
+        const rb = await rollbackExternalBatch(tenantId, c1.batchId);
+        assert.equal(rb.ok, true);
+        const afterRb = await loadJsonArray(invoicesFilePath);
+        assert.equal(afterRb.length, 2);
+        assert.ok(afterRb.some(i => i.id === 'arca_keep_1'));
+
+        console.log('PASS: Component 2 Excel/CSV preview, mapping, negative bank amounts, idempotency & concurrency verified');
+    } finally {
+        if (prevDataDir === undefined) delete process.env.NEOCONTA_DATA_DIR;
+        else process.env.NEOCONTA_DATA_DIR = prevDataDir;
+        await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
+(async () => {
+    await testComponent1Engine();
+    await testComponent2Ingest();
+})().catch(err => {
     console.error(err);
     process.exit(1);
 });
