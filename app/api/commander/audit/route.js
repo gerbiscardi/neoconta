@@ -18,6 +18,7 @@ export async function GET(request) {
         const dateTo = searchParams.get('dateTo') || '';
         const sourceFilter = searchParams.get('source') || 'all';
         const limit = Math.min(Math.max(Number(searchParams.get('limit') || 100), 1), 500);
+        const offset = Math.max(Number(searchParams.get('offset') || 0), 0);
 
         const auth = authorizeTenantAccess(session, requestedUserId);
         if (!auth.authorized) {
@@ -32,14 +33,15 @@ export async function GET(request) {
             filters: { client: clientFilter, dateFrom, dateTo, sourceFilter }
         });
 
-        const { eligibleInvoices, filteredTxs } = analytics._normalized;
-        let records = [];
+        const { eligibleInvoices, filteredTxs, normalizedInvoices } = analytics._normalized;
+        let fullList = [];
+        let reconstructedTotals = {};
 
         if (metric === 'transactions' || metric === 'bankDeposits' || metric === 'reconciled') {
             const list = metric === 'reconciled'
                 ? filteredTxs.filter(tx => tx.isReconciled)
                 : (metric === 'bankDeposits' ? filteredTxs.filter(tx => tx.amount > 0) : filteredTxs);
-            records = list.slice(0, limit).map(tx => ({
+            fullList = list.map(tx => ({
                 id: tx.id,
                 date: tx.isoDate,
                 client_name: tx.client_name,
@@ -53,21 +55,27 @@ export async function GET(request) {
                 originFileName: tx.originFileName || null,
                 batchId: tx.batchId || null
             }));
+            const sumAmount = Math.round(fullList.reduce((acc, r) => acc + (Number(r.amount) || 0), 0) * 100) / 100;
+            const sumReconciled = Math.round(fullList.reduce((acc, r) => acc + (Number(r.reconciledAmount) || 0), 0) * 100) / 100;
+            reconstructedTotals = { sumAmount, sumReconciledAmount: sumReconciled };
         } else if (metric === 'unverified') {
-            records = invoices
-                .filter(inv => !inv.status || !['aprobado', 'importado_externo'].includes(String(inv.status).toLowerCase()))
-                .slice(0, limit)
-                .map(inv => ({
-                    id: inv.id || inv.cae || '-',
-                    date: inv.cbteFch || inv.created_at || null,
-                    RazonSocial: inv.RazonSocial || inv.cliente || '-',
-                    CUIT: inv.CUIT || inv.cuit || '-',
-                    Importe: Number(inv.Importe || inv.Total || 0),
-                    status: inv.status || 'sin_estado',
-                    source: inv.source || 'unknown'
-                }));
+            const unverifiedList = (normalizedInvoices || []).filter(
+                inv => inv.provenance === 'unverified_missing_status' || inv.provenance === 'unverified_missing_evidence' || inv.provenance === 'rejected_or_void'
+            );
+            fullList = unverifiedList.map(inv => ({
+                id: inv.id || inv.cae || '-',
+                date: inv.cbteFch || inv.created_at || null,
+                RazonSocial: inv.RazonSocial || '-',
+                CUIT: inv.CUIT || '-',
+                Importe: Number(inv.Importe || 0),
+                status: inv.status || 'sin_estado',
+                provenance: inv.provenance,
+                source: inv.source || 'unknown'
+            }));
+            const sumImporte = Math.round(fullList.reduce((acc, r) => acc + (Number(r.Importe) || 0), 0) * 100) / 100;
+            reconstructedTotals = { sumImporte };
         } else {
-            records = eligibleInvoices.slice(0, limit).map(inv => ({
+            fullList = eligibleInvoices.map(inv => ({
                 id: inv.id,
                 date: inv.isoDate,
                 dateSource: inv.dateSource,
@@ -86,12 +94,21 @@ export async function GET(request) {
                 originFileName: inv.originFileName || null,
                 batchId: inv.batchId || null
             }));
+            const sumSignedAmount = Math.round(fullList.reduce((acc, r) => acc + (Number(r.signedAmount) || 0), 0) * 100) / 100;
+            reconstructedTotals = { sumSignedAmount };
         }
+
+        const totalMatching = fullList.length;
+        const records = fullList.slice(offset, offset + limit);
 
         return new Response(JSON.stringify({
             success: true,
             metric,
-            totalMatching: records.length,
+            totalMatching,
+            offset,
+            limit,
+            hasMore: offset + records.length < totalMatching,
+            reconstructedTotals,
             kpis: analytics.kpis,
             dataQuality: analytics.dataQuality,
             audit: analytics.audit,

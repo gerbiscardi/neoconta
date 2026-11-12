@@ -12,7 +12,10 @@ import { processExternalIngestion, rollbackExternalBatch, getIngestPaths, loadJs
 import {
     validateSqlHost,
     validateIdentifier,
+    validateReadOnlyUsername,
     validateReadOnlySelectQuery,
+    buildSelectWithLimit,
+    syncSqlConnection,
     saveSqlConnection,
     listSqlConnections,
     getSqlConnectionById,
@@ -753,9 +756,207 @@ async function testComponent5E2E() {
             assert.equal(r.status, 403, `Expected 403 cross-tenant block for ${forbiddenUrl}`);
         }
 
-        console.log('PASS: Component 5 E2E HTTP server, KPI<->widget<->audit reconciliation, SSRF/501 & cross-tenant isolation verified');
+        // 7. Audit pagination & reconstruction with >500 records
+        const bulkTenant = `tenant_bulk_${Date.now()}`;
+        const bulkCookie = `neoconta_session=${encodeURIComponent(
+            jwt.sign({ id: bulkTenant, email: 'bulk@e2e.local', role: 'CLIENT', parentId: null }, secret, { expiresIn: '1h' })
+        )}`;
+        const pBulk = new PrismaClient({ datasources: { db: { url: tmpDbUrl } } });
+        await pBulk.user.create({
+            data: { id: bulkTenant, email: `${bulkTenant}@e2e.local`, nombre: 'Bulk', password: 'hash', role: 'CLIENT', status: 'active' }
+        });
+        await pBulk.$disconnect();
+
+        const bulkInvoices = Array.from({ length: 650 }, (_, idx) => ({
+            id: `bulk_${idx + 1}`,
+            cae: String(75300000000000 + idx + 1),
+            cbteFch: '20260910',
+            CbteTipo: 1,
+            PtoVta: 1,
+            CbteDesde: idx + 1,
+            RazonSocial: 'Cliente Masivo SA',
+            CUIT: '30711111119',
+            Importe: 1000,
+            status: 'aprobado'
+        }));
+        await fs.writeFile(path.join(tmpRoot, 'invoices', `${bulkTenant}_history.json`), JSON.stringify(bulkInvoices), 'utf8');
+
+        const page1Res = await fetch(`${baseUrl}/api/commander/audit?userId=${bulkTenant}&metric=invoices&limit=500&offset=0`, {
+            headers: { Cookie: bulkCookie }
+        });
+        assert.equal(page1Res.status, 200);
+        const page1 = await page1Res.json();
+        assert.equal(page1.totalMatching, 650);
+        assert.equal(page1.records.length, 500);
+        assert.equal(page1.hasMore, true);
+        assert.equal(page1.reconstructedTotals.sumSignedAmount, 650000);
+
+        const page2Res = await fetch(`${baseUrl}/api/commander/audit?userId=${bulkTenant}&metric=invoices&limit=500&offset=500`, {
+            headers: { Cookie: bulkCookie }
+        });
+        assert.equal(page2Res.status, 200);
+        const page2 = await page2Res.json();
+        assert.equal(page2.totalMatching, 650);
+        assert.equal(page2.records.length, 150);
+        assert.equal(page2.hasMore, false);
+        const combinedSum = [...page1.records, ...page2.records].reduce((acc, r) => acc + r.signedAmount, 0);
+        assert.equal(combinedSum, 650000, 'Paginated audit records >500 must reconstruct exact KPI total');
+
+        console.log('PASS: Component 5 E2E HTTP server, KPI<->widget<->audit (>500 paginated) reconciliation, SSRF/501 & cross-tenant isolation verified');
     } finally {
         serverProc.kill();
+        await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
+async function testReviewObservations() {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'commander-review-'));
+    const prevDataDir = process.env.NEOCONTA_DATA_DIR;
+    const prevAllowPrivate = process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS;
+    const prevInject = process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET;
+    process.env.NEOCONTA_DATA_DIR = tmpRoot;
+    process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS = '1';
+
+    try {
+        // 1. SQL watermark: ordering on first sync, >= + OFFSET, no watermark advance on ok: false, multi-page repeated timestamps
+        const planFirst = buildSelectWithLimit(
+            { engine: 'postgres', tableOrQueryMode: 'table', tableName: 'public.ventas', syncColumn: 'updated_at' },
+            { maxRows: 2, watermark: null, offset: 0 }
+        );
+        assert.ok(planFirst.sqlText.includes('ORDER BY "updated_at" ASC'), 'First SQL sync must order by syncColumn');
+        assert.ok(planFirst.sqlText.includes('LIMIT 2 OFFSET 0'));
+
+        const planNext = buildSelectWithLimit(
+            { engine: 'postgres', tableOrQueryMode: 'table', tableName: 'public.ventas', syncColumn: 'updated_at' },
+            { maxRows: 2, watermark: '2026-10-01', offset: 2 }
+        );
+        assert.ok(planNext.sqlText.includes('"updated_at" >= $1'), 'Incremental sync must use >= to avoid dropping repeated timestamps');
+        assert.ok(planNext.sqlText.includes('OFFSET 2'));
+
+        const sqlConn = await saveSqlConnection('tenant_rev_sql', {
+            name: 'ERP Incremental',
+            engine: 'postgres',
+            host: '127.0.0.1',
+            port: 5432,
+            database: 'erp',
+            username: 'ro_reader',
+            password: 'pw',
+            tableOrQueryMode: 'table',
+            tableName: 'public.facturas',
+            dataType: 'invoices',
+            syncColumn: 'updated_at',
+            columnMapping: { date: 'fecha', client_name: 'cliente', cuit: 'cuit', amount: 'importe', cbteDesde: 'nro' }
+        });
+
+        // Simulate failing ingestion -> watermark must stay null!
+        await assert.rejects(() =>
+            syncSqlConnection('tenant_rev_sql', sqlConn.id, {
+                pageSize: 2,
+                queryExecutor: async () => [{ fecha: '2026-10-01', cliente: '', cuit: '30711111119', importe: 1000, nro: 1, updated_at: '2026-10-01T10:00:00Z' }]
+            })
+        );
+        const afterFail = await getSqlConnectionById('tenant_rev_sql', sqlConn.id);
+        assert.equal(afterFail.lastWatermark, null, 'Watermark MUST NOT advance when ingestion fails');
+
+        // Simulate 2 pages (pageSize: 2) with repeated timestamp across page boundary
+        const dataset = [
+            { fecha: '2026-10-01', cliente: 'Cli 1', cuit: '30711111119', importe: 1000, nro: 1, updated_at: '2026-10-01T10:00:00Z' },
+            { fecha: '2026-10-01', cliente: 'Cli 2', cuit: '30711111119', importe: 2000, nro: 2, updated_at: '2026-10-01T10:00:00Z' },
+            { fecha: '2026-10-02', cliente: 'Cli 3', cuit: '30711111119', importe: 3000, nro: 3, updated_at: '2026-10-01T10:00:00Z' }
+        ];
+        const syncOk = await syncSqlConnection('tenant_rev_sql', sqlConn.id, {
+            pageSize: 2,
+            queryExecutor: async (_conn, sqlText) => {
+                const m = /OFFSET\s+(\d+)/i.exec(sqlText);
+                const off = m ? Number(m[1]) : 0;
+                return dataset.slice(off, off + 2);
+            }
+        });
+        assert.equal(syncOk.insertedCount, 3, 'All 3 rows across 2 pages sharing timestamp must be ingested');
+        const afterOk = await getSqlConnectionById('tenant_rev_sql', sqlConn.id);
+        assert.equal(afterOk.lastWatermark, '2026-10-01T10:00:00Z');
+
+        // 2. SQL security: reject admin usernames, SELECT INTO, side-effect functions, and verify strict TLS flags in source
+        for (const badUser of ['sa', 'root', 'postgres', 'sysadmin']) {
+            assert.throws(() => validateReadOnlyUsername(badUser), /solo lectura/i);
+        }
+        assert.throws(() => validateReadOnlySelectQuery('SELECT * INTO tmp_out FROM facturas'), /INTO/i);
+        assert.throws(() => validateReadOnlySelectQuery('SELECT pg_sleep(5)'), /prohibidas/i);
+        const sqlConnectorSource = await fs.readFile(path.join(process.cwd(), 'lib/commander/sqlConnector.js'), 'utf8');
+        assert.ok(!sqlConnectorSource.includes('rejectUnauthorized: false'), 'TLS cert verification must NEVER be disabled');
+        assert.ok(!sqlConnectorSource.includes('trustServerCertificate: true'), 'MSSQL trustServerCertificate must NEVER be true');
+
+        // 3. Financial engine: missing link.amount, cross-period NC/ND, and CAE evidence required for fiscal_verified
+        const revAnalytics = computeCommanderAnalytics({
+            invoices: [
+                { id: 'f_aug', cae: '75444444444401', cbteFch: '20260810', CbteTipo: 1, PtoVta: 1, CbteDesde: 1, RazonSocial: 'Cli Link', CUIT: '30711111119', Importe: 35000, status: 'aprobado' },
+                { id: 'f_aug_nc', cae: '75444444444402', cbteFch: '20260812', CbteTipo: 1, PtoVta: 1, CbteDesde: 2, RazonSocial: 'Cli Cross', CUIT: '30722222223', Importe: 50000, status: 'aprobado' },
+                // September NC associated to August invoice (must reduce August receivable even when filtered to August!)
+                { id: 'nc_sep', cae: '75444444444403', cbteFch: '20260905', CbteTipo: 3, PtoVta: 1, CbteDesde: 1, CbtesAsoc: [{ Tipo: 1, PtoVta: 1, Nro: 2 }], RazonSocial: 'Cli Cross', CUIT: '30722222223', Importe: 20000, status: 'aprobado' },
+                // Approved status WITHOUT 14-digit CAE -> must NOT be fiscal_verified!
+                { id: 'no_cae_1', cbteFch: '20260815', CbteTipo: 1, PtoVta: 1, CbteDesde: 3, RazonSocial: 'Sin CAE SA', CUIT: '30733333331', Importe: 99999, status: 'aprobado' }
+            ],
+            transactions: [
+                // Deposit of $100,000 linked to $35,000 invoice WITHOUT link.amount -> must reconcile $35,000, NOT $100,000!
+                { id: 'tx_no_amt', transaction_date: '2026-08-20T12:00:00Z', client_name: 'Cli Link', amount: 100000, linked_invoices: [{ invoice_id: '75444444444401' }] }
+            ],
+            filters: { dateFrom: '2026-08-01', dateTo: '2026-08-31' }
+        });
+        assert.equal(revAnalytics.kpis.reconciledCollections, 35000, 'Missing link.amount must infer invoice amount (35k), not full 100k deposit');
+        assert.equal(revAnalytics.kpis.pendingReceivables, 30000, 'Cross-period Sept NC (-20k) must reduce August invoice (50k -> 30k)');
+        assert.equal(revAnalytics.dataQuality.fiscalVerifiedCount, 3, 'Invoice without 14-digit CAE must NOT be counted as fiscalVerified');
+        assert.equal(revAnalytics.kpis.netInvoicing, 85000, 'Invoice without CAE evidence must be excluded from netInvoicing');
+
+        // 4. Ingestion consistency: intermediate failure restores data file + cross-process advisory lock
+        const tenantComp = 'tenant_comp_fail';
+        const { invoicesFilePath, ingestionsFilePath } = getIngestPaths(tenantComp);
+        process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET = ingestionsFilePath;
+        await assert.rejects(() =>
+            processExternalIngestion({
+                tenantId: tenantComp,
+                dataType: 'invoices',
+                data: [{ cbteFch: '20261001', RazonSocial: 'Rollback Atomico', CUIT: '30711111119', Importe: 15000 }],
+                mode: 'commit'
+            })
+        );
+        delete process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET;
+        assert.deepEqual(await loadJsonArray(invoicesFilePath), [], 'Compensation must revert orphan invoices when ingestions write fails');
+
+        // Cross-process concurrency test (2 child Node processes writing simultaneously to same tenant)
+        const tenantProc = 'tenant_cross_proc';
+        const runChildIngest = (nro) =>
+            new Promise((resolve, reject) => {
+                const script = `
+                    import { processExternalIngestion } from './lib/commander/ingestService.js';
+                    const res = await processExternalIngestion({
+                        tenantId: '${tenantProc}',
+                        dataType: 'invoices',
+                        data: [{ cbteFch: '20261001', RazonSocial: 'Proc ${nro}', CUIT: '30711111119', Importe: ${1000 * nro}, CbteDesde: ${nro} }],
+                        mode: 'commit'
+                    });
+                    if (!res.ok) process.exit(1);
+                `;
+                const p = spawn(process.execPath, ['--input-type=module', '-e', script], {
+                    cwd: process.cwd(),
+                    env: { ...process.env, NEOCONTA_DATA_DIR: tmpRoot },
+                    stdio: 'inherit'
+                });
+                p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`Child exited ${code}`))));
+            });
+        await Promise.all([runChildIngest(1), runChildIngest(2)]);
+        const crossInvs = await loadJsonArray(getIngestPaths(tenantProc).invoicesFilePath);
+        const crossBatches = await loadJsonArray(getIngestPaths(tenantProc).ingestionsFilePath);
+        assert.equal(crossInvs.length, 2, 'Cross-process file lock must preserve both concurrent child writes');
+        assert.equal(crossBatches.length, 2, 'Cross-process file lock must preserve both batch entries');
+
+        console.log('PASS: All 5 GitHub review observations (SQL watermark/TLS/RO, Engine links/NC-ND/CAE, Ingestion compensation/cross-process lock, Audit >500) verified');
+    } finally {
+        if (prevDataDir === undefined) delete process.env.NEOCONTA_DATA_DIR;
+        else process.env.NEOCONTA_DATA_DIR = prevDataDir;
+        if (prevAllowPrivate === undefined) delete process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS;
+        else process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS = prevAllowPrivate;
+        if (prevInject === undefined) delete process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET;
+        else process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET = prevInject;
         await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
     }
 }
@@ -766,6 +967,7 @@ async function testComponent5E2E() {
     await testComponent3Sql();
     await testComponent4Cloud();
     await testComponent5E2E();
+    await testReviewObservations();
 })().catch(err => {
     console.error(err);
     process.exit(1);

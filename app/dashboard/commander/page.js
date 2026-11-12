@@ -65,7 +65,19 @@ export default function CommanderPage() {
     const [cloudBusy, setCloudBusy] = useState(false);
 
     // Audit Drill-Down Modal State
-    const [auditModal, setAuditModal] = useState({ open: false, title: "", metric: "invoices", loading: false, records: [], error: null });
+    const [auditModal, setAuditModal] = useState({
+        open: false,
+        title: "",
+        metric: "invoices",
+        loading: false,
+        records: [],
+        totalMatching: 0,
+        offset: 0,
+        limit: 100,
+        hasMore: false,
+        reconstructedTotals: null,
+        error: null
+    });
 
     // Ingestions History State
     const [ingestions, setIngestions] = useState([]);
@@ -281,10 +293,11 @@ export default function CommanderPage() {
         }
     };
 
-    const openAudit = async (metric, title) => {
+    const openAudit = async (metric, title, offset = 0) => {
         const user = JSON.parse(localStorage.getItem('neoconta_user'));
         if (!user) return;
-        setAuditModal({ open: true, title, metric, loading: true, records: [], error: null });
+        const limit = 100;
+        setAuditModal((prev) => ({ ...prev, open: true, title, metric, loading: true, offset, limit, error: null }));
         try {
             const params = new URLSearchParams({
                 userId: user.id,
@@ -293,14 +306,27 @@ export default function CommanderPage() {
                 dateFrom,
                 dateTo,
                 source: sourceFilter,
-                limit: "100"
+                limit: String(limit),
+                offset: String(offset)
             });
             const res = await fetch(`/api/commander/audit?${params.toString()}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Error consultando auditoría");
-            setAuditModal({ open: true, title, metric, loading: false, records: data.records || [], error: null });
+            setAuditModal({
+                open: true,
+                title,
+                metric,
+                loading: false,
+                records: data.records || [],
+                totalMatching: data.totalMatching ?? (data.records || []).length,
+                offset: data.offset ?? offset,
+                limit: data.limit ?? limit,
+                hasMore: Boolean(data.hasMore),
+                reconstructedTotals: data.reconstructedTotals || null,
+                error: null
+            });
         } catch (err) {
-            setAuditModal({ open: true, title, metric, loading: false, records: [], error: err.message });
+            setAuditModal((prev) => ({ ...prev, open: true, title, metric, loading: false, records: [], error: err.message }));
         }
     };
 
@@ -1954,7 +1980,12 @@ export default function CommanderPage() {
                         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                             <div>
                                 <h3 className="text-base font-black text-slate-900 dark:text-white">{auditModal.title}</h3>
-                                <p className="text-[11px] text-slate-500">Trazabilidad de registros origen (hasta 100 registros filtrados)</p>
+                                <p className="text-[11px] text-slate-500">
+                                    Mostrando {auditModal.records.length > 0 ? auditModal.offset + 1 : 0}–{auditModal.offset + auditModal.records.length} de {auditModal.totalMatching} registros coincidentes
+                                    {auditModal.reconstructedTotals?.sumSignedAmount !== undefined && ` · Suma neta: ${formatCurrency(auditModal.reconstructedTotals.sumSignedAmount)}`}
+                                    {auditModal.reconstructedTotals?.sumAmount !== undefined && ` · Suma mov.: ${formatCurrency(auditModal.reconstructedTotals.sumAmount)}`}
+                                    {auditModal.reconstructedTotals?.sumReconciledAmount !== undefined && ` · Conciliado: ${formatCurrency(auditModal.reconstructedTotals.sumReconciledAmount)}`}
+                                </p>
                             </div>
                             <button
                                 onClick={() => setAuditModal({ ...auditModal, open: false })}
@@ -2006,6 +2037,27 @@ export default function CommanderPage() {
                                 </table>
                             )}
                         </div>
+                        {auditModal.totalMatching > auditModal.limit && (
+                            <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-950/40">
+                                <button
+                                    disabled={auditModal.loading || auditModal.offset === 0}
+                                    onClick={() => openAudit(auditModal.metric, auditModal.title, Math.max(0, auditModal.offset - auditModal.limit))}
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold disabled:opacity-40 cursor-pointer"
+                                >
+                                    Anterior
+                                </button>
+                                <span className="text-slate-500">
+                                    Página {Math.floor(auditModal.offset / auditModal.limit) + 1} de {Math.ceil(auditModal.totalMatching / auditModal.limit)}
+                                </span>
+                                <button
+                                    disabled={auditModal.loading || !auditModal.hasMore}
+                                    onClick={() => openAudit(auditModal.metric, auditModal.title, auditModal.offset + auditModal.limit)}
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold disabled:opacity-40 cursor-pointer"
+                                >
+                                    Siguiente
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
