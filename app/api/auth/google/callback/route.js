@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
-import { getUserDataDir } from '@/lib/dataPaths';
+import { getUserDataDir, writeJsonAtomic } from '@/lib/dataPaths';
 import { verifyOAuthState } from '@/lib/publicTokens';
 import { encryptOAuthToken, decryptOAuthToken } from '@/lib/tokenCrypto';
+import { listGoogleAccounts, listGoogleLocations } from '@/lib/commentor/googleConnector';
 
 export async function GET(request) {
     try {
@@ -69,16 +70,42 @@ export async function GET(request) {
             : '';
         const finalRefreshToken = data.refresh_token || existingRefreshPlain || '';
 
+        // Query real accounts and locations for initial selection
+        let discoveredAccount = null;
+        let availableLocations = [];
+        let discoveryError = null;
+
+        try {
+            const accounts = await listGoogleAccounts(data.access_token);
+            if (accounts.length > 0) {
+                discoveredAccount = accounts[0];
+                availableLocations = await listGoogleLocations(data.access_token, discoveredAccount.id);
+            }
+        } catch (discErr) {
+            console.warn('Advertencia en descubrimiento inicial de Google Business:', discErr.message);
+            discoveryError = discErr.message;
+        }
+
+        const selectedLocationIds = availableLocations.length > 0
+            ? availableLocations.map(l => l.id)
+            : [];
+
         allConnections.google = {
             ...allConnections.google,
             connected: true,
-            locationName: 'Perfil de Google Business',
+            providerConfigured: true,
+            account: discoveredAccount,
+            locationName: discoveredAccount ? (discoveredAccount.name || 'Perfil de Google Business') : 'Perfil de Google Business',
+            availableLocations,
+            selectedLocations: selectedLocationIds,
+            discoveryError,
             refreshToken: encryptOAuthToken(finalRefreshToken),
             accessToken: encryptOAuthToken(data.access_token),
+            tokenExpiresAt: Date.now() + ((data.expires_in || 3600) * 1000),
             connectedAt: new Date().toISOString()
         };
 
-        await writeFile(connFilePath, JSON.stringify(allConnections, null, 2), 'utf-8');
+        await writeJsonAtomic(connFilePath, allConnections);
         return NextResponse.redirect(`${appUrl}/dashboard/commentor?sync=google`);
     } catch (error) {
         console.error('Error in Google OAuth callback:', error);

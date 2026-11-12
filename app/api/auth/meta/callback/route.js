@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
-import { getUserDataDir } from '@/lib/dataPaths';
+import { getUserDataDir, writeJsonAtomic } from '@/lib/dataPaths';
 import { verifyOAuthState } from '@/lib/publicTokens';
 import { encryptOAuthToken } from '@/lib/tokenCrypto';
+import { exchangeMetaToken, listMetaPagesAndInstagram } from '@/lib/commentor/metaConnector';
 
 export async function GET(request) {
     try {
@@ -48,17 +49,23 @@ export async function GET(request) {
             throw new Error(shortData.error?.message || 'Error al obtener token de corta duración de Meta');
         }
 
-        const longLivedUrl =
-            `https://graph.facebook.com/v20.0/oauth/access_token?` +
-            `grant_type=fb_exchange_token` +
-            `&client_id=${encodeURIComponent(appId)}` +
-            `&client_secret=${encodeURIComponent(appSecret)}` +
-            `&fb_exchange_token=${encodeURIComponent(shortData.access_token)}`;
+        // Exchange for long-lived access token
+        const { accessToken: longLivedToken, expiresIn } = await exchangeMetaToken(shortData.access_token);
 
-        const longRes = await fetch(longLivedUrl);
-        const longData = await longRes.json();
-        if (!longRes.ok || !longData.access_token) {
-            throw new Error(longData.error?.message || 'Error al obtener token de larga duración de Meta');
+        // Discover real Facebook Pages and linked Instagram accounts
+        let discoveryResult = {
+            pages: [],
+            instagramAccounts: [],
+            instagramAvailable: false,
+            instagramReason: 'No se ejecutó descubrimiento'
+        };
+        let discoveryError = null;
+
+        try {
+            discoveryResult = await listMetaPagesAndInstagram(longLivedToken);
+        } catch (discErr) {
+            console.warn('Advertencia en descubrimiento de páginas Meta:', discErr.message);
+            discoveryError = discErr.message;
         }
 
         const userDir = getUserDataDir(auth.tenantId);
@@ -73,16 +80,57 @@ export async function GET(request) {
             // File does not exist yet
         }
 
+        const selectedPages = discoveryResult.pages.map(p => ({
+            id: p.id,
+            name: p.name,
+            accessToken: p.accessToken ? encryptOAuthToken(p.accessToken) : ''
+        }));
+
+        const selectedInstagram = discoveryResult.instagramAccounts.map(ig => ({
+            id: ig.id,
+            username: ig.username,
+            name: ig.name,
+            linkedPageId: ig.linkedPageId
+        }));
+
+        const firstPageName = discoveryResult.pages[0]?.name || 'Página de Facebook Conectada';
+        const firstIgUsername = discoveryResult.instagramAccounts[0]?.username
+            ? `@${discoveryResult.instagramAccounts[0].username}`
+            : null;
+
         allConnections.meta = {
             ...allConnections.meta,
             connected: true,
-            pageName: 'Página de Facebook Conectada',
-            instagramUsername: '@cuenta_instagram_conectada',
-            accessToken: encryptOAuthToken(longData.access_token),
-            connectedAt: new Date().toISOString()
+            providerConfigured: true,
+            accessToken: encryptOAuthToken(longLivedToken),
+            tokenExpiresAt: Date.now() + (expiresIn * 1000),
+            connectedAt: new Date().toISOString(),
+            discoveryError,
+            // Facebook specific configuration
+            facebook: {
+                connected: discoveryResult.pages.length > 0,
+                pageName: firstPageName,
+                availablePages: discoveryResult.pages.map(p => ({ id: p.id, name: p.name, category: p.category })),
+                selectedPages: selectedPages.map(p => p.id),
+                pageTokens: selectedPages.reduce((acc, p) => {
+                    if (p.accessToken) acc[p.id] = p.accessToken;
+                    return acc;
+                }, {})
+            },
+            // Instagram specific configuration - STRICT: only connected if authentic linked IG accounts exist
+            instagram: {
+                connected: discoveryResult.instagramAvailable,
+                instagramUsername: firstIgUsername,
+                availableAccounts: discoveryResult.instagramAccounts,
+                selectedAccounts: selectedInstagram.map(ig => ig.id),
+                statusReason: discoveryResult.instagramReason
+            },
+            // Backwards-compatible fields for legacy UI
+            pageName: firstPageName,
+            instagramUsername: firstIgUsername || 'No vinculada'
         };
 
-        await writeFile(connFilePath, JSON.stringify(allConnections, null, 2), 'utf-8');
+        await writeJsonAtomic(connFilePath, allConnections);
         return NextResponse.redirect(`${appUrl}/dashboard/commentor?sync=meta`);
     } catch (error) {
         console.error('Error in Meta OAuth callback:', error);
