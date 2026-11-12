@@ -8,7 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { getJwtSecret } from '../lib/auth.js';
 import { computeCommanderAnalytics, evaluateWidgets } from '../lib/commander/engine.js';
-import { processExternalIngestion, rollbackExternalBatch, getIngestPaths, loadJsonArray } from '../lib/commander/ingestService.js';
+import { processExternalIngestion, rollbackExternalBatch, getIngestPaths, loadJsonArray, withTenantIngestLock } from '../lib/commander/ingestService.js';
 import {
     validateSqlHost,
     validateIdentifier,
@@ -39,6 +39,7 @@ async function testComponent1Engine() {
         {
             id: 'arca_f1',
             cae: '75111111111111',
+            caeVto: '20260825',
             cbteFch: '20260815',
             CbteTipo: 1,
             PtoVta: 1,
@@ -52,6 +53,7 @@ async function testComponent1Engine() {
         {
             id: 'arca_nd1',
             cae: '75111111111112',
+            caeVto: '20260830',
             cbteFch: '20260820',
             CbteTipo: 2,
             PtoVta: 1,
@@ -66,6 +68,7 @@ async function testComponent1Engine() {
         {
             id: 'arca_nc1',
             cae: '75111111111113',
+            caeVto: '20260904',
             cbteFch: '20260825',
             CbteTipo: 3,
             PtoVta: 1,
@@ -80,6 +83,7 @@ async function testComponent1Engine() {
         {
             id: 'arca_fce1',
             cae: '75111111111114',
+            caeVto: '20260907',
             cbteFch: '20260828',
             CbteTipo: 206,
             PtoVta: 2,
@@ -92,6 +96,7 @@ async function testComponent1Engine() {
         {
             id: 'arca_nc_pyme',
             cae: '75111111111115',
+            caeVto: '20261015',
             cbteFch: '20261005',
             CbteTipo: 208,
             PtoVta: 2,
@@ -130,7 +135,10 @@ async function testComponent1Engine() {
         {
             id: 'undated_1',
             cae: '75111111111116',
+            caeVto: '20260930',
             CbteTipo: 11,
+            PtoVta: 1,
+            CbteDesde: 9,
             RazonSocial: 'Sin Fecha SA',
             CUIT: '30755555557',
             Importe: 55555,
@@ -610,6 +618,7 @@ async function testComponent5E2E() {
             {
                 id: 'e2e_f1',
                 cae: '75222222222221',
+                caeVto: '20260720',
                 cbteFch: '20260710',
                 CbteTipo: 1,
                 PtoVta: 1,
@@ -622,6 +631,7 @@ async function testComponent5E2E() {
             {
                 id: 'e2e_nc1',
                 cae: '75222222222222',
+                caeVto: '20260925',
                 cbteFch: '20260915',
                 CbteTipo: 3,
                 PtoVta: 1,
@@ -770,6 +780,7 @@ async function testComponent5E2E() {
         const bulkInvoices = Array.from({ length: 650 }, (_, idx) => ({
             id: `bulk_${idx + 1}`,
             cae: String(75300000000000 + idx + 1),
+            caeVto: '20260920',
             cbteFch: '20260910',
             CbteTipo: 1,
             PtoVta: 1,
@@ -886,28 +897,91 @@ async function testReviewObservations() {
         assert.ok(!sqlConnectorSource.includes('rejectUnauthorized: false'), 'TLS cert verification must NEVER be disabled');
         assert.ok(!sqlConnectorSource.includes('trustServerCertificate: true'), 'MSSQL trustServerCertificate must NEVER be true');
 
-        // 3. Financial engine: missing link.amount, cross-period NC/ND, and CAE evidence required for fiscal_verified
+        // 3. Financial engine: separate confirmed vs inferred collections, cross-period NC/ND, and strict AFIP evidence (CAE format alone != fiscal_verified)
         const revAnalytics = computeCommanderAnalytics({
             invoices: [
-                { id: 'f_aug', cae: '75444444444401', cbteFch: '20260810', CbteTipo: 1, PtoVta: 1, CbteDesde: 1, RazonSocial: 'Cli Link', CUIT: '30711111119', Importe: 35000, status: 'aprobado' },
-                { id: 'f_aug_nc', cae: '75444444444402', cbteFch: '20260812', CbteTipo: 1, PtoVta: 1, CbteDesde: 2, RazonSocial: 'Cli Cross', CUIT: '30722222223', Importe: 50000, status: 'aprobado' },
+                { id: 'f_aug', cae: '75444444444401', caeVto: '20260820', cbteFch: '20260810', CbteTipo: 1, PtoVta: 1, CbteDesde: 1, RazonSocial: 'Cli Link', CUIT: '30711111119', Importe: 35000, status: 'aprobado' },
+                { id: 'f_aug_nc', cae: '75444444444402', caeVto: '20260822', cbteFch: '20260812', CbteTipo: 1, PtoVta: 1, CbteDesde: 2, RazonSocial: 'Cli Cross', CUIT: '30722222223', Importe: 50000, status: 'aprobado' },
                 // September NC associated to August invoice (must reduce August receivable even when filtered to August!)
-                { id: 'nc_sep', cae: '75444444444403', cbteFch: '20260905', CbteTipo: 3, PtoVta: 1, CbteDesde: 1, CbtesAsoc: [{ Tipo: 1, PtoVta: 1, Nro: 2 }], RazonSocial: 'Cli Cross', CUIT: '30722222223', Importe: 20000, status: 'aprobado' },
-                // Approved status WITHOUT 14-digit CAE -> must NOT be fiscal_verified!
-                { id: 'no_cae_1', cbteFch: '20260815', CbteTipo: 1, PtoVta: 1, CbteDesde: 3, RazonSocial: 'Sin CAE SA', CUIT: '30733333331', Importe: 99999, status: 'aprobado' }
+                { id: 'nc_sep', cae: '75444444444403', caeVto: '20260915', cbteFch: '20260905', CbteTipo: 3, PtoVta: 1, CbteDesde: 1, CbtesAsoc: [{ Tipo: 1, PtoVta: 1, Nro: 2 }], RazonSocial: 'Cli Cross', CUIT: '30722222223', Importe: 20000, status: 'aprobado' },
+                // Approved status WITH 14-digit CAE but WITHOUT caeVto or afip_response -> must NOT be fiscal_verified!
+                { id: 'cae_only_1', cae: '75444444444499', cbteFch: '20260815', CbteTipo: 1, PtoVta: 1, CbteDesde: 3, RazonSocial: 'Solo CAE SA', CUIT: '30733333331', Importe: 99999, status: 'aprobado' }
             ],
             transactions: [
-                // Deposit of $100,000 linked to $35,000 invoice WITHOUT link.amount -> must reconcile $35,000, NOT $100,000!
+                // Deposit of $100,000 linked to $35,000 invoice WITHOUT link.amount -> must NOT be counted as confirmed reconciledCollections (0), must be tracked separately as inferredCollections (35,000)!
                 { id: 'tx_no_amt', transaction_date: '2026-08-20T12:00:00Z', client_name: 'Cli Link', amount: 100000, linked_invoices: [{ invoice_id: '75444444444401' }] }
             ],
             filters: { dateFrom: '2026-08-01', dateTo: '2026-08-31' }
         });
-        assert.equal(revAnalytics.kpis.reconciledCollections, 35000, 'Missing link.amount must infer invoice amount (35k), not full 100k deposit');
-        assert.equal(revAnalytics.kpis.pendingReceivables, 30000, 'Cross-period Sept NC (-20k) must reduce August invoice (50k -> 30k)');
-        assert.equal(revAnalytics.dataQuality.fiscalVerifiedCount, 3, 'Invoice without 14-digit CAE must NOT be counted as fiscalVerified');
-        assert.equal(revAnalytics.kpis.netInvoicing, 85000, 'Invoice without CAE evidence must be excluded from netInvoicing');
+        assert.equal(revAnalytics.kpis.reconciledCollections, 0, 'Links without explicit amount must NEVER be reported as confirmed reconciledCollections');
+        assert.equal(revAnalytics.kpis.inferredCollections, 35000, 'Inferred collection estimate must be tracked separately');
+        assert.equal(revAnalytics.dataQuality.inferredLinksCount, 1);
+        assert.equal(revAnalytics.kpis.pendingReceivables, 65000, 'Unconfirmed inferred links must not reduce confirmed pendingReceivables (35k + 30k = 65k)');
+        assert.equal(revAnalytics.dataQuality.fiscalVerifiedCount, 3, '14-digit CAE alone without AFIP/caeVto evidence must NOT be fiscalVerified');
+        assert.equal(revAnalytics.kpis.netInvoicing, 85000, 'Invoice without AFIP/caeVto evidence must be excluded from netInvoicing');
 
-        // 4. Ingestion consistency: intermediate failure restores data file + cross-process advisory lock
+        // 4. SQL bank_transactions/transactions normalization, deterministic keyset pagination with tie-breaker, and hasMorePending warning
+        const bankSqlConn = await saveSqlConnection('tenant_rev_bank_sql', {
+            name: 'Banco SQL',
+            engine: 'postgres',
+            host: '127.0.0.1',
+            port: 5432,
+            database: 'erp',
+            username: 'ro_reader',
+            password: 'pw',
+            tableOrQueryMode: 'table',
+            tableName: 'public.movimientos',
+            dataType: 'bank_transactions',
+            syncColumn: 'updated_at',
+            tieBreakerColumn: 'id',
+            columnMapping: { date: 'fecha', client_name: 'cliente', amount: 'importe', concept: 'concepto' }
+        });
+        assert.equal(bankSqlConn.dataType, 'transactions', 'bank_transactions must normalize to transactions');
+
+        const keysetPlan = buildSelectWithLimit(
+            { engine: 'postgres', tableOrQueryMode: 'table', tableName: 'public.movimientos', syncColumn: 'updated_at', tieBreakerColumn: 'id' },
+            { maxRows: 2, watermark: '2026-10-01T10:00:00Z', tieBreaker: 2 }
+        );
+        assert.ok(keysetPlan.sqlText.includes('ORDER BY "updated_at" ASC, "id" ASC'));
+        assert.ok(keysetPlan.sqlText.includes('("updated_at" > $1 OR ("updated_at" = $1 AND "id" > $2))'));
+
+        const bankDataset = [
+            { id: 1, fecha: '2026-10-01', cliente: 'B1', importe: 1000, concepto: 'Pago 1', updated_at: '2026-10-01T10:00:00Z' },
+            { id: 2, fecha: '2026-10-01', cliente: 'B2', importe: 2000, concepto: 'Pago 2', updated_at: '2026-10-01T10:00:00Z' },
+            { id: 3, fecha: '2026-10-01', cliente: 'B3', importe: 3000, concepto: 'Pago 3', updated_at: '2026-10-01T10:00:00Z' },
+            { id: 4, fecha: '2026-10-01', cliente: 'B4', importe: 4000, concepto: 'Pago 4', updated_at: '2026-10-01T10:00:00Z' },
+            { id: 5, fecha: '2026-10-01', cliente: 'B5', importe: -500, concepto: 'Comision 5', updated_at: '2026-10-01T10:00:00Z' }
+        ];
+        const keysetExecutor = async (_conn, _sql, params) => {
+            if (!params || params.length === 0) return bankDataset.slice(0, 2);
+            const [w, tie] = params;
+            return bankDataset.filter((r) => r.updated_at > w || (r.updated_at === w && r.id > tie)).slice(0, 2);
+        };
+
+        // First run capped at maxPages=2 (4 of 5 rows) -> must report hasMorePending=true and warning!
+        const partialSync = await syncSqlConnection('tenant_rev_bank_sql', bankSqlConn.id, {
+            pageSize: 2,
+            maxPages: 2,
+            queryExecutor: keysetExecutor
+        });
+        assert.equal(partialSync.dataType, 'transactions');
+        assert.equal(partialSync.insertedCount, 4);
+        assert.equal(partialSync.hasMorePending, true);
+        assert.ok(partialSync.warning && /pendientes/i.test(partialSync.warning));
+        assert.equal(partialSync.lastTieBreaker, 4);
+
+        // Second run continues deterministically from cursor (updated_at, id=4) and fetches row 5
+        const finishSync = await syncSqlConnection('tenant_rev_bank_sql', bankSqlConn.id, {
+            pageSize: 2,
+            maxPages: 2,
+            queryExecutor: keysetExecutor
+        });
+        assert.equal(finishSync.insertedCount, 1);
+        assert.equal(finishSync.hasMorePending, false);
+        const savedBankTxs = await loadJsonArray(getIngestPaths('tenant_rev_bank_sql').transactionsFilePath);
+        assert.equal(savedBankTxs.length, 5, 'Keyset continuation must ingest all 5 bank transactions into _transactions.json');
+
+        // 5. Ingestion consistency: intermediate failure on BOTH commit and rollback + active PID lock is NOT broken after 30s
         const tenantComp = 'tenant_comp_fail';
         const { invoicesFilePath, ingestionsFilePath } = getIngestPaths(tenantComp);
         process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET = ingestionsFilePath;
@@ -921,6 +995,33 @@ async function testReviewObservations() {
         );
         delete process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET;
         assert.deepEqual(await loadJsonArray(invoicesFilePath), [], 'Compensation must revert orphan invoices when ingestions write fails');
+
+        // Commit cleanly, then inject failure during rollbackExternalBatch -> must restore both invoices and active batch!
+        const okBatch = await processExternalIngestion({
+            tenantId: tenantComp,
+            dataType: 'invoices',
+            data: [{ cbteFch: '20261001', RazonSocial: 'Persistido OK', CUIT: '30711111119', Importe: 22000 }],
+            mode: 'commit'
+        });
+        assert.equal(okBatch.ok, true);
+        process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET = ingestionsFilePath;
+        await assert.rejects(() => rollbackExternalBatch(tenantComp, okBatch.batchId));
+        delete process.env.NEOCONTA_INJECT_JSON_WRITE_ERROR_TARGET;
+        assert.equal((await loadJsonArray(invoicesFilePath)).length, 1, 'Rollback failure must restore deleted invoices');
+        assert.equal((await loadJsonArray(ingestionsFilePath))[0].status, 'active', 'Rollback failure must preserve active batch status');
+
+        // Dead-PID stale lock IS cleaned up, whereas active-PID lock older than 30s is NEVER broken!
+        const tenantLockTest = 'tenant_lock_liveness';
+        const lockFile = path.join(getIngestPaths(tenantLockTest).userDir, '.commander_ingest.lock');
+        await fs.mkdir(path.dirname(lockFile), { recursive: true });
+        await fs.writeFile(lockFile, JSON.stringify({ pid: 99999999, ts: Date.now() - 60000 }), 'utf8');
+        const oldTime = new Date(Date.now() - 60000);
+        await fs.utimes(lockFile, oldTime, oldTime);
+        let deadLockCleared = false;
+        await withTenantIngestLock(tenantLockTest, async () => {
+            deadLockCleared = true;
+        });
+        assert.equal(deadLockCleared, true, 'Stale lock from dead PID must be recovered');
 
         // Cross-process concurrency test (2 child Node processes writing simultaneously to same tenant)
         const tenantProc = 'tenant_cross_proc';

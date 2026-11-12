@@ -52,7 +52,8 @@ export default function CommanderPage() {
         tableName: "",
         customQuery: "",
         dataType: "invoices",
-        syncColumn: ""
+        syncColumn: "",
+        tieBreakerColumn: ""
     });
     const [sqlTables, setSqlTables] = useState([]);
     const [sqlPreviewRows, setSqlPreviewRows] = useState(null);
@@ -491,16 +492,21 @@ export default function CommanderPage() {
         setError(null);
         setSuccessMessage("");
         try {
+            const payload =
+                action === 'sync'
+                    ? { userId: user.id, action: 'sync', ...extra }
+                    : {
+                          userId: user.id,
+                          action,
+                          ...sqlForm,
+                          port: Number(sqlForm.port) || undefined,
+                          ...extra
+                      };
+
             const res = await fetch('/api/commander/sql', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId: user.id,
-                    action,
-                    ...sqlForm,
-                    port: Number(sqlForm.port) || undefined,
-                    ...extra
-                })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Error en operación SQL");
@@ -516,7 +522,8 @@ export default function CommanderPage() {
                 setSuccessMessage("Conexión SQL guardada de forma cifrada.");
                 await fetchSqlConnections();
             } else if (action === 'sync') {
-                setSuccessMessage(`Sincronización SQL completada: ${data.insertedCount} nuevos, ${data.skippedDuplicatesCount || 0} duplicados omitidos.`);
+                const pendingNote = data.hasMorePending && data.warning ? ` Atención: ${data.warning}` : '';
+                setSuccessMessage(`Sincronización SQL completada (${data.dataType}): ${data.insertedCount} nuevos, ${data.skippedDuplicatesCount || 0} duplicados omitidos.${pendingNote}`);
                 await fetchSqlConnections();
                 await fetchStats();
                 await fetchWidgetsData(widgets);
@@ -959,8 +966,13 @@ export default function CommanderPage() {
                         <div className="mt-2">
                             <div className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(stats.kpis.reconciledCollections)}</div>
                             <p className="text-[10px] text-slate-500 mt-1">
-                                Pagos vinculados a comprobantes
+                                Pagos confirmados con importe en vínculo
                             </p>
+                            {stats.kpis.inferredCollections > 0 && (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                    Vínculos sin importe (no confirmado): {formatCurrency(stats.kpis.inferredCollections)}
+                                </p>
+                            )}
                         </div>
                         <button
                             onClick={() => openAudit('reconciled', 'Auditoría: Cobranza Conciliada')}
@@ -1559,6 +1571,18 @@ export default function CommanderPage() {
                                         onChange={(e) => setSqlForm({ ...sqlForm, tableName: e.target.value })}
                                         className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
                                     />
+                                    <input
+                                        placeholder="Col. incremental (ej. updated_at)"
+                                        value={sqlForm.syncColumn}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, syncColumn: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
+                                    <input
+                                        placeholder="Col. desempate (ej. id)"
+                                        value={sqlForm.tieBreakerColumn}
+                                        onChange={(e) => setSqlForm({ ...sqlForm, tieBreakerColumn: e.target.value })}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                                    />
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 text-xs">
@@ -1594,8 +1618,15 @@ export default function CommanderPage() {
                                         {sqlConnections.map((conn) => (
                                             <div key={conn.id} className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
                                                 <div>
-                                                    <div className="font-bold text-slate-800 dark:text-white">{conn.name} ({conn.engine})</div>
-                                                    <div className="text-[10px] text-slate-500">{conn.host}:{conn.port}/{conn.database} · {conn.tableName || 'SELECT'}</div>
+                                                    <div className="font-bold text-slate-800 dark:text-white">
+                                                        {conn.name} ({conn.engine}) · {conn.dataType === 'transactions' ? 'Banco' : 'Facturas'}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500">
+                                                        {conn.host}:{conn.port}/{conn.database} · {conn.tableName || 'SELECT'}
+                                                        {conn.hasMorePending && (
+                                                            <span className="ml-2 text-amber-600 dark:text-amber-400 font-bold">· Pendientes por sincronizar</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => handleSqlAction('sync', { connectionId: conn.id })} disabled={sqlBusy} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px] cursor-pointer">Sincronizar</button>
