@@ -4,6 +4,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { computeCommanderAnalytics, evaluateWidgets } from '../lib/commander/engine.js';
 import { processExternalIngestion, rollbackExternalBatch, getIngestPaths, loadJsonArray } from '../lib/commander/ingestService.js';
+import {
+    validateSqlHost,
+    validateIdentifier,
+    validateReadOnlySelectQuery,
+    saveSqlConnection,
+    listSqlConnections,
+    getSqlConnectionById,
+    deleteSqlConnection,
+    getSqlConnectionsPath,
+    testSqlConnection
+} from '../lib/commander/sqlConnector.js';
 
 async function testComponent1Engine() {
     const sampleInvoices = [
@@ -325,9 +336,96 @@ async function testComponent2Ingest() {
     }
 }
 
+async function testComponent3Sql() {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'commander-c3-'));
+    const prevDataDir = process.env.NEOCONTA_DATA_DIR;
+    const prevAllowPrivate = process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS;
+    process.env.NEOCONTA_DATA_DIR = tmpRoot;
+    delete process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS;
+
+    try {
+        // 1. SSRF protection blocks loopback, RFC1918, metadata, IPv6 local
+        for (const blockedHost of ['localhost', '127.0.0.1', '10.0.0.1', '172.16.5.4', '192.168.1.50', '169.254.169.254', '::1', 'db.internal']) {
+            await assert.rejects(
+                () => validateSqlHost(blockedHost),
+                /bloquead|inválid/i,
+                `SSRF must reject ${blockedHost}`
+            );
+        }
+
+        // 2. Read-only SQL guardrails
+        assert.equal(
+            validateReadOnlySelectQuery('SELECT id, total FROM dbo.facturas WHERE estado = \'aprobado\';'),
+            'SELECT id, total FROM dbo.facturas WHERE estado = \'aprobado\''
+        );
+        for (const badSql of [
+            'DELETE FROM facturas',
+            'INSERT INTO facturas VALUES (1)',
+            'UPDATE facturas SET total = 0',
+            'DROP TABLE facturas',
+            'SELECT * FROM facturas; DROP TABLE users',
+            'SELECT * FROM facturas -- comment',
+            'SELECT * FROM facturas EXEC xp_cmdshell'
+        ]) {
+            assert.throws(() => validateReadOnlySelectQuery(badSql), /rechazada|SELECT|sentencias|comentarios/i);
+        }
+
+        assert.equal(validateIdentifier('dbo.ventas_2026'), 'dbo.ventas_2026');
+        assert.throws(() => validateIdentifier('ventas; DROP TABLE users'), /inválido/i);
+
+        // 3. Encrypted credential storage & tenant isolation
+        process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS = '1';
+        const saved = await saveSqlConnection('tenant_sql_a', {
+            name: 'ERP Ventas',
+            engine: 'postgres',
+            host: '127.0.0.1',
+            port: 59999,
+            database: 'erp_prod',
+            username: 'ro_commander',
+            password: 'SuperSecretSqlPassword!2026',
+            tableOrQueryMode: 'table',
+            tableName: 'public.facturas',
+            syncColumn: 'updated_at'
+        });
+
+        assert.equal(saved.hasPassword, true);
+        assert.equal(saved.password, undefined, 'Sanitized connection must never expose plaintext password');
+        assert.equal(saved.encryptedPassword, undefined, 'Sanitized connection must never expose ciphertext');
+
+        const rawJson = await fs.readFile(getSqlConnectionsPath('tenant_sql_a'), 'utf8');
+        assert.ok(!rawJson.includes('SuperSecretSqlPassword!2026'), 'Plaintext password must NEVER be stored on disk');
+        assert.ok(rawJson.includes('ENC_OAUTH:v1:'), 'Password must be encrypted with AES-256-GCM');
+
+        const decrypted = await getSqlConnectionById('tenant_sql_a', saved.id, { includeSecret: true });
+        assert.equal(decrypted.password, 'SuperSecretSqlPassword!2026');
+
+        // Cross-tenant isolation
+        assert.deepEqual(await listSqlConnections('tenant_sql_b'), []);
+        assert.equal(await getSqlConnectionById('tenant_sql_b', saved.id), null);
+
+        // 4. Real connection test against closed port fails explicitly (never simulates success)
+        await assert.rejects(
+            () => testSqlConnection(decrypted),
+            /ECONNREFUSED|connect|timeout/i
+        );
+
+        const deleted = await deleteSqlConnection('tenant_sql_a', saved.id);
+        assert.equal(deleted, true);
+
+        console.log('PASS: Component 3 SQL SSRF, read-only guardrails, AES-GCM encryption, isolation & fail-closed connection verified');
+    } finally {
+        if (prevDataDir === undefined) delete process.env.NEOCONTA_DATA_DIR;
+        else process.env.NEOCONTA_DATA_DIR = prevDataDir;
+        if (prevAllowPrivate === undefined) delete process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS;
+        else process.env.COMMANDER_ALLOW_PRIVATE_SQL_HOSTS = prevAllowPrivate;
+        await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 (async () => {
     await testComponent1Engine();
     await testComponent2Ingest();
+    await testComponent3Sql();
 })().catch(err => {
     console.error(err);
     process.exit(1);
