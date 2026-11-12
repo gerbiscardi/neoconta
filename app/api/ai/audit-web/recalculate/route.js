@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
-import { getUserDataDir } from '@/lib/dataPaths';
+import { getUserDataDir, writeJsonAtomic } from '@/lib/dataPaths';
+import {
+    calculateWebReputationMetrics,
+    runAIWebAudit,
+    classifyDomain
+} from '@/lib/commentor/webAuditEngine';
+import { acquireCommentorLock } from '@/lib/commentor/commentorLocker';
 
 export async function POST(request) {
+    let releaseLock = null;
     try {
         const session = await getServerSession(request);
-        const body = await request.json();
-        const { userId: requestedUserId, reportId, urlToExclude } = body || {};
+        const body = await request.json().catch(() => ({}));
+        const { userId: requestedUserId, reportId, urlToExclude, reason } = body || {};
 
         const auth = authorizeTenantAccess(session, requestedUserId);
         if (!auth.authorized) {
@@ -21,146 +27,163 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Faltan datos requeridos (reportId, urlToExclude)' }, { status: 400 });
         }
 
+        releaseLock = await acquireCommentorLock(userId);
+
         const userDir = getUserDataDir(userId);
         const historyPath = join(userDir, 'reviews_analysis.json');
-        
+
         let history = [];
         try {
             const histData = await readFile(historyPath, 'utf-8');
             history = JSON.parse(histData);
-        } catch (e) {
-            return NextResponse.json({ error: "No se encontró el historial de reportes para este usuario." }, { status: 404 });
+            if (!Array.isArray(history)) history = [];
+        } catch {
+            return NextResponse.json({ error: 'No se encontró el historial de reportes para este usuario.' }, { status: 404 });
         }
 
         const reportIndex = history.findIndex(r => r.id === reportId);
         if (reportIndex === -1) {
-            return NextResponse.json({ error: "No se encontró el reporte especificado." }, { status: 404 });
+            return NextResponse.json({ error: 'No se encontró el reporte especificado.' }, { status: 404 });
         }
 
         const report = history[reportIndex];
 
-        // Ensure safety arrays are initialized
         if (!report.poolSources) report.poolSources = [];
         if (!report.excludedSources) report.excludedSources = [];
-        if (!report.results || !report.results.sources) {
-            return NextResponse.json({ error: "El reporte no tiene fuentes cargadas para analizar." }, { status: 400 });
+        if (!report.revisionHistory) report.revisionHistory = [];
+        if (!report.results || !Array.isArray(report.results.sources)) {
+            return NextResponse.json({ error: 'El reporte no tiene fuentes cargadas para analizar.' }, { status: 400 });
         }
 
-        // 1. Exclude the selected source
+        // 1. Locate and exclude the requested source
         const sourceIndex = report.results.sources.findIndex(s => s.url === urlToExclude);
         if (sourceIndex === -1) {
-            return NextResponse.json({ error: "El resultado a excluir no se encuentra activo en este reporte." }, { status: 404 });
+            return NextResponse.json({ error: 'El resultado a excluir no se encuentra activo en este reporte.' }, { status: 404 });
         }
 
         const [excludedSource] = report.results.sources.splice(sourceIndex, 1);
-        report.excludedSources.push(excludedSource);
+        const exclusionRecord = {
+            ...excludedSource,
+            excludedAt: new Date().toISOString(),
+            exclusionReason: reason || 'Excluido por el usuario (fuente irrelevante, homónima o no aplicable)'
+        };
+        report.excludedSources.push(exclusionRecord);
 
-        // 2. Pull in a new source from the backfill pool if available
+        // Record historical snapshot for lineage
+        const previousScore = report.results.brandScore ?? 50;
+        const currentRevision = report.revision || 0;
+        report.revisionHistory.push({
+            revision: currentRevision,
+            timestamp: new Date().toISOString(),
+            brandScore: previousScore,
+            sourcesCount: report.results.sources.length + 1,
+            action: 'exclude_source',
+            excludedUrl: urlToExclude
+        });
+
+        // 2. Backfill from pool if available
+        let backfilledItem = null;
         if (report.poolSources.length > 0) {
             const nextInPool = report.poolSources.shift();
-            // Append to active sources so we can re-evaluate the whole set
-            report.results.sources.push({
+            const domainInfo = classifyDomain(nextInPool.url);
+            backfilledItem = {
+                id: `src_backfill_${Date.now()}`,
                 title: nextInPool.title,
                 url: nextInPool.url,
                 snippet: nextInPool.snippet,
-                category: "otro",
-                sentiment: "neutro"
-            });
-            console.log(`Backfilled 1 result from pool. Remaining pool size: ${report.poolSources.length}`);
+                domain: domainInfo.domain,
+                domainWeight: domainInfo.weight,
+                category: domainInfo.category,
+                sentiment: 'neutro',
+                captureDate: new Date().toISOString(),
+                inclusionReason: 'Promovido desde el pool de resultados tras exclusión de fuente'
+            };
+            report.results.sources.push(backfilledItem);
         }
 
-        // 3. Compile the updated search results list to re-run the Gemini audit
-        const activeSearchResults = report.results.sources.map(s => ({
-            title: s.title,
-            link: s.url,
-            snippet: s.snippet
-        }));
-
-        if (activeSearchResults.length === 0) {
-            return NextResponse.json({ error: "No quedan resultados para auditar en este reporte." }, { status: 400 });
+        if (report.results.sources.length === 0) {
+            return NextResponse.json({ error: 'No quedan resultados para auditar en este reporte tras la exclusión.' }, { status: 400 });
         }
 
-        // 4. Run the recalculation with Gemini
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey || apiKey.trim() === "") {
-            return NextResponse.json({ 
-                error: "La API Key de Gemini (GEMINI_API_KEY) no está configurada." 
-            }, { status: 550 });
+        // 3. Re-run AI classification for active sources
+        let aiAudit;
+        try {
+            aiAudit = await runAIWebAudit(report.query, report.results.sources.map(s => ({
+                link: s.url,
+                title: s.title,
+                snippet: s.snippet
+            })));
+        } catch (aiErr) {
+            console.warn('Advertencia en recálculo IA web:', aiErr.message);
+            aiAudit = {
+                summary: `Diagnóstico recalculado: ${report.results.sources.length} fuentes activas analizadas tras exclusión.`,
+                sourcesAnalysis: [],
+                reconciliations: report.results.reconciliations || []
+            };
         }
 
-        const ai = new GoogleGenerativeAI(apiKey);
-        const query = report.query;
-
-        const prompt = `
-            Actúa como un auditor experto en Relaciones Públicas (PR) e Imagen Pública Digital.
-            Analiza los siguientes resultados de búsqueda web arrojados al buscar el nombre de la marca/persona: "${query}".
-            Evalúa la imagen pública, el tono general de la web (positivo, neutro o negativo), categoriza de dónde provienen las menciones (prensa, directorio de negocios, foro de discusión, perfil profesional, sitio institucional) y otorga una calificación numérica global ("brandScore") del 0 al 100 basada en la solidez y positividad de su presencia en Google.
-            Además, genera sugerencias/recomendaciones concretas de SEO y reputación para mejorar su posicionamiento o resolver debilidades.
-
-            Resultados de búsqueda:
-            ${JSON.stringify(activeSearchResults, null, 2)}
-
-            RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO SIGUIENDO ESTE ESQUEMA ESTRICTO:
-            {
-                "brandScore": number (de 0 a 100),
-                "publicSentiment": {
-                    "positive": number (porcentaje del 0 al 100),
-                    "neutral": number (porcentaje del 0 al 100),
-                    "negative": number (porcentaje del 0 al 100)
-                },
-                "summary": "Un análisis y diagnóstico detallado, exhaustivo y profundo de la presencia digital e imagen pública en la web. Debe tener entre 5 y 8 oraciones completas, explicando de forma precisa por qué se obtuvo dicho puntaje, los hallazgos principales (fortalezas, debilidades, control de la narrativa digital, coherencia de marca o la existencia de perfiles homónimos) y el impacto percibido de las menciones.",
-                "sources": [
-                    {
-                        "title": "Título del sitio web/artículo",
-                        "url": "Enlace al sitio",
-                        "snippet": "Fragmento analizado",
-                        "category": "prensa" | "directorio" | "foro" | "perfil_profesional" | "otro",
-                        "sentiment": "positivo" | "neutro" | "negativo"
-                    }
-                ],
-                "reconciliations": [
-                    "Recomendación estratégica de SEO o Relaciones Públicas detallada y accionable (mínimo 15 palabras), explicando el qué, el por qué y el cómo llevarla a cabo para mejorar el posicionamiento o mitigar debilidades.",
-                    "Recomendación número 2..."
-                ]
+        const aiMap = new Map();
+        if (Array.isArray(aiAudit.sourcesAnalysis)) {
+            for (const item of aiAudit.sourcesAnalysis) {
+                if (item?.url) aiMap.set(item.url, item);
             }
-            No agregues markdown adicional, explicaciones ni etiquetas (no utilices triple backtick \`\`\`json). Responde solo la cadena JSON.
-        `;
+        }
 
-        const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-                responseMimeType: 'application/json'
+        report.results.sources = report.results.sources.map(s => {
+            const aiData = aiMap.get(s.url);
+            if (aiData) {
+                return {
+                    ...s,
+                    category: ['prensa', 'directorio', 'foro', 'perfil_profesional', 'institucional', 'otro'].includes(aiData.category)
+                        ? aiData.category
+                        : s.category,
+                    sentiment: ['positivo', 'neutro', 'negativo'].includes(aiData.sentiment)
+                        ? aiData.sentiment
+                        : s.sentiment,
+                    aiJustification: aiData.justification || ''
+                };
             }
+            return s;
         });
 
-        const responseText = result.response.text().trim();
-        let analysisResult;
-        try {
-            analysisResult = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error("Gemini recalculation parsing error:", parseError);
-            console.log("Raw output was:", responseText);
-            return NextResponse.json({ error: "La IA no devolvió un formato JSON válido durante el recálculo." }, { status: 500 });
+        // 4. Recompute deterministic metrics
+        const metrics = calculateWebReputationMetrics(report.results.sources);
+        const newScore = metrics.calculatedScore;
+        const scoreDelta = newScore - previousScore;
+
+        report.revision = currentRevision + 1;
+        report.lastRecalculatedAt = new Date().toISOString();
+        report.scoreDelta = scoreDelta;
+        report.lastChangeLog = `Revisión #${report.revision}: Se excluyó "${urlToExclude}". Variación de puntuación: ${scoreDelta >= 0 ? `+${scoreDelta}` : scoreDelta} pts.${backfilledItem ? ' Se promovió 1 resultado del pool.' : ''}`;
+
+        report.metrics = metrics;
+        report.results.brandScore = newScore;
+        report.results.publicSentiment = {
+            positive: metrics.sentimentPercentages.positivo,
+            neutral: metrics.sentimentPercentages.neutro,
+            negative: metrics.sentimentPercentages.negativo
+        };
+        report.results.summary = aiAudit.summary || report.results.summary;
+        if (Array.isArray(aiAudit.reconciliations) && aiAudit.reconciliations.length > 0) {
+            report.results.reconciliations = aiAudit.reconciliations;
         }
 
-        // 5. Update the report object with new results
-        report.results = {
-            ...analysisResult,
-            sources: analysisResult.sources.map((s, idx) => ({
-                ...s,
-                url: activeSearchResults[idx] ? activeSearchResults[idx].link : s.url
-            }))
-        };
-
-        // Save updated history
+        // Save updated history atomically
         history[reportIndex] = report;
-        await writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8');
+        await writeJsonAtomic(historyPath, history);
 
-        return NextResponse.json({ success: true, report });
-
+        return NextResponse.json({
+            success: true,
+            report,
+            scoreDelta,
+            changeLog: report.lastChangeLog
+        });
     } catch (error) {
-        console.error("Error in AI web audit recalculate route:", error);
+        console.error('Error en AI web audit recalculate route:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
+    } finally {
+        if (releaseLock) {
+            releaseLock();
+        }
     }
 }
