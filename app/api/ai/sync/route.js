@@ -1,117 +1,33 @@
 import { NextResponse } from 'next/server';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServerSession, authorizeTenantAccess } from '@/lib/auth';
-import { getUserDataDir } from '@/lib/dataPaths';
+import { getUserDataDir, writeJsonAtomic } from '@/lib/dataPaths';
 import { aiOperationLimiter, rateLimitResponse } from '@/lib/rateLimit';
-import { decryptOAuthToken, encryptOAuthToken, isEncryptedOAuthToken } from '@/lib/tokenCrypto';
-
-async function fetchGoogleReviewsReal(refreshToken) {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret || !refreshToken || String(refreshToken).startsWith('mock_')) {
-        throw new Error('Credenciales de Google no configuradas o autorización OAuth no válida.');
-    }
-
-    const resToken = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            refresh_token: refreshToken,
-            client_id: clientId,
-            client_secret: clientSecret,
-            grant_type: 'refresh_token'
-        })
-    });
-
-    const tokenData = await resToken.json();
-    if (!resToken.ok || !tokenData.access_token) {
-        throw new Error('Error al renovar access token de Google.');
-    }
-
-    const accessToken = tokenData.access_token;
-
-    const resAcc = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const accData = await resAcc.json();
-    if (!resAcc.ok || !accData.accounts || accData.accounts.length === 0) {
-        throw new Error('No se encontraron cuentas de Google Business Profile.');
-    }
-    const accountName = accData.accounts[0].name;
-
-    const resLoc = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const locData = await resLoc.json();
-    if (!resLoc.ok || !locData.locations || locData.locations.length === 0) {
-        throw new Error('No se encontraron ubicaciones asociadas a la cuenta de Google.');
-    }
-    const locationName = locData.locations[0].name;
-
-    const resReviews = await fetch(`https://mybusiness.googleapis.com/v4/${accountName}/${locationName}/reviews`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const reviewsData = await resReviews.json();
-    if (!resReviews.ok) {
-        throw new Error('Error al obtener reseñas reales desde Google Business Profile.');
-    }
-
-    const reviews = reviewsData.reviews || [];
-    return reviews
-        .map(r => ({
-            text: r.comment || '',
-            author: r.reviewer?.displayName || 'Anónimo',
-            date: r.createTime ? r.createTime.split('T')[0] : new Date().toISOString().split('T')[0]
-        }))
-        .filter(r => r.text.trim() !== '');
-}
-
-async function fetchMetaCommentsReal(accessToken) {
-    if (!accessToken || String(accessToken).startsWith('mock_')) {
-        throw new Error('Credenciales de Meta no configuradas o autorización OAuth no válida.');
-    }
-
-    const resPages = await fetch(`https://graph.facebook.com/v20.0/me/accounts?access_token=${encodeURIComponent(accessToken)}`);
-    const pagesData = await resPages.json();
-    if (!resPages.ok || !pagesData.data || pagesData.data.length === 0) {
-        throw new Error('No se encontraron páginas de Facebook autorizadas.');
-    }
-
-    const pageId = pagesData.data[0].id;
-    const pageToken = pagesData.data[0].access_token;
-
-    const resFeed = await fetch(`https://graph.facebook.com/v20.0/${pageId}/feed?limit=5&access_token=${encodeURIComponent(pageToken)}`);
-    const feedData = await resFeed.json();
-    if (!resFeed.ok || !feedData.data) {
-        throw new Error('Error al obtener publicaciones reales de Meta.');
-    }
-
-    const comments = [];
-    for (const post of feedData.data) {
-        const resComments = await fetch(`https://graph.facebook.com/v20.0/${post.id}/comments?limit=10&access_token=${encodeURIComponent(pageToken)}`);
-        const commData = await resComments.json();
-        if (resComments.ok && commData.data) {
-            commData.data.forEach(c => {
-                comments.push({
-                    text: c.message || '',
-                    author: c.from?.name || 'Usuario FB',
-                    source: 'facebook',
-                    date: c.created_time ? c.created_time.split('T')[0] : new Date().toISOString().split('T')[0]
-                });
-            });
-        }
-    }
-
-    return comments.filter(c => c.text.trim() !== '');
-}
+import { decryptOAuthToken, encryptOAuthToken } from '@/lib/tokenCrypto';
+import {
+    refreshGoogleAccessToken,
+    fetchGoogleLocationReviews,
+    listGoogleAccounts,
+    listGoogleLocations
+} from '@/lib/commentor/googleConnector';
+import {
+    fetchFacebookComments,
+    fetchInstagramComments
+} from '@/lib/commentor/metaConnector';
+import {
+    normalizeAndDeduplicateComments,
+    calculateReputationMetrics,
+    analyzeCommentsWithAI,
+    mergeAnalysisResults
+} from '@/lib/commentor/reputationEngine';
+import { acquireCommentorLock } from '@/lib/commentor/commentorLocker';
 
 export async function POST(request) {
+    let releaseLock = null;
     try {
         const session = await getServerSession(request);
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
         const auth = authorizeTenantAccess(session, body?.userId);
         if (!auth.authorized) {
             return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -122,7 +38,10 @@ export async function POST(request) {
             return rateLimitResponse(limitCheck, 'Has alcanzado el límite temporal de sincronizaciones en Commentor.');
         }
 
+        releaseLock = await acquireCommentorLock(auth.tenantId);
+
         const userDir = getUserDataDir(auth.tenantId);
+        await mkdir(userDir, { recursive: true });
         const connFilePath = join(userDir, 'connections.json');
 
         let connections = {};
@@ -130,21 +49,13 @@ export async function POST(request) {
             const data = await readFile(connFilePath, 'utf-8');
             connections = JSON.parse(data);
         } catch {
-            // No connections file
+            connections = {};
         }
 
-        let upgradedAtRest = false;
         let googleRefreshPlain = '';
         if (connections.google?.refreshToken) {
             try {
                 googleRefreshPlain = decryptOAuthToken(connections.google.refreshToken);
-                if (!isEncryptedOAuthToken(connections.google.refreshToken) && !googleRefreshPlain.startsWith('mock_')) {
-                    connections.google.refreshToken = encryptOAuthToken(googleRefreshPlain);
-                    if (connections.google.accessToken && !isEncryptedOAuthToken(connections.google.accessToken)) {
-                        connections.google.accessToken = encryptOAuthToken(decryptOAuthToken(connections.google.accessToken));
-                    }
-                    upgradedAtRest = true;
-                }
             } catch {
                 googleRefreshPlain = '';
             }
@@ -154,17 +65,9 @@ export async function POST(request) {
         if (connections.meta?.accessToken) {
             try {
                 metaAccessPlain = decryptOAuthToken(connections.meta.accessToken);
-                if (!isEncryptedOAuthToken(connections.meta.accessToken) && !metaAccessPlain.startsWith('mock_')) {
-                    connections.meta.accessToken = encryptOAuthToken(metaAccessPlain);
-                    upgradedAtRest = true;
-                }
             } catch {
                 metaAccessPlain = '';
             }
-        }
-
-        if (upgradedAtRest) {
-            await writeFile(connFilePath, JSON.stringify(connections, null, 2), 'utf-8').catch(() => {});
         }
 
         const hasValidGoogle = Boolean(
@@ -172,6 +75,7 @@ export async function POST(request) {
             googleRefreshPlain &&
             !googleRefreshPlain.startsWith('mock_')
         );
+
         const hasValidMeta = Boolean(
             connections.meta?.connected === true &&
             metaAccessPlain &&
@@ -184,37 +88,193 @@ export async function POST(request) {
             }, { status: 400 });
         }
 
-        const comments = [];
+        const rawCollected = [];
         const providerStatus = {};
         const providerErrors = [];
         let providersAttempted = 0;
         let providersSucceeded = 0;
 
+        // 1. Fetch Google Business Profile Reviews
         if (hasValidGoogle) {
             providersAttempted++;
             try {
-                const googleReviews = await fetchGoogleReviewsReal(googleRefreshPlain);
-                googleReviews.forEach(r => comments.push({ ...r, source: 'google' }));
-                providersSucceeded++;
-                providerStatus.google = { status: 'ok', count: googleReviews.length };
+                // Ensure fresh access token
+                const { accessToken, expiresIn } = await refreshGoogleAccessToken(googleRefreshPlain);
+                connections.google.accessToken = encryptOAuthToken(accessToken);
+                connections.google.tokenExpiresAt = Date.now() + (expiresIn * 1000);
+
+                let accountName = connections.google.account?.id;
+                if (!accountName) {
+                    const accounts = await listGoogleAccounts(accessToken);
+                    if (accounts.length > 0) {
+                        accountName = accounts[0].id;
+                        connections.google.account = accounts[0];
+                    }
+                }
+
+                if (!accountName) {
+                    throw new Error('No se encontró ninguna cuenta autorizada en Google Business Profile.');
+                }
+
+                let targetLocations = connections.google.selectedLocations || [];
+                if (!Array.isArray(targetLocations) || targetLocations.length === 0) {
+                    const available = await listGoogleLocations(accessToken, accountName);
+                    connections.google.availableLocations = available;
+                    targetLocations = available.slice(0, 5).map(l => l.id);
+                    connections.google.selectedLocations = targetLocations;
+                }
+
+                if (targetLocations.length === 0) {
+                    providerStatus.google = {
+                        status: 'ok',
+                        count: 0,
+                        note: 'La cuenta de Google Business no tiene ubicaciones configuradas.'
+                    };
+                    providersSucceeded++;
+                } else {
+                    let googleCount = 0;
+                    for (const locId of targetLocations) {
+                        try {
+                            const result = await fetchGoogleLocationReviews({
+                                accessToken,
+                                accountName,
+                                locationName: locId,
+                                pageSize: 50,
+                                maxPages: 2
+                            });
+                            rawCollected.push(...result.reviews);
+                            googleCount += result.reviews.length;
+                        } catch (locErr) {
+                            console.warn(`Error obteniendo reseñas para ubicación Google ${locId}:`, locErr.message);
+                            providerErrors.push({ provider: 'google', location: locId, error: locErr.message });
+                        }
+                    }
+                    providerStatus.google = { status: 'ok', count: googleCount };
+                    providersSucceeded++;
+                }
             } catch (err) {
+                console.error('Error sincronizando Google Business Profile:', err);
                 providerStatus.google = { status: 'error', error: err.message, count: 0 };
                 providerErrors.push({ provider: 'google', error: err.message });
             }
         }
 
+        // 2. Fetch Meta (Facebook Pages and Instagram Professional)
         if (hasValidMeta) {
-            providersAttempted++;
-            try {
-                const metaComments = await fetchMetaCommentsReal(metaAccessPlain);
-                metaComments.forEach(c => comments.push(c));
-                providersSucceeded++;
-                providerStatus.meta = { status: 'ok', count: metaComments.length };
-            } catch (err) {
-                providerStatus.meta = { status: 'error', error: err.message, count: 0 };
-                providerErrors.push({ provider: 'meta', error: err.message });
+            // Facebook Feed
+            const fbConfig = connections.meta.facebook || {};
+            const isFbActive = fbConfig.connected !== false;
+
+            if (isFbActive) {
+                providersAttempted++;
+                try {
+                    let selectedPages = fbConfig.selectedPages || [];
+                    const availablePages = fbConfig.availablePages || [];
+
+                    if (!Array.isArray(selectedPages) || selectedPages.length === 0) {
+                        selectedPages = availablePages.slice(0, 5).map(p => p.id);
+                    }
+
+                    let fbCommentsCount = 0;
+                    const pageTokens = fbConfig.pageTokens || {};
+
+                    for (const pageId of selectedPages) {
+                        let pageToken = metaAccessPlain; // Fallback to user token if page token not found
+                        if (pageTokens[pageId]) {
+                            try {
+                                pageToken = decryptOAuthToken(pageTokens[pageId]);
+                            } catch {
+                                pageToken = metaAccessPlain;
+                            }
+                        }
+
+                        try {
+                            const comments = await fetchFacebookComments({
+                                pageId,
+                                pageAccessToken: pageToken,
+                                postLimit: 10,
+                                commentLimit: 30
+                            });
+                            rawCollected.push(...comments);
+                            fbCommentsCount += comments.length;
+                        } catch (pageErr) {
+                            console.warn(`Error obteniendo comentarios de página FB ${pageId}:`, pageErr.message);
+                            providerErrors.push({ provider: 'facebook', pageId, error: pageErr.message });
+                        }
+                    }
+
+                    providerStatus.facebook = { status: 'ok', count: fbCommentsCount };
+                    providersSucceeded++;
+                } catch (err) {
+                    console.error('Error sincronizando Facebook:', err);
+                    providerStatus.facebook = { status: 'error', error: err.message, count: 0 };
+                    providerErrors.push({ provider: 'facebook', error: err.message });
+                }
+            }
+
+            // Instagram Professional Comments
+            const igConfig = connections.meta.instagram || {};
+            const isIgActive = igConfig.connected === true;
+
+            if (isIgActive) {
+                providersAttempted++;
+                try {
+                    let selectedAccounts = igConfig.selectedAccounts || [];
+                    const availableAccounts = igConfig.availableAccounts || [];
+
+                    if (!Array.isArray(selectedAccounts) || selectedAccounts.length === 0) {
+                        selectedAccounts = availableAccounts.slice(0, 5).map(a => a.id);
+                    }
+
+                    let igCommentsCount = 0;
+                    for (const igId of selectedAccounts) {
+                        const targetAccount = availableAccounts.find(a => a.id === igId);
+                        const linkedPageId = targetAccount?.linkedPageId;
+                        let tokenToUse = metaAccessPlain;
+
+                        if (linkedPageId && fbConfig.pageTokens?.[linkedPageId]) {
+                            try {
+                                tokenToUse = decryptOAuthToken(fbConfig.pageTokens[linkedPageId]);
+                            } catch {
+                                tokenToUse = metaAccessPlain;
+                            }
+                        }
+
+                        try {
+                            const comments = await fetchInstagramComments({
+                                igUserId: igId,
+                                pageAccessToken: tokenToUse,
+                                mediaLimit: 10,
+                                commentLimit: 30
+                            });
+                            rawCollected.push(...comments);
+                            igCommentsCount += comments.length;
+                        } catch (igErr) {
+                            console.warn(`Error obteniendo comentarios de Instagram ${igId}:`, igErr.message);
+                            providerErrors.push({ provider: 'instagram', igUserId: igId, error: igErr.message });
+                        }
+                    }
+
+                    providerStatus.instagram = { status: 'ok', count: igCommentsCount };
+                    providersSucceeded++;
+                } catch (err) {
+                    console.error('Error sincronizando Instagram:', err);
+                    providerStatus.instagram = { status: 'error', error: err.message, count: 0 };
+                    providerErrors.push({ provider: 'instagram', error: err.message });
+                }
+            } else if (igConfig.statusReason) {
+                providerStatus.instagram = {
+                    status: 'skipped',
+                    count: 0,
+                    reason: igConfig.statusReason
+                };
             }
         }
+
+        // Save updated tokens / cached discoveries
+        await writeJsonAtomic(connFilePath, connections).catch(err => {
+            console.warn('Advertencia guardando connections.json actualizado:', err.message);
+        });
 
         const coverage = {
             providersAttempted,
@@ -232,99 +292,84 @@ export async function POST(request) {
             }, { status: 502 });
         }
 
-        if (comments.length === 0) {
+        // Deduplicate and normalize
+        const normalizedComments = normalizeAndDeduplicateComments(rawCollected);
+
+        if (normalizedComments.length === 0) {
             return NextResponse.json({
-                success: false,
-                error: 'Los proveedores respondieron correctamente, pero no se encontraron comentarios reales para analizar.',
+                success: true,
+                message: 'Los proveedores respondieron correctamente, pero no se encontraron comentarios o reseñas en las cuentas seleccionadas.',
+                coverage,
                 providerErrors,
-                coverage
-            }, { status: 400 });
+                report: null
+            });
         }
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey || apiKey.trim() === '') {
-            return NextResponse.json({
-                error: 'La API Key de Gemini (GEMINI_API_KEY) no está configurada en el servidor.'
-            }, { status: 500 });
-        }
+        // Run AI Analysis & Mathematical Reconciliation
+        let enrichedComments = normalizedComments;
+        let metrics = calculateReputationMetrics(normalizedComments);
+        let results = {
+            status: metrics.reputationIndex >= 70 ? 'MANTENER' : (metrics.reputationIndex >= 45 ? 'MONITOREAR' : 'URGENTE'),
+            summary: `Se analizaron ${metrics.totalComments} comentarios reales de clientes. Reputación global estimada en ${metrics.reputationIndex ?? 50}/100.`,
+            recurringThemes: [],
+            praises: [],
+            complaints: [],
+            actionableSuggestions: []
+        };
 
-        const ai = new GoogleGenerativeAI(apiKey);
-        const prompt = `
-            Actúa como un analista experto de reputación corporativa y atención al cliente.
-            Analiza el siguiente listado de comentarios reales de clientes recopilados de Google, Facebook e Instagram.
-            Detecta sentimientos cualitativos, sensaciones emocionales específicas expresadas por los usuarios (como entusiasmo, enojo, alivio, frustración, impaciencia) junto con sus causas y extrae sugerencias concretas de mejora que proponen los clientes.
-            Asigna un estado general (semáforo de recomendación) del negocio que puede ser: "MANTENER" (excelente feedback general), "MONITOREAR" (algunas críticas recurrentes) o "URGENTE" (muchos comentarios negativos o reclamos críticos).
-
-            Comentarios a analizar:
-            ${JSON.stringify(comments, null, 2)}
-
-            RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO SIGUIENDO ESTE ESQUEMA ESTRICTO:
-            {
-                "status": "MANTENER" | "MONITOREAR" | "URGENTE",
-                "sentiment": {
-                    "positive": number (porcentaje del 0 al 100),
-                    "neutral": number (porcentaje del 0 al 100),
-                    "negative": number (porcentaje del 0 al 100)
-                },
-                "summary": "Resumen cualitativo de 2 o 3 oraciones de la situación actual.",
-                "feelings": [
-                    {
-                        "feeling": "Nombre de la sensación o emoción detectada en español, ej. Frustración, Entusiasmo, Molestia",
-                        "emoji": "Emoji correspondiente",
-                        "reason": "Breve explicación de por qué los clientes sienten esto en base a los textos."
-                    }
-                ],
-                "suggestions": [
-                    "Sugerencia accionable número 1 extraída de los comentarios",
-                    "Sugerencia accionable número 2..."
-                ]
-            }
-            No agregues markdown adicional, explicaciones ni etiquetas (no utilices triple backtick \`\`\`json). Responde solo la cadena JSON.
-        `;
-
-        const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json' }
-        });
-
-        const responseText = result.response.text().trim();
-        let analysisResult;
         try {
-            analysisResult = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error('Gemini output parsing error:', parseError);
-            return NextResponse.json({ error: 'La IA no devolvió un formato JSON válido.' }, { status: 502 });
+            const aiOutput = await analyzeCommentsWithAI(normalizedComments);
+            const merged = mergeAnalysisResults(normalizedComments, aiOutput);
+            enrichedComments = merged.enrichedComments;
+            metrics = merged.metrics;
+            results = merged.results;
+        } catch (aiErr) {
+            console.warn('Advertencia en análisis cualitativo de Gemini (usando métricas deterministas calculadas):', aiErr.message);
+            results.summary += ` (Nota: Análisis cualitativo IA no disponible temporalmente: ${aiErr.message})`;
         }
 
         const report = {
             id: `audit_${Date.now()}`,
             type: 'social_reviews',
             date: new Date().toISOString(),
-            commentCount: comments.length,
+            commentCount: enrichedComments.length,
             isSimulated: false,
             coverage,
             providerErrors,
-            results: analysisResult,
-            commentsList: comments
+            metrics,
+            results,
+            commentsList: enrichedComments
         };
 
-        await mkdir(userDir, { recursive: true });
+        // Persist report to user history atomically
         const historyPath = join(userDir, 'reviews_analysis.json');
         let history = [];
         try {
             const histData = await readFile(historyPath, 'utf-8');
             history = JSON.parse(histData);
+            if (!Array.isArray(history)) history = [];
         } catch {
-            // File doesn't exist yet
+            history = [];
         }
 
         history.unshift(report);
-        await writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8');
+        // Keep up to 30 most recent audits
+        if (history.length > 30) history = history.slice(0, 30);
 
-        return NextResponse.json({ success: true, report, coverage, providerErrors });
+        await writeJsonAtomic(historyPath, history);
+
+        return NextResponse.json({
+            success: true,
+            report,
+            coverage,
+            providerErrors
+        });
     } catch (error) {
-        console.error('Error in AI sync route:', error);
+        console.error('Error general en AI sync route:', error);
         return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
+    } finally {
+        if (releaseLock) {
+            releaseLock();
+        }
     }
 }
