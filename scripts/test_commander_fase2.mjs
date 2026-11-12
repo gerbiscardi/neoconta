@@ -410,7 +410,8 @@ async function testComponent3Sql() {
             password: 'SuperSecretSqlPassword!2026',
             tableOrQueryMode: 'table',
             tableName: 'public.facturas',
-            syncColumn: 'updated_at'
+            syncColumn: 'updated_at',
+            tieBreakerColumn: 'id'
         });
 
         assert.equal(saved.hasPassword, true);
@@ -844,6 +845,21 @@ async function testReviewObservations() {
         assert.ok(planNext.sqlText.includes('"updated_at" >= $1'), 'Incremental sync must use >= to avoid dropping repeated timestamps');
         assert.ok(planNext.sqlText.includes('OFFSET 2'));
 
+        // Require tieBreakerColumn whenever syncColumn is present
+        await assert.rejects(
+            () =>
+                saveSqlConnection('tenant_rev_sql', {
+                    name: 'ERP Incompleto',
+                    engine: 'postgres',
+                    host: '127.0.0.1',
+                    port: 5432,
+                    database: 'erp',
+                    username: 'ro_reader',
+                    syncColumn: 'updated_at'
+                }),
+            /clave de desempate única/i
+        );
+
         const sqlConn = await saveSqlConnection('tenant_rev_sql', {
             name: 'ERP Incremental',
             engine: 'postgres',
@@ -856,6 +872,7 @@ async function testReviewObservations() {
             tableName: 'public.facturas',
             dataType: 'invoices',
             syncColumn: 'updated_at',
+            tieBreakerColumn: 'id',
             columnMapping: { date: 'fecha', client_name: 'cliente', cuit: 'cuit', amount: 'importe', cbteDesde: 'nro' }
         });
 
@@ -869,23 +886,24 @@ async function testReviewObservations() {
         const afterFail = await getSqlConnectionById('tenant_rev_sql', sqlConn.id);
         assert.equal(afterFail.lastWatermark, null, 'Watermark MUST NOT advance when ingestion fails');
 
-        // Simulate 2 pages (pageSize: 2) with repeated timestamp across page boundary
+        // Simulate 2 pages (pageSize: 2) with repeated timestamp across page boundary via deterministic keyset
         const dataset = [
-            { fecha: '2026-10-01', cliente: 'Cli 1', cuit: '30711111119', importe: 1000, nro: 1, updated_at: '2026-10-01T10:00:00Z' },
-            { fecha: '2026-10-01', cliente: 'Cli 2', cuit: '30711111119', importe: 2000, nro: 2, updated_at: '2026-10-01T10:00:00Z' },
-            { fecha: '2026-10-02', cliente: 'Cli 3', cuit: '30711111119', importe: 3000, nro: 3, updated_at: '2026-10-01T10:00:00Z' }
+            { id: 1, fecha: '2026-10-01', cliente: 'Cli 1', cuit: '30711111119', importe: 1000, nro: 1, updated_at: '2026-10-01T10:00:00Z' },
+            { id: 2, fecha: '2026-10-01', cliente: 'Cli 2', cuit: '30711111119', importe: 2000, nro: 2, updated_at: '2026-10-01T10:00:00Z' },
+            { id: 3, fecha: '2026-10-02', cliente: 'Cli 3', cuit: '30711111119', importe: 3000, nro: 3, updated_at: '2026-10-01T10:00:00Z' }
         ];
         const syncOk = await syncSqlConnection('tenant_rev_sql', sqlConn.id, {
             pageSize: 2,
-            queryExecutor: async (_conn, sqlText) => {
-                const m = /OFFSET\s+(\d+)/i.exec(sqlText);
-                const off = m ? Number(m[1]) : 0;
-                return dataset.slice(off, off + 2);
+            queryExecutor: async (_conn, _sqlText, params) => {
+                if (!params || params.length === 0) return dataset.slice(0, 2);
+                const [w, tie] = params;
+                return dataset.filter((r) => r.updated_at > w || (r.updated_at === w && r.id > tie)).slice(0, 2);
             }
         });
         assert.equal(syncOk.insertedCount, 3, 'All 3 rows across 2 pages sharing timestamp must be ingested');
         const afterOk = await getSqlConnectionById('tenant_rev_sql', sqlConn.id);
         assert.equal(afterOk.lastWatermark, '2026-10-01T10:00:00Z');
+        assert.equal(afterOk.lastTieBreaker, 3);
 
         // 2. SQL security: reject admin usernames, SELECT INTO, side-effect functions, and verify strict TLS flags in source
         for (const badUser of ['sa', 'root', 'postgres', 'sysadmin']) {
@@ -938,12 +956,35 @@ async function testReviewObservations() {
         });
         assert.equal(bankSqlConn.dataType, 'transactions', 'bank_transactions must normalize to transactions');
 
-        const keysetPlan = buildSelectWithLimit(
+        // Test Postgres keyset plan
+        const pgKeysetPlan = buildSelectWithLimit(
             { engine: 'postgres', tableOrQueryMode: 'table', tableName: 'public.movimientos', syncColumn: 'updated_at', tieBreakerColumn: 'id' },
             { maxRows: 2, watermark: '2026-10-01T10:00:00Z', tieBreaker: 2 }
         );
-        assert.ok(keysetPlan.sqlText.includes('ORDER BY "updated_at" ASC, "id" ASC'));
-        assert.ok(keysetPlan.sqlText.includes('("updated_at" > $1 OR ("updated_at" = $1 AND "id" > $2))'));
+        assert.ok(pgKeysetPlan.sqlText.includes('ORDER BY "updated_at" ASC, "id" ASC'));
+        assert.ok(pgKeysetPlan.sqlText.includes('("updated_at" > $1 OR ("updated_at" = $1 AND "id" > $2))'));
+        assert.equal(pgKeysetPlan.params.length, 2);
+
+        // Test MySQL keyset plan (must supply exactly 3 positional parameters for ?, ?, ?)
+        const mysqlKeysetPlan = buildSelectWithLimit(
+            { engine: 'mysql', tableOrQueryMode: 'table', tableName: 'movimientos', syncColumn: 'updated_at', tieBreakerColumn: 'id' },
+            { maxRows: 2, watermark: '2026-10-01T10:00:00Z', tieBreaker: 2 }
+        );
+        assert.ok(mysqlKeysetPlan.sqlText.includes('ORDER BY `updated_at` ASC, `id` ASC'));
+        assert.ok(mysqlKeysetPlan.sqlText.includes('(`updated_at` > ? OR (`updated_at` = ? AND `id` > ?))'));
+        assert.equal(mysqlKeysetPlan.params.length, 3, 'MySQL keyset query must supply exactly 3 params for 3 placeholders');
+        assert.equal(mysqlKeysetPlan.params[0], '2026-10-01T10:00:00Z');
+        assert.equal(mysqlKeysetPlan.params[1], '2026-10-01T10:00:00Z');
+        assert.equal(mysqlKeysetPlan.params[2], 2);
+
+        // Test SQL Server keyset plan (must NOT have inner ORDER BY in derived table, must have OFFSET...FETCH)
+        const mssqlKeysetPlan = buildSelectWithLimit(
+            { engine: 'mssql', tableOrQueryMode: 'table', tableName: 'dbo.movimientos', syncColumn: 'updated_at', tieBreakerColumn: 'id' },
+            { maxRows: 2, watermark: '2026-10-01T10:00:00Z', tieBreaker: 2, offset: 0 }
+        );
+        assert.ok(mssqlKeysetPlan.sqlText.includes('OFFSET 0 ROWS FETCH NEXT 2 ROWS ONLY'));
+        assert.ok(!mssqlKeysetPlan.sqlText.includes('_cmd_src ORDER BY'), 'Derived table _cmd_src must NOT contain ORDER BY in SQL Server');
+        assert.equal(mssqlKeysetPlan.params.length, 2);
 
         const bankDataset = [
             { id: 1, fecha: '2026-10-01', cliente: 'B1', importe: 1000, concepto: 'Pago 1', updated_at: '2026-10-01T10:00:00Z' },

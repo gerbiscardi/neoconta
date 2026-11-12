@@ -90,6 +90,8 @@ export async function GET(request) {
                 signedAmount: inv.signedAmount,
                 provenance: inv.provenance,
                 isFiscalVerified: inv.isFiscalVerified,
+                fiscalEvidence: inv.fiscalEvidence || 'none',
+                onlineArcaVerified: Boolean(inv.onlineArcaVerified),
                 source: inv.source || 'arca',
                 originFileName: inv.originFileName || null,
                 batchId: inv.batchId || null
