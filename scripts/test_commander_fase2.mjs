@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import * as XLSX from 'xlsx';
 import { computeCommanderAnalytics, evaluateWidgets } from '../lib/commander/engine.js';
 import { processExternalIngestion, rollbackExternalBatch, getIngestPaths, loadJsonArray } from '../lib/commander/ingestService.js';
 import {
@@ -15,6 +16,15 @@ import {
     getSqlConnectionsPath,
     testSqlConnection
 } from '../lib/commander/sqlConnector.js';
+import {
+    buildCloudAuthUrl,
+    exchangeCloudOAuthCode,
+    saveCloudTokens,
+    getCloudStatus,
+    getCloudCredentialsPath,
+    syncCloudFile,
+    disconnectCloudProvider
+} from '../lib/commander/cloudConnector.js';
 
 async function testComponent1Engine() {
     const sampleInvoices = [
@@ -422,10 +432,135 @@ async function testComponent3Sql() {
     }
 }
 
+async function testComponent4Cloud() {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'commander-c4-'));
+    const prevDataDir = process.env.NEOCONTA_DATA_DIR;
+    const prevMsId = process.env.MICROSOFT_CLIENT_ID;
+    const prevMsSecret = process.env.MICROSOFT_CLIENT_SECRET;
+    const prevGoogleId = process.env.GOOGLE_CLIENT_ID;
+    const prevGoogleSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    process.env.NEOCONTA_DATA_DIR = tmpRoot;
+    delete process.env.MICROSOFT_CLIENT_ID;
+    delete process.env.MICROSOFT_CLIENT_SECRET;
+
+    try {
+        // 1. Fail-closed 501 when OneDrive credentials are missing
+        assert.throws(
+            () => buildCloudAuthUrl('tenant_cloud_a', 'onedrive'),
+            (err) => err.status === 501 && /MICROSOFT_CLIENT_ID/.test(err.message)
+        );
+
+        // 2. Google Drive auth URL uses separate drive.readonly scope & signed state
+        process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
+        process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
+        const gUrl = new URL(buildCloudAuthUrl('tenant_cloud_a', 'google_drive'));
+        assert.equal(gUrl.searchParams.get('scope'), 'https://www.googleapis.com/auth/drive.readonly');
+        assert.ok(gUrl.searchParams.get('redirect_uri').endsWith('/api/commander/cloud/google/callback'));
+        assert.ok(gUrl.searchParams.get('state'));
+
+        // Forged state must be rejected with 403
+        await assert.rejects(
+            () => exchangeCloudOAuthCode({ provider: 'google_drive', code: 'abc', state: 'forged.state' }),
+            (err) => err.status === 403
+        );
+
+        // 3. Encrypted token storage & tenant isolation
+        await saveCloudTokens('tenant_cloud_a', 'google_drive', {
+            accessToken: 'secret-access-token-123',
+            refreshToken: 'secret-refresh-456',
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+            scope: 'https://www.googleapis.com/auth/drive.readonly'
+        });
+
+        const rawCloudJson = await fs.readFile(getCloudCredentialsPath('tenant_cloud_a'), 'utf8');
+        assert.ok(!rawCloudJson.includes('secret-access-token-123'));
+        assert.ok(!rawCloudJson.includes('secret-refresh-456'));
+        assert.ok(rawCloudJson.includes('ENC_OAUTH:v1:'));
+
+        const statusA = await getCloudStatus('tenant_cloud_a');
+        assert.equal(statusA.providers.google_drive.connected, true);
+        assert.equal(statusA.providers.onedrive.configured, false);
+        assert.equal(statusA.providers.onedrive.connected, false);
+
+        const statusB = await getCloudStatus('tenant_cloud_b');
+        assert.equal(statusB.providers.google_drive.connected, false);
+
+        // 4. Cloud file sync pipeline with real XLSX buffer & idempotency (isolated mock HTTP transport)
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet([
+            { Fecha: '2026-10-05', Cliente: 'Cloud Clinic SA', CUIT: '30711223344', Importe: 42500, Comprobante: 1001 }
+        ]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
+        const xlsxBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        const mockFetch = async (url) => {
+            if (url.includes('fields=id,name,mimeType,modifiedTime')) {
+                return new Response(
+                    JSON.stringify({
+                        id: 'gdrive_file_99',
+                        name: 'ventas_octubre.xlsx',
+                        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        modifiedTime: '2026-10-06T12:00:00Z'
+                    }),
+                    { status: 200, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+            return new Response(xlsxBuffer, { status: 200 });
+        };
+
+        const sync1 = await syncCloudFile('tenant_cloud_a', {
+            provider: 'google_drive',
+            fileId: 'gdrive_file_99',
+            dataType: 'invoices',
+            columnMapping: { date: 'Fecha', client_name: 'Cliente', cuit: 'CUIT', amount: 'Importe', cbteDesde: 'Comprobante' },
+            fetchImpl: mockFetch
+        });
+        assert.equal(sync1.insertedCount, 1);
+        assert.equal(sync1.deduplicatedBatch, false);
+
+        const { invoicesFilePath } = getIngestPaths('tenant_cloud_a');
+        const savedInvs = await loadJsonArray(invoicesFilePath);
+        assert.equal(savedInvs.length, 1);
+        assert.equal(savedInvs[0].source, 'cloud_import');
+        assert.equal(savedInvs[0].provenance, 'external_cloud');
+        assert.equal(savedInvs[0].Importe, 42500);
+
+        const sync2 = await syncCloudFile('tenant_cloud_a', {
+            provider: 'google_drive',
+            fileId: 'gdrive_file_99',
+            dataType: 'invoices',
+            columnMapping: { date: 'Fecha', client_name: 'Cliente', cuit: 'CUIT', amount: 'Importe', cbteDesde: 'Comprobante' },
+            fetchImpl: mockFetch
+        });
+        assert.equal(sync2.deduplicatedBatch, true);
+        assert.equal(sync2.insertedCount, 0);
+
+        await disconnectCloudProvider('tenant_cloud_a', 'google_drive');
+        const afterDisconnect = await getCloudStatus('tenant_cloud_a');
+        assert.equal(afterDisconnect.providers.google_drive.connected, false);
+
+        console.log('PASS: Component 4 Cloud OAuth fail-closed, AES-GCM tokens, isolation & idempotent XLSX sync verified');
+    } finally {
+        if (prevDataDir === undefined) delete process.env.NEOCONTA_DATA_DIR;
+        else process.env.NEOCONTA_DATA_DIR = prevDataDir;
+        if (prevMsId === undefined) delete process.env.MICROSOFT_CLIENT_ID;
+        else process.env.MICROSOFT_CLIENT_ID = prevMsId;
+        if (prevMsSecret === undefined) delete process.env.MICROSOFT_CLIENT_SECRET;
+        else process.env.MICROSOFT_CLIENT_SECRET = prevMsSecret;
+        if (prevGoogleId === undefined) delete process.env.GOOGLE_CLIENT_ID;
+        else process.env.GOOGLE_CLIENT_ID = prevGoogleId;
+        if (prevGoogleSecret === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
+        else process.env.GOOGLE_CLIENT_SECRET = prevGoogleSecret;
+        await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 (async () => {
     await testComponent1Engine();
     await testComponent2Ingest();
     await testComponent3Sql();
+    await testComponent4Cloud();
 })().catch(err => {
     console.error(err);
     process.exit(1);
